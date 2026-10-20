@@ -1,7 +1,13 @@
+import json
+import math
 import tkinter as tk
 from tkinter import messagebox, ttk
 
 import database
+import smae_loader
+from r24h_tab import R24hTab
+from formulas_tab import FormulasTab
+from equivalentes_tab import EquivalesTab
 
 ETIQUETAS = [
     ("deporte", "Deporte"),
@@ -109,6 +115,42 @@ ISAK_ESTRUCTURA = [
 ]
 
 
+SOMATOTIPO_CAMPOS = [
+    ("peso", "Peso (kg)"),
+    ("estatura", "Estatura (cm)"),
+    ("triceps", "Tríceps (mm)"),
+    ("subescapular", "Subescapular (mm)"),
+    ("supraespinal", "Supraespinal (mm)"),
+    ("pierna_medial", "Pierna medial (mm)"),
+    ("humero", "Húmero (cm)"),
+    ("femur", "Fémur (cm)"),
+    ("brazo_flexionado", "Brazo flex. tensado (cm)"),
+    ("pierna_maximo", "Pierna máximo (cm)"),
+]
+
+SOMATOTIPO_ISAK = {
+    "peso": "masa_corporal",
+    "estatura": "estatura",
+    "triceps": "triceps",
+    "subescapular": "subescapular",
+    "supraespinal": "supraespinal",
+    "pierna_medial": "pierna_medial",
+    "humero": "humero",
+    "femur": "femur",
+    "brazo_flexionado": "brazo_flexionado",
+    "pierna_maximo": "pierna_maximo",
+}
+
+ISAK_PLIEGUES = {
+    "triceps",
+    "subescapular",
+    "supraespinal",
+    "pierna_medial",
+}
+ISAK_TOLERANCIA_PLIEGUES = 0.05
+ISAK_TOLERANCIA_OTROS = 0.01
+
+
 NEGRO = "#121212"
 GRIS_OSCURO = "#1E1E1E"
 GRIS = "#2C2C2C"
@@ -169,116 +211,17 @@ class DialogoAccion(tk.Toplevel):
         self.destroy()
 
 
-class DialogoPacientes(tk.Toplevel):
-    def __init__(self, parent, pacientes):
-        super().__init__(parent)
-        self.title("Seleccionar paciente")
-        self.configure(bg=NEGRO)
-        self.geometry("620x400")
-        self.transient(parent)
-        self.grab_set()
-
-        self.seleccion = None
-
-        ttk.Label(
-            self,
-            text="Selecciona el paciente a editar",
-            style="Estado.TLabel",
-        ).pack(anchor="w", padx=12, pady=(12, 6))
-
-        contenedor = ttk.Frame(self, style="Gym.TFrame")
-        contenedor.pack(fill="both", expand=True, padx=12, pady=6)
-
-        columnas = ("codigo", "nombre", "deporte", "gimnasio", "fecha")
-        self.tabla = ttk.Treeview(
-            contenedor, columns=columnas, show="headings", style="Gym.Treeview"
-        )
-        encabezados = {
-            "codigo": "Código",
-            "nombre": "Nombre",
-            "deporte": "Deporte",
-            "gimnasio": "Gimnasio",
-            "fecha": "Fecha",
-        }
-        for col in columnas:
-            self.tabla.heading(col, text=encabezados[col])
-            self.tabla.column(col, width=110, anchor="w")
-
-        scroll = ttk.Scrollbar(
-            contenedor, orient="vertical", command=self.tabla.yview
-        )
-        self.tabla.configure(yscrollcommand=scroll.set)
-        self.tabla.pack(side="left", fill="both", expand=True)
-        scroll.pack(side="right", fill="y")
-
-        for paciente in pacientes:
-            self.tabla.insert(
-                "",
-                "end",
-                iid=str(paciente["id"]),
-                values=(
-                    paciente.get("codigo") or "",
-                    paciente.get("nombre") or "",
-                    paciente.get("deporte") or "",
-                    paciente.get("gimnasio") or "",
-                    paciente.get("fecha") or "",
-                ),
-            )
-
-        self.tabla.bind("<Double-1>", lambda _e: self.confirmar())
-
-        barra = ttk.Frame(self, style="Gym.TFrame")
-        barra.pack(fill="x", padx=12, pady=12)
-        tk.Button(
-            barra,
-            text="EDITAR",
-            command=self.confirmar,
-            font=("Impact", 12),
-            fg=NEGRO,
-            bg=NEON,
-            activebackground=NARANJA,
-            activeforeground=BLANCO,
-            relief="flat",
-            padx=16,
-            pady=6,
-            cursor="hand2",
-        ).pack(side="left")
-        tk.Button(
-            barra,
-            text="CANCELAR",
-            command=self.destroy,
-            font=("Impact", 12),
-            fg=NEON,
-            bg=GRIS,
-            activebackground=NARANJA,
-            activeforeground=BLANCO,
-            relief="flat",
-            padx=16,
-            pady=6,
-            cursor="hand2",
-        ).pack(side="left", padx=8)
-
-    def confirmar(self):
-        seleccion = self.tabla.selection()
-        if not seleccion:
-            messagebox.showwarning(
-                "Selección", "Selecciona un paciente de la lista."
-            )
-            return
-        self.seleccion = int(seleccion[0])
-        self.destroy()
-
-
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Nutrición Deportiva")
-        self.geometry("900x780")
+        self.geometry("960x800")
         self.configure(bg=NEGRO)
 
         self.configurar_tema()
 
         database.init_db()
+        self._cargar_smae()
 
         self.id_paciente = None
         self.id_paciente_antro = None
@@ -295,7 +238,6 @@ class App(tk.Tk):
             ETIQUETAS,
             [
                 ("NUEVO PACIENTE", self.nuevo_paciente),
-                ("EDITAR PACIENTE", self.editar_paciente),
                 ("GUARDAR PACIENTE", self.guardar),
             ],
             self.entries,
@@ -388,7 +330,29 @@ class App(tk.Tk):
         self.entries_isak = {}
         self._crear_panel_isak(marco_antro)
 
+        self._crear_tab_somatotipo()
+
+        self.tab_r24h = R24hTab(self)
+        self.tab_r24h.create(self.notebook)
+
+        self.tab_formulas = FormulasTab(self)
+        self.tab_formulas.create(self.notebook)
+
+        self.tab_equivalentes = EquivalesTab(self)
+        self.tab_equivalentes.create(self.notebook)
+
         self._configurar_autocompletado()
+
+    def _cargar_smae(self):
+        if database.contar_smae_alimentos() > 0:
+            return
+        try:
+            smae_loader.importar_smae()
+        except Exception as error:
+            messagebox.showwarning(
+                "SMAE",
+                "No se pudo importar SMAE-5.xlsx:\n" f"{error}",
+            )
 
     def crear_formulario(
         self, notebook, titulo_tab, campos, botones, destino
@@ -522,27 +486,6 @@ class App(tk.Tk):
         self.id_paciente = None
         self.lbl_estado.configure(text="Nuevo paciente (sin guardar)")
         self.entries["nombre"].focus_set()
-
-    def editar_paciente(self):
-        pacientes = database.obtener_pacientes()
-        if not pacientes:
-            messagebox.showinfo("Editar", "No hay pacientes registrados.")
-            return
-        dialogo = DialogoPacientes(self, pacientes)
-        self.wait_window(dialogo)
-        if dialogo.seleccion is None:
-            return
-        paciente = database.obtener_paciente(dialogo.seleccion)
-        if not paciente:
-            return
-        for clave, entry in self.entries.items():
-            entry.delete(0, "end")
-            entry.insert(0, paciente.get(clave, "") or "")
-        self.id_paciente = paciente["id"]
-        self.lbl_estado.configure(
-            text=f"Editando {paciente.get('codigo') or ''} — "
-            f"{paciente.get('nombre', '')}"
-        )
 
     def refrescar_tabla_pacientes(self):
         for fila in self.tabla_pacientes.get_children():
@@ -688,21 +631,36 @@ class App(tk.Tk):
             text=f"Editando {paciente.get('codigo') or ''} — "
             f"{paciente.get('nombre', '')}"
         )
+        self._asignar_paciente_activo(paciente, "edicion")
+        self.limpiar_somatotipo()
+        if self.cargar_somatotipo_isak(silencioso=True):
+            self.calcular_somatotipo(silencioso=True)
 
-    def _iniciar_seguimiento(self, paciente):
+    def _asignar_paciente_activo(self, paciente, modo):
         self.id_paciente_antro = paciente["id"]
-        self.lbl_antro.configure(
-            text=f"Seguimiento de {paciente.get('codigo') or ''} — "
+        prefijo = "Editando" if modo == "edicion" else "Seguimiento de"
+        etiqueta = (
+            f"{prefijo} {paciente.get('codigo') or ''} — "
             f"{paciente.get('nombre', '')}"
         )
+        self.lbl_antro.configure(text=etiqueta)
+        self.lbl_soma.configure(text=etiqueta)
         entry_id = self.entries_isak.get("id_paciente")
         if entry_id is not None:
             entry_id.state(["!readonly"])
             entry_id.delete(0, "end")
             entry_id.insert(0, paciente.get("codigo") or "")
             entry_id.state(["readonly"])
+        self.tab_r24h.cargar(paciente["id"], paciente)
+        return etiqueta
+
+    def _iniciar_seguimiento(self, paciente):
+        self._asignar_paciente_activo(paciente, "seguimiento")
         self.notebook.select(self.marco_antro)
         self.entries_antro["fecha"].focus_set()
+        self.limpiar_somatotipo()
+        if self.cargar_somatotipo_isak(silencioso=True):
+            self.calcular_somatotipo(silencioso=True)
 
     def guardar(self):
         datos = self._leer(self.entries)
@@ -882,6 +840,510 @@ class App(tk.Tk):
             if clave == "id_paciente":
                 continue
             entry.delete(0, "end")
+        if self.cargar_somatotipo_isak(silencioso=True):
+            self.calcular_somatotipo(silencioso=True)
+
+    def _crear_tab_somatotipo(self):
+        marco = ttk.Frame(self.notebook, style="Gym.TFrame")
+        self.notebook.add(marco, text="  🔺 Somatotipo  ")
+        self.marco_somatotipo = marco
+
+        titulo = tk.Label(
+            marco,
+            text="SOMATOTIPO HEATH-CARTER",
+            font=("Impact", 20),
+            fg=NEON,
+            bg=GRIS_OSCURO,
+        )
+        titulo.grid(row=0, column=0, columnspan=2, sticky="we", pady=(4, 4))
+
+        self.lbl_soma = ttk.Label(
+            marco,
+            text="Seguimiento: sin paciente seleccionado",
+            style="Estado.TLabel",
+        )
+        self.lbl_soma.grid(
+            row=1, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 2)
+        )
+
+        panel_izq = ttk.Frame(marco, style="Gym.TFrame")
+        panel_izq.grid(row=2, column=0, sticky="nw", padx=(8, 4), pady=4)
+
+        ttk.Label(
+            panel_izq,
+            text="MEDIDAS (regla ISAK: 1 = tal cual | 2 = promedio | 3 = mediana)",
+            style="Estado.TLabel",
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
+
+        self.entries_soma = {}
+        mitad = (len(SOMATOTIPO_CAMPOS) + 1) // 2
+        grupos = [SOMATOTIPO_CAMPOS[:mitad], SOMATOTIPO_CAMPOS[mitad:]]
+        for c, grupo in enumerate(grupos):
+            marco_grupo = ttk.Frame(panel_izq, style="Gym.TFrame")
+            marco_grupo.grid(row=1, column=c, sticky="nw", padx=(0, 12))
+            for f, (clave, etiqueta) in enumerate(grupo):
+                ttk.Label(
+                    marco_grupo, text=f"{etiqueta}:", style="Gym.TLabel"
+                ).grid(row=f, column=0, sticky="e", padx=(4, 4), pady=5)
+                entry = ttk.Entry(marco_grupo, width=13, style="Gym.TEntry")
+                entry.grid(row=f, column=1, sticky="w", padx=(0, 4), pady=5)
+                self.entries_soma[clave] = entry
+
+        barra = ttk.Frame(panel_izq, style="Gym.TFrame")
+        barra.grid(row=2, column=0, columnspan=2, sticky="w", pady=(12, 0))
+
+        botones = [
+            ("CARGAR PROMEDIO ISAK", self.cargar_somatotipo_isak, False),
+            ("CARGAR PESO/TALLA (ANTRO)", self.cargar_somatotipo_antro, False),
+            ("CALCULAR", self.calcular_somatotipo, True),
+            ("LIMPIAR", self.limpiar_somatotipo, False),
+        ]
+        for i, (texto, comando, primario) in enumerate(botones):
+            tk.Button(
+                barra,
+                text=texto,
+                command=comando,
+                font=("Impact", 12),
+                fg=NEGRO if primario else NEON,
+                bg=NEON if primario else GRIS,
+                activebackground=NARANJA,
+                activeforeground=BLANCO,
+                relief="flat",
+                padx=12,
+                pady=6,
+                cursor="hand2",
+            ).grid(row=i // 2, column=i % 2, sticky="we", padx=(0, 6), pady=3)
+
+        panel_der = ttk.Frame(marco, style="Gym.TFrame")
+        panel_der.grid(row=2, column=1, sticky="nsew", padx=(4, 8), pady=4)
+        marco.columnconfigure(1, weight=1)
+        marco.rowconfigure(2, weight=1)
+
+        ttk.Label(panel_der, text="RESULTADOS", style="Estado.TLabel").pack(
+            anchor="w"
+        )
+        self.lbl_resultados_soma = tk.Label(
+            panel_der,
+            text="Captura las medidas y pulsa CALCULAR.",
+            bg=GRIS_OSCURO,
+            fg=BLANCO,
+            justify="left",
+            anchor="w",
+            font=("Consolas", 11),
+            padx=8,
+            pady=6,
+        )
+        self.lbl_resultados_soma.pack(fill="x")
+
+        self.canvas_soma = tk.Canvas(
+            panel_der, bg=NEGRO, highlightthickness=0, width=500, height=440
+        )
+        self.canvas_soma.pack(pady=(4, 0))
+
+        ttk.Label(
+            panel_der,
+            text="X = Ectomorfo - Endomorfo    |    "
+            "Y = 2 x Mesomorfo - (Endomorfo + Ectomorfo)",
+            style="Gym.TLabel",
+        ).pack(anchor="w", pady=(4, 0))
+
+        self._dibujar_somatochart()
+
+    @staticmethod
+    def _valor_isak(valores):
+        if not valores:
+            return None
+        if len(valores) == 1:
+            return valores[0]
+        if len(valores) == 2:
+            return (valores[0] + valores[1]) / 2.0
+        ordenados = sorted(valores)
+        return ordenados[1]
+
+    @staticmethod
+    def _nivel(valor):
+        if valor < 2.75:
+            return "bajo"
+        if valor < 5.25:
+            return "moderado"
+        if valor < 7.25:
+            return "alto"
+        return "muy alto"
+
+    @staticmethod
+    def _clasificar_somatotipo(endo, meso, ecto):
+        valores = [("Endomorfo", endo), ("Mesomorfo", meso), ("Ectomorfo", ecto)]
+        orden = sorted(valores, key=lambda par: -par[1])
+        if orden[0][1] - orden[2][1] <= 1.0:
+            return "Central (equilibrado)"
+        if orden[0][1] - orden[1][1] > 0.5:
+            return f"{orden[0][0]} dominante"
+        return f"Transición {orden[0][0].lower()}/{orden[1][0].lower()}"
+
+    def cargar_somatotipo_isak(self, silencioso=False):
+        if self.id_paciente_antro is None:
+            if not silencioso:
+                messagebox.showwarning(
+                    "Seguimiento",
+                    "Selecciona un paciente (campo Nombre) para el seguimiento.",
+                )
+            return False
+        registros = database.obtener_perfil_isak(self.id_paciente_antro)
+        if not registros:
+            if silencioso:
+                self.lbl_resultados_soma.configure(
+                    text="Sin perfil ISAK guardado. Captura y guarda el "
+                    "perfil en la pestaña Antropometría."
+                )
+                self._dibujar_somatochart()
+            else:
+                messagebox.showinfo(
+                    "Somatotipo", "Este paciente no tiene perfil ISAK guardado."
+                )
+            return False
+        datos = json.loads(registros[0]["datos"])
+        etiquetas = dict(SOMATOTIPO_CAMPOS)
+        faltantes = []
+        avisos = []
+        for clave, origen in SOMATOTIPO_ISAK.items():
+            valores = []
+            for i in (1, 2, 3):
+                texto = (
+                    str(datos.get(f"{origen}_{i}") or "")
+                    .strip()
+                    .replace(",", ".")
+                )
+                if texto:
+                    try:
+                        valores.append(float(texto))
+                    except ValueError:
+                        pass
+            if not valores:
+                faltantes.append(etiquetas[clave])
+                continue
+            final = self._valor_isak(valores)
+            entry = self.entries_soma[clave]
+            entry.delete(0, "end")
+            entry.insert(0, f"{final:.6g}")
+            if len(valores) == 2:
+                tolerancia = (
+                    ISAK_TOLERANCIA_PLIEGUES
+                    if clave in ISAK_PLIEGUES
+                    else ISAK_TOLERANCIA_OTROS
+                )
+                media = (valores[0] + valores[1]) / 2.0
+                if media > 0 and abs(valores[0] - valores[1]) / media > tolerancia:
+                    avisos.append(
+                        f"{etiquetas[clave]}: {valores[0]:g} / {valores[1]:g} "
+                        f"(dif. {100 * abs(valores[0] - valores[1]) / media:.1f}% "
+                        f"> {tolerancia * 100:g}%)"
+                    )
+        if faltantes and not silencioso:
+            messagebox.showinfo(
+                "Somatotipo",
+                "Sin dato en el perfil ISAK: " + ", ".join(faltantes),
+            )
+        if avisos and not silencioso:
+            messagebox.showinfo(
+                "ISAK - tolerancia",
+                "Medidas 2da toma fuera de tolerancia "
+                "(tomar 3ra medida):\n" + "\n".join(avisos),
+            )
+        return True
+
+    def cargar_somatotipo_antro(self):
+        if self.id_paciente_antro is None:
+            messagebox.showwarning(
+                "Seguimiento",
+                "Selecciona un paciente (campo Nombre) para el seguimiento.",
+            )
+            return
+        filas = database.obtener_antropometria()
+        fila = next(
+            (f for f in filas if f["paciente_id"] == self.id_paciente_antro),
+            None,
+        )
+        if fila is None:
+            messagebox.showinfo(
+                "Somatotipo", "Este paciente no tiene antropometría guardada."
+            )
+            return
+        rellenos = 0
+        for clave, columna in (("peso", "peso"), ("estatura", "altura")):
+            texto = str(fila[columna] or "").strip().replace(",", ".")
+            if not texto:
+                continue
+            try:
+                valor = float(texto)
+            except ValueError:
+                continue
+            entry = self.entries_soma[clave]
+            entry.delete(0, "end")
+            entry.insert(0, f"{valor:g}")
+            rellenos += 1
+        if not rellenos:
+            messagebox.showinfo(
+                "Somatotipo",
+                "El registro de antropometría no tiene peso ni estatura.",
+            )
+
+    def limpiar_somatotipo(self):
+        for entry in self.entries_soma.values():
+            entry.delete(0, "end")
+        self.lbl_resultados_soma.configure(
+            text="Captura las medidas y pulsa CALCULAR."
+        )
+        self._dibujar_somatochart()
+
+    def calcular_somatotipo(self, silencioso=False):
+        etiquetas = dict(SOMATOTIPO_CAMPOS)
+        datos = {}
+        faltantes = []
+        invalidos = []
+        for clave, entry in self.entries_soma.items():
+            texto = entry.get().strip().replace(",", ".")
+            if not texto:
+                faltantes.append(etiquetas[clave])
+                continue
+            try:
+                datos[clave] = float(texto)
+            except ValueError:
+                invalidos.append(etiquetas[clave])
+        if faltantes or invalidos:
+            if silencioso:
+                avisos = []
+                if faltantes:
+                    avisos.append("faltan " + ", ".join(faltantes))
+                if invalidos:
+                    avisos.append("no numéricos " + ", ".join(invalidos))
+                self.lbl_resultados_soma.configure(
+                    text="Datos incompletos: " + "; ".join(avisos) + "."
+                )
+                self._dibujar_somatochart()
+                return False
+            if faltantes:
+                messagebox.showwarning(
+                    "Validación", "Falta el dato: " + ", ".join(faltantes) + "."
+                )
+            else:
+                messagebox.showwarning(
+                    "Validación",
+                    "Valor no numérico en: " + ", ".join(invalidos) + ".",
+                )
+            return False
+        if datos["peso"] <= 0 or datos["estatura"] <= 0:
+            if silencioso:
+                self.lbl_resultados_soma.configure(
+                    text="Datos incompletos: peso y estatura deben ser "
+                    "mayores que cero."
+                )
+                self._dibujar_somatochart()
+                return False
+            messagebox.showwarning(
+                "Validación", "Peso y estatura deben ser mayores que cero."
+            )
+            return False
+
+        sum3 = datos["triceps"] + datos["subescapular"] + datos["supraespinal"]
+        xc = sum3 * (170.18 / datos["estatura"])
+        endo = -0.7182 + 0.1451 * xc - 0.00068 * xc ** 2 + 0.0000014 * xc ** 3
+        cag = datos["brazo_flexionado"] - datos["triceps"] / 10.0
+        ccg = datos["pierna_maximo"] - datos["pierna_medial"] / 10.0
+        meso = (
+            0.858 * datos["humero"]
+            + 0.601 * datos["femur"]
+            + 0.188 * cag
+            + 0.161 * ccg
+            - 0.131 * datos["estatura"]
+            + 4.5
+        )
+        hwr = datos["estatura"] / (datos["peso"] ** (1.0 / 3.0))
+        if hwr >= 40.75:
+            ecto = 0.732 * hwr - 28.58
+            rama = "HWR >= 40.75"
+        elif hwr > 38.25:
+            ecto = 0.463 * hwr - 17.63
+            rama = "38.25 < HWR < 40.75"
+        else:
+            ecto = 0.1
+            rama = "HWR <= 38.25"
+
+        e = max(round(endo, 1), 0.1)
+        m = max(round(meso, 1), 0.1)
+        c = max(round(ecto, 1), 0.1)
+        x = round(c - e, 1)
+        y = round(2 * m - (e + c), 1)
+
+        texto = (
+            f"Somatotipo: {e:.1f} - {m:.1f} - {c:.1f}\n"
+            f"Endomorfo {e:.1f} ({self._nivel(e)})  |  "
+            f"Mesomorfo {m:.1f} ({self._nivel(m)})  |  "
+            f"Ectomorfo {c:.1f} ({self._nivel(c)})\n"
+            f"Coordenadas:  X = {x:.1f}   Y = {y:.1f}\n"
+            f"HWR = {hwr:.2f} ({rama})\n"
+            f"Suma 3 pliegues = {sum3:.1f} mm  ->  corregida = {xc:.1f}\n"
+            f"Brazo corregido = {cag:.1f} cm  |  "
+            f"Pierna corregida = {ccg:.1f} cm\n"
+            f"Clasificación: {self._clasificar_somatotipo(e, m, c)}"
+        )
+        self.lbl_resultados_soma.configure(text=texto)
+        self._dibujar_somatochart((e, m, c, x, y))
+        return True
+
+    def _dibujar_somatochart(self, punto=None):
+        canvas = self.canvas_soma
+        canvas.delete("all")
+        ancho = int(canvas.cget("width"))
+        alto = int(canvas.cget("height"))
+
+        x_min, x_max = -8.0, 8.0
+        y_min, y_max = -8.0, 14.0
+        escala_y = min(
+            ancho / ((x_max - x_min) * math.sqrt(3)),
+            alto / (y_max - y_min),
+        )
+        escala_x = escala_y * math.sqrt(3)
+        margen_x = (ancho - (x_max - x_min) * escala_x) / 2
+        margen_y = (alto - (y_max - y_min) * escala_y) / 2
+
+        def px(valor):
+            return margen_x + (valor - x_min) * escala_x
+
+        def py(valor):
+            return margen_y + (y_max - valor) * escala_y
+
+        rejilla = "#262626"
+        for v in range(-8, 15, 2):
+            canvas.create_line(px(v), py(y_min), px(v), py(y_max), fill=rejilla)
+            canvas.create_line(px(x_min), py(v), px(x_max), py(v), fill=rejilla)
+
+        canvas.create_line(
+            px(x_min), py(0), px(x_max), py(0), fill=GRIS_TEXTO, width=1
+        )
+        canvas.create_line(
+            px(0), py(y_min), px(0), py(y_max), fill=GRIS_TEXTO, width=1
+        )
+        for v in range(-6, 7, 2):
+            canvas.create_text(
+                px(v),
+                py(0) + 10,
+                text=str(v),
+                fill=GRIS_TEXTO,
+                font=("Segoe UI", 8),
+            )
+        for v in range(-6, 13, 2):
+            canvas.create_text(
+                px(0) - 8,
+                py(v),
+                text=str(v),
+                fill=GRIS_TEXTO,
+                font=("Segoe UI", 8),
+                anchor="e",
+            )
+
+        v_endo = (px(-6), py(-6))
+        v_ecto = (px(6), py(-6))
+        v_meso = (px(0), py(12))
+        lado = math.hypot(v_ecto[0] - v_endo[0], v_ecto[1] - v_endo[1])
+
+        def angulo(cx, cy, xy):
+            return math.degrees(math.atan2(cy - xy[1], xy[0] - cx)) % 360
+
+        def arco(centro, a, b):
+            cx, cy = centro
+            ra = angulo(cx, cy, a)
+            rb = angulo(cx, cy, b)
+            bx = (a[0] - cx) + (b[0] - cx)
+            by = (a[1] - cy) + (b[1] - cy)
+            norm = math.hypot(bx, by) or 1.0
+            medio = (cx + bx / norm * lado, cy + by / norm * lado)
+            rm = angulo(cx, cy, medio)
+            recorrido = (rb - ra) % 360
+            if (rm - ra) % 360 <= recorrido:
+                extent = recorrido
+            else:
+                extent = -((ra - rb) % 360)
+            canvas.create_arc(
+                cx - lado,
+                cy - lado,
+                cx + lado,
+                cy + lado,
+                start=ra,
+                extent=extent,
+                style=tk.ARC,
+                outline=NEON,
+                width=2,
+            )
+
+        arco(v_meso, v_endo, v_ecto)
+        arco(v_endo, v_meso, v_ecto)
+        arco(v_ecto, v_endo, v_meso)
+
+        canvas.create_text(
+            px(-6),
+            py(-6) + 18,
+            text="ENDOMORPHY",
+            fill=GRIS_TEXTO,
+            font=("Segoe UI", 9, "bold"),
+        )
+        canvas.create_text(
+            px(6),
+            py(-6) + 18,
+            text="ECTOMORPHY",
+            fill=GRIS_TEXTO,
+            font=("Segoe UI", 9, "bold"),
+        )
+        canvas.create_text(
+            px(0),
+            py(12) - 16,
+            text="MESOMORPHY",
+            fill=GRIS_TEXTO,
+            font=("Segoe UI", 9, "bold"),
+        )
+        canvas.create_text(
+            px(0),
+            py(0) - 10,
+            text="CENTRO 4-4-4",
+            fill="#5A5A5A",
+            font=("Segoe UI", 8),
+        )
+
+        if punto is not None:
+            e, m, c, x, y = punto
+            cxp, cyp = px(x), py(y)
+            radio = 7
+            canvas.create_oval(
+                cxp - radio,
+                cyp - radio,
+                cxp + radio,
+                cyp + radio,
+                fill=NARANJA,
+                outline=BLANCO,
+                width=2,
+            )
+            if cxp + radio + 90 <= ancho:
+                tx, anchor = cxp + radio + 5, "w"
+            elif cxp - radio - 90 >= 0:
+                tx, anchor = cxp - radio - 5, "e"
+            else:
+                tx, anchor = cxp, "center"
+            dy = -8 if anchor != "center" else -radio - 26
+            canvas.create_text(
+                tx,
+                cyp + dy,
+                text=f"{e:.1f}-{m:.1f}-{c:.1f}",
+                fill=NEON,
+                font=("Segoe UI", 11, "bold"),
+                anchor=anchor,
+            )
+            canvas.create_text(
+                tx,
+                cyp + dy + 16,
+                text=f"X {x:.1f}  Y {y:.1f}",
+                fill=BLANCO,
+                font=("Segoe UI", 9),
+                anchor=anchor,
+            )
 
 
 if __name__ == "__main__":
