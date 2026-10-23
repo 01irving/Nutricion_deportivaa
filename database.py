@@ -831,6 +831,18 @@ def contar_rutinas_ejercicios(grupo="hombros"):
         conn.close()
 
 
+def get_rutinas_grupos():
+    """Grupos musculares cargados en el catalogo, con su numero de ejercicios."""
+    conn = get_connection()
+    try:
+        filas = conn.execute(
+            "SELECT grupo, COUNT(*) FROM rutinas_ejercicios GROUP BY grupo"
+        ).fetchall()
+    finally:
+        conn.close()
+    return [{"grupo": grupo, "total": total} for grupo, total in filas]
+
+
 def get_rutinas_paciente(paciente_id, grupo=None):
     conn = get_connection()
     try:

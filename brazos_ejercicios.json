@@ -1,0 +1,184 @@
+[
+  {
+    "num": "01",
+    "nombre": "Flexión alterna con rotación de la muñeca y elevación de los codos",
+    "equipo": "MANCUERNAS",
+    "imagen": "brazo_p03_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "02",
+    "nombre": "Flexión alterna del codo con mancuerna, codo apoyado sobre el muslo",
+    "equipo": "MANCUERNA",
+    "imagen": "brazo_p04_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "03",
+    "nombre": "Flexión de los codos con mancuernas en el banco inclinado",
+    "equipo": "MANCUERNAS",
+    "imagen": "brazo_p05_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "04",
+    "nombre": "Flexión del codo con mancuernas cortas y \"presa de martillo\"",
+    "equipo": "MANCUERNAS",
+    "imagen": "brazo_p06_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "05",
+    "nombre": "Flexión alterna de los codos con polea baja",
+    "equipo": "POLEA",
+    "imagen": "brazo_p07_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "06",
+    "nombre": "Bíceps con los brazos en cruz en polea alta",
+    "equipo": "POLEA",
+    "imagen": "brazo_p08_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "07",
+    "nombre": "Flexión de codos con barra, manos en supinación",
+    "equipo": "BARRA",
+    "imagen": "brazo_p09_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "08",
+    "nombre": "Bíceps en el banco Scott",
+    "equipo": "MÁQUINA",
+    "imagen": "brazo_p10_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "09",
+    "nombre": "Curl de bíceps en el banco Scott",
+    "equipo": "BARRA",
+    "imagen": "brazo_p11_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "10",
+    "nombre": "Extensión de las muñecas con barra",
+    "equipo": "BARRA",
+    "imagen": "brazo_p12_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "11",
+    "nombre": "Flexión de las muñecas con barra",
+    "equipo": "BARRA",
+    "imagen": "brazo_p13_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "12",
+    "nombre": "Curl de bíceps con barra y agarre en pronación",
+    "equipo": "BARRA",
+    "imagen": "brazo_p14_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "13",
+    "nombre": "Extensiones de tríceps en polea alta, manos en pronación",
+    "equipo": "POLEA",
+    "imagen": "brazo_p15_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "14",
+    "nombre": "Extensiones de tríceps en polea alta, agarre invertido o en supinación",
+    "equipo": "POLEA",
+    "imagen": "brazo_p16_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "15",
+    "nombre": "Extensión alterna de los antebrazos en polea alta, manos en supinación",
+    "equipo": "POLEA",
+    "imagen": "brazo_p17_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "16",
+    "nombre": "Tríceps en polea Atlas posterior",
+    "equipo": "MÁQUINA",
+    "imagen": "brazo_p18_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "17",
+    "nombre": "Extensión de los brazos con barra en banco plano",
+    "equipo": "BARRA",
+    "imagen": "brazo_p19_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "18",
+    "nombre": "Extensión de los brazos en posición tendida con mancuernas",
+    "equipo": "MANCUERNAS",
+    "imagen": "brazo_p20_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "19",
+    "nombre": "Extensión vertical alterna de los brazos con mancuerna",
+    "equipo": "MANCUERNA",
+    "imagen": "brazo_p21_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "20",
+    "nombre": "Extensión alterna de los codos con mancuerna, tronco inclinado hacia delante",
+    "equipo": "MANCUERNA",
+    "imagen": "brazo_p22_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "21",
+    "nombre": "Extensión de los brazos, sentado con una mancuerna cogida a dos manos",
+    "equipo": "MANCUERNA",
+    "imagen": "brazo_p23_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "22",
+    "nombre": "Extensión de los brazos, sentado, con barra",
+    "equipo": "BARRA",
+    "imagen": "brazo_p24_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "23",
+    "nombre": "Dippings entre dos bancos",
+    "equipo": "PESO CORPORAL",
+    "imagen": "brazo_p25_i01.jpeg",
+    "zona": ""
+  },
+  {
+    "num": "24",
+    "nombre": "Estiramiento de los músculos extensores de la muñeca",
+    "equipo": "ESTIRAMIENTO",
+    "imagen": "brazo_p26_i01.jpeg",
+    "zona": "A N T EB R A Z O"
+  },
+  {
+    "num": "25",
+    "nombre": "Estiramiento de los músculos flexores de la muñeca",
+    "equipo": "ESTIRAMIENTO",
+    "imagen": "brazo_p27_i01.jpeg",
+    "zona": "A N T EB R A Z O"
+  },
+  {
+    "num": "26",
+    "nombre": "Estiramiento del tríceps",
+    "equipo": "ESTIRAMIENTO",
+    "imagen": "brazo_p28_i01.jpeg",
+    "zona": ""
+  }
+]

@@ -6,6 +6,7 @@ Permite elegir el grupo muscular, consultar la vista previa del ejercicio
 observaciones y advertencias) y añadirlo a la selección del paciente
 activo (persistida en SQLite).
 """
+import io
 import os
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -52,6 +53,7 @@ class EstiramientosTab:
         self._estiramientos = []
         self._por_id = {}
         self._foto = None
+        self._dirty = False
 
     # ------------------------------------------------------------------
     def create(self, parent):
@@ -301,25 +303,42 @@ class EstiramientosTab:
         self.txt_preview.configure(state=tk.DISABLED)
 
     def _cargar_imagen(self, ejercicio):
-        """Muestra la ilustración del ejercicio (si existe el archivo)."""
+        """Muestra la ilustración: primero el blob de la base, luego el archivo."""
         self.lbl_imagen.configure(image="", text="")
         self._foto = None
-        nombre = ejercicio.get("imagen")
-        if not nombre:
-            return
-        ruta = os.path.join(RUTA_IMAGENES, f"{nombre}.png")
-        if not os.path.exists(ruta):
-            return
         try:
             from PIL import Image, ImageTk
-
-            with Image.open(ruta) as imagen:
-                copia = imagen.convert("RGB")
-                copia.thumbnail((260, 300))
-                self._foto = ImageTk.PhotoImage(copia)
         except Exception:
-            self._foto = None
             return
+
+        original = None
+        blob = ejercicio.get("imagen_blob")
+        if blob:
+            try:
+                with Image.open(io.BytesIO(blob)) as imagen:
+                    original = imagen.convert("RGB")
+            except Exception:
+                original = None
+
+        if original is None:
+            nombre = ejercicio.get("imagen")
+            if not nombre:
+                return
+            for ext in (".png", ".jpg", ".jpeg"):
+                ruta = os.path.join(RUTA_IMAGENES, f"{nombre}{ext}")
+                if os.path.exists(ruta):
+                    try:
+                        with Image.open(ruta) as imagen:
+                            original = imagen.convert("RGB")
+                    except Exception:
+                        original = None
+                    break
+        if original is None:
+            return
+
+        copia = original.copy()
+        copia.thumbnail((260, 300))
+        self._foto = ImageTk.PhotoImage(copia)
         self.lbl_imagen.configure(image=self._foto, text="")
 
     # ------------------------------------------------------------------
@@ -350,6 +369,7 @@ class EstiramientosTab:
             "notas": self.notas_var.get().strip(),
         }
         self.seleccion.append(registro)
+        self._dirty = True
         self._render_seleccion()
         self.notas_var.set("")
 
@@ -363,6 +383,7 @@ class EstiramientosTab:
         pos = int(sel[0])
         if 0 <= pos < len(self.seleccion):
             self.seleccion.pop(pos)
+        self._dirty = True
         self._render_seleccion()
 
     def _render_seleccion(self):
@@ -396,6 +417,7 @@ class EstiramientosTab:
                 "Estiramientos", f"No se pudo guardar:\n{error}"
             )
             return
+        self._dirty = False
         messagebox.showinfo(
             "Estiramientos",
             f"Guardados {len(self.seleccion)} estiramiento(s) para el "
@@ -453,6 +475,7 @@ class EstiramientosTab:
         self.paciente_id = paciente_id
         self.lbl_estado.configure(text=f"Estiramientos de paciente {paciente_id}")
         self.seleccion = database.get_estiramientos_paciente(paciente_id)
+        self._dirty = False
         self._render_seleccion()
 
     def refrescar_estado(self):
@@ -461,6 +484,10 @@ class EstiramientosTab:
         if paciente_id is None:
             return
         if paciente_id == self.paciente_id:
+            # Si no hay cambios sin guardar, refleja lo que se haya añadido
+            # desde la pestaña Rutinas > Estiramiento.
+            if not self._dirty:
+                self.cargar(paciente_id)
             return
         self.cargar(paciente_id)
 
