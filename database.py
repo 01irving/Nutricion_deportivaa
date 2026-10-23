@@ -350,6 +350,13 @@ def init_db():
         except Exception:
             pass
 
+        try:
+            from rutinas_data import cargar_catalogo_rutinas
+
+            cargar_catalogo_rutinas(conn)
+        except Exception:
+            pass
+
 
 
 def generar_codigo(id_paciente):
