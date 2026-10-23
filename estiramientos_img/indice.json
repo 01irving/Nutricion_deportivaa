@@ -1,0 +1,146 @@
+{
+  "01": {
+    "grupo": "Brazos",
+    "nombre_archivo": "01_antebrazo",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\01_antebrazo.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\01_antebrazo.jpg",
+    "ancho": 1100,
+    "alto": 736
+  },
+  "02": {
+    "grupo": "Brazos",
+    "nombre_archivo": "02_triceps",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\02_triceps.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\02_triceps.jpg",
+    "ancho": 1100,
+    "alto": 1003
+  },
+  "03": {
+    "grupo": "Hombros",
+    "nombre_archivo": "03_deltoides_anterior",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\03_deltoides_anterior.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\03_deltoides_anterior.jpg",
+    "ancho": 1100,
+    "alto": 1179
+  },
+  "04": {
+    "grupo": "Hombros",
+    "nombre_archivo": "04_manguito_rotadores",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\04_manguito_rotadores.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\04_manguito_rotadores.jpg",
+    "ancho": 1064,
+    "alto": 1229
+  },
+  "05": {
+    "grupo": "Hombros",
+    "nombre_archivo": "05_hombros",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\05_hombros.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\05_hombros.jpg",
+    "ancho": 1100,
+    "alto": 822
+  },
+  "06": {
+    "grupo": "Pectorales",
+    "nombre_archivo": "06_pectoral_mayor",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\06_pectoral_mayor.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\06_pectoral_mayor.jpg",
+    "ancho": 1100,
+    "alto": 1073
+  },
+  "07": {
+    "grupo": "Espalda",
+    "nombre_archivo": "07_dorsal_ancho_redondo_mayor",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\07_dorsal_ancho_redondo_mayor.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\07_dorsal_ancho_redondo_mayor.jpg",
+    "ancho": 1100,
+    "alto": 1437
+  },
+  "08": {
+    "grupo": "Espalda",
+    "nombre_archivo": "08_barra_fija",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\08_barra_fija.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\08_barra_fija.jpg",
+    "ancho": 1100,
+    "alto": 1891
+  },
+  "09": {
+    "grupo": "Espalda",
+    "nombre_archivo": "09_deltoides_trapecio_cuello",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\09_deltoides_trapecio_cuello.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\09_deltoides_trapecio_cuello.jpg",
+    "ancho": 1100,
+    "alto": 842
+  },
+  "10": {
+    "grupo": "Espalda",
+    "nombre_archivo": "10_trapecio_cuello",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\10_trapecio_cuello.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\10_trapecio_cuello.jpg",
+    "ancho": 1100,
+    "alto": 927
+  },
+  "11": {
+    "grupo": "Piernas",
+    "nombre_archivo": "11_squat",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\11_squat.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\11_squat.jpg",
+    "ancho": 1100,
+    "alto": 989
+  },
+  "12": {
+    "grupo": "Piernas",
+    "nombre_archivo": "12_cuadriceps",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\12_cuadriceps.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\12_cuadriceps.jpg",
+    "ancho": 1100,
+    "alto": 2217
+  },
+  "13": {
+    "grupo": "Piernas",
+    "nombre_archivo": "13_isquiotibiales",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\13_isquiotibiales.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\13_isquiotibiales.jpg",
+    "ancho": 736,
+    "alto": 1057
+  },
+  "14": {
+    "grupo": "Piernas",
+    "nombre_archivo": "14_pantorrilla",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\14_pantorrilla.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\14_pantorrilla.jpg",
+    "ancho": 1100,
+    "alto": 1120
+  },
+  "15": {
+    "grupo": "Gluteos",
+    "nombre_archivo": "15_gluteo_mayor_isquiotibiales",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\15_gluteo_mayor_isquiotibiales.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\15_gluteo_mayor_isquiotibiales.jpg",
+    "ancho": 1100,
+    "alto": 345
+  },
+  "16": {
+    "grupo": "Gluteos",
+    "nombre_archivo": "16_gluteos",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\16_gluteos.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\16_gluteos.jpg",
+    "ancho": 1100,
+    "alto": 682
+  },
+  "17": {
+    "grupo": "Abdominales",
+    "nombre_archivo": "17_parte_superior_cuerpo",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\17_parte_superior_cuerpo.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\17_parte_superior_cuerpo.jpg",
+    "ancho": 1100,
+    "alto": 2377
+  },
+  "18": {
+    "grupo": "Abdominales",
+    "nombre_archivo": "18_abdominales",
+    "ruta_png": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\18_abdominales.png",
+    "ruta_jpg": "D:\\Biblioteca\\Nutrición_deportiva\\estiramientos_img\\18_abdominales.jpg",
+    "ancho": 1100,
+    "alto": 490
+  }
+}

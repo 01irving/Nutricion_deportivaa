@@ -4,6 +4,7 @@ Basado en NUTR107x Formula Card (Schofield BMR, PAL) y el Compendio de
 Actividades Físicas 2011 (mets.csv) para la energía del ejercicio (EEE).
 """
 import tkinter as tk
+from datetime import date, datetime
 from tkinter import messagebox, ttk
 
 import database
@@ -14,6 +15,40 @@ GRIS = "#2C2C2C"
 NEON = "#C6FF00"
 NARANJA = "#FF6D00"
 BLANCO = "#F5F5F5"
+
+
+def calcular_edad(fecha_nacimiento, referencia=None):
+    """Edad en años (int) a partir de la fecha de nacimiento (texto)."""
+    if not fecha_nacimiento:
+        return None
+    referencia = referencia or date.today()
+    texto = str(fecha_nacimiento).strip()
+    formatos = (
+        "%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d",
+        "%d/%m/%y", "%d-%m-%y", "%Y-%m-%d %H:%M:%S",
+    )
+    nacimiento = None
+    for fmt in formatos:
+        try:
+            nacimiento = datetime.strptime(texto, fmt).date()
+            break
+        except ValueError:
+            continue
+    if nacimiento is None:
+        # Intentar tomar solo la fecha si viene con hora/espacio
+        solo_fecha = texto.split(" ")[0]
+        for fmt in formatos:
+            try:
+                nacimiento = datetime.strptime(solo_fecha, fmt).date()
+                break
+            except ValueError:
+                continue
+    if nacimiento is None:
+        return None
+    edad = referencia.year - nacimiento.year - (
+        (referencia.month, referencia.day) < (nacimiento.month, nacimiento.day)
+    )
+    return edad if edad >= 0 else None
 
 
 def bmr_schofield(peso, edad, sexo):
@@ -54,6 +89,7 @@ class FormulasTab:
         self.app = app
         self.tee = None
         self.peso = None
+        self.resultado = None
 
     def create(self, parent):
         self.marco = ttk.Frame(parent, style="Gym.TFrame")
@@ -85,8 +121,30 @@ class FormulasTab:
         )
         ttk.Combobox(
             datos, textvariable=self.sexo_var, values=["H", "M"],
-            state="readonly", width=6,
+            state="readonly", width=6, style="Gym.TCombobox",
         ).grid(row=2, column=1, sticky="w", padx=4, pady=5)
+
+        self.talla_var = tk.StringVar(value="")
+        ttk.Label(datos, text="Talla (cm):", style="Gym.TLabel").grid(
+            row=3, column=0, sticky="e", padx=4, pady=5
+        )
+        ttk.Entry(datos, textvariable=self.talla_var, width=10,
+                  style="Gym.TEntry").grid(row=3, column=1, sticky="w", padx=4, pady=5)
+
+        tk.Button(
+            datos,
+            text="TOMAR DE ANTROPOMETRÍA",
+            command=self.cargar_desde_antropometria,
+            font=("Impact", 10),
+            fg=NEGRO,
+            bg=NEON,
+            activebackground=NARANJA,
+            activeforeground=BLANCO,
+            relief="flat",
+            padx=12,
+            pady=4,
+            cursor="hand2",
+        ).grid(row=4, column=0, columnspan=2, sticky="we", padx=4, pady=(8, 2))
 
         # ----- Actividad / MET -----
         act = ttk.LabelFrame(
@@ -99,7 +157,8 @@ class FormulasTab:
         )
         self.cat_var = tk.StringVar()
         self.cat_combo = ttk.Combobox(
-            act, textvariable=self.cat_var, state="readonly", width=30
+            act, textvariable=self.cat_var, state="readonly", width=30,
+            style="Gym.TCombobox",
         )
         self.cat_combo.grid(row=0, column=1, columnspan=3, sticky="w", padx=4, pady=5)
         self.cat_combo.bind("<<ComboboxSelected>>", self._on_categoria)
@@ -109,7 +168,8 @@ class FormulasTab:
         )
         self.act_var = tk.StringVar()
         self.act_combo = ttk.Combobox(
-            act, textvariable=self.act_var, state="readonly", width=52
+            act, textvariable=self.act_var, state="readonly", width=52,
+            style="Gym.TCombobox",
         )
         self.act_combo.grid(row=1, column=1, columnspan=3, sticky="w", padx=4, pady=5)
         self.act_combo.bind("<<ComboboxSelected>>", self._on_actividad)
@@ -118,14 +178,16 @@ class FormulasTab:
             row=2, column=0, sticky="e", padx=4, pady=5
         )
         self.mets_var = tk.StringVar(value="")
-        self.mets_entry = ttk.Entry(act, textvariable=self.mets_var, width=8)
+        self.mets_entry = ttk.Entry(act, textvariable=self.mets_var, width=8,
+                                    style="Gym.TEntry")
         self.mets_entry.grid(row=2, column=1, sticky="w", padx=4, pady=5)
 
         ttk.Label(act, text="Horas de ejercicio (h):", style="Gym.TLabel").grid(
             row=2, column=2, sticky="e", padx=4, pady=5
         )
         self.horas_var = tk.StringVar(value="1")
-        ttk.Entry(act, textvariable=self.horas_var, width=8).grid(
+        ttk.Entry(act, textvariable=self.horas_var, width=8,
+                  style="Gym.TEntry").grid(
             row=2, column=3, sticky="w", padx=4, pady=5
         )
 
@@ -150,6 +212,7 @@ class FormulasTab:
             ],
             state="readonly",
             width=28,
+            style="Gym.TCombobox",
         )
         self.pal_combo.grid(row=0, column=1, sticky="w", padx=4, pady=5)
         self.pal_combo.bind("<<ComboboxSelected>>", self._on_pal)
@@ -157,7 +220,8 @@ class FormulasTab:
         ttk.Label(pal, text="PAL manual:", style="Gym.TLabel").grid(
             row=1, column=0, sticky="e", padx=4, pady=5
         )
-        ttk.Entry(pal, textvariable=self.pal_var, width=10).grid(
+        ttk.Entry(pal, textvariable=self.pal_var, width=10,
+                  style="Gym.TEntry").grid(
             row=1, column=1, sticky="w", padx=4, pady=5
         )
 
@@ -165,23 +229,27 @@ class FormulasTab:
             row=2, column=0, sticky="e", padx=4, pady=5
         )
         self.h24_var = tk.StringVar(value="23")
-        ttk.Entry(pal, textvariable=self.h24_var, width=10).grid(
+        ttk.Entry(pal, textvariable=self.h24_var, width=10,
+                  style="Gym.TEntry").grid(
             row=2, column=1, sticky="w", padx=4, pady=5
         )
 
         # ----- Botones -----
         barra = ttk.Frame(contenedor, style="Gym.TFrame")
         barra.grid(row=3, column=0, sticky="w", pady=(10, 0))
-        for i, (texto, comando) in enumerate(
-            [("CALCULAR", self.calcular), ("LIMPIAR", self.limpiar)]
-        ):
+        botones = [
+            ("CALCULAR", self.calcular, True),
+            ("GUARDAR", self.guardar, False),
+            ("LIMPIAR", self.limpiar, False),
+        ]
+        for texto, comando, primario in botones:
             tk.Button(
                 barra,
                 text=texto,
                 command=comando,
                 font=("Impact", 12),
-                fg=NEGRO if i == 0 else NEON,
-                bg=NEON if i == 0 else GRIS,
+                fg=NEGRO if primario else NEON,
+                bg=NEON if primario else GRIS,
                 activebackground=NARANJA,
                 activeforeground=BLANCO,
                 relief="flat",
@@ -218,7 +286,7 @@ class FormulasTab:
         ttk.Label(parent, text=etiqueta, style="Gym.TLabel").grid(
             row=fila, column=0, sticky="e", padx=4, pady=5
         )
-        ttk.Entry(parent, textvariable=var, width=10).grid(
+        ttk.Entry(parent, textvariable=var, width=10, style="Gym.TEntry").grid(
             row=fila, column=1, sticky="w", padx=4, pady=5
         )
 
@@ -228,6 +296,71 @@ class FormulasTab:
         if categorias:
             self.cat_combo.current(0)
             self._on_categoria()
+
+    def cargar_desde_antropometria(self):
+        """Toma peso y talla de antropometría y calcula la edad por fecha de nacimiento.
+
+        Si falta algún dato, deja el campo vacío y muestra el aviso correspondiente.
+        """
+        paciente_id = getattr(self.app, "id_paciente_antro", None)
+        if paciente_id is None:
+            messagebox.showwarning(
+                "Fórmulas predictivas",
+                "Selecciona un paciente antes de tomar datos.",
+            )
+            return
+
+        avisos = []
+
+        # --- Peso y talla desde la antropometría más reciente ---
+        filas = database.obtener_antropometria()
+        fila = next(
+            (f for f in filas if f["paciente_id"] == paciente_id), None
+        )
+
+        peso_texto = ""
+        talla_texto = ""
+        if fila is None:
+            avisos.append("El paciente no tiene antropometría guardada.")
+        else:
+            peso_texto = str(fila["peso"] or "").strip().replace(",", ".")
+            talla_texto = str(fila["altura"] or "").strip().replace(",", ".")
+            if not peso_texto:
+                avisos.append("La antropometría no tiene peso.")
+            if not talla_texto:
+                avisos.append("La antropometría no tiene talla.")
+
+        try:
+            self.peso_var.set(f"{float(peso_texto):g}")
+        except ValueError:
+            self.peso_var.set("")
+            if peso_texto:
+                avisos.append("El peso guardado no es válido.")
+
+        try:
+            self.talla_var.set(f"{float(talla_texto):g}")
+        except ValueError:
+            self.talla_var.set("")
+            if talla_texto:
+                avisos.append("La talla guardada no es válida.")
+
+        # --- Edad desde la fecha de nacimiento del paciente ---
+        paciente = database.obtener_paciente(paciente_id) or {}
+        fecha_nac = paciente.get("fecha_nacimiento") or paciente.get("dob")
+        edad = calcular_edad(fecha_nac)
+        if edad is not None:
+            self.edad_var.set(str(edad))
+        else:
+            self.edad_var.set("")
+            avisos.append("No se pudo calcular la edad (fecha de nacimiento).")
+
+        if avisos:
+            messagebox.showinfo("Fórmulas predictivas", "\n".join(avisos))
+        else:
+            messagebox.showinfo(
+                "Fórmulas predictivas",
+                "Peso, talla y edad tomados correctamente.",
+            )
 
     def _on_categoria(self, event=None):
         categoria = self.cat_var.get()
@@ -284,6 +417,23 @@ class FormulasTab:
 
         self.tee = tee
         self.peso = peso
+        self.resultado = {
+            "peso": peso,
+            "edad": edad,
+            "sexo": self.sexo_var.get(),
+            "pal": pal,
+            "horas_no_ejercicio": h24,
+            "categoria": self.cat_var.get(),
+            "actividad": self.act_var.get(),
+            "mets": met,
+            "horas_ejercicio": horas,
+            "bmr": bmr,
+            "rango_edad": rango,
+            "gee": gee,
+            "eee": eee,
+            "tee": tee,
+            "ea": ea,
+        }
 
         self.res_labels["bmr"].configure(text=f"{bmr:.0f} kcal/día")
         self.res_labels["rango"].configure(text=rango)
@@ -295,5 +445,27 @@ class FormulasTab:
     def limpiar(self):
         self.tee = None
         self.peso = None
+        self.resultado = None
         for lbl in self.res_labels.values():
             lbl.configure(text="—")
+
+    def guardar(self):
+        if getattr(self, "resultado", None) is None:
+            messagebox.showwarning(
+                "Fórmulas predictivas",
+                "Primero calcula los resultados antes de guardar.",
+            )
+            return
+        paciente_id = getattr(self.app, "id_paciente_antro", None)
+        if paciente_id is None:
+            messagebox.showwarning(
+                "Fórmulas predictivas",
+                "Selecciona un paciente antes de guardar.",
+            )
+            return
+        datos = dict(self.resultado, paciente_id=paciente_id)
+        database.insert_formulas(datos)
+        messagebox.showinfo(
+            "Fórmulas predictivas",
+            "Cálculo guardado para el paciente activo.",
+        )

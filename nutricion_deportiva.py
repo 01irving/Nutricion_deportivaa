@@ -1,5 +1,6 @@
 import json
 import math
+import os
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -8,6 +9,12 @@ import smae_loader
 from r24h_tab import R24hTab
 from formulas_tab import FormulasTab
 from equivalentes_tab import EquivalesTab
+from menu_tab import MenusTab
+from suplementos_tab import SuplementosTab
+from estiramientos_tab import EstiramientosTab
+from antecedentes_tab import AntecedentesTab
+from componentes5_tab import Componentes5Tab
+from rutinas_tab import RutinasTab
 
 ETIQUETAS = [
     ("deporte", "Deporte"),
@@ -15,6 +22,7 @@ ETIQUETAS = [
     ("nombre", "Nombre"),
     ("dob", "DOB"),
     ("fecha_nacimiento", "Fecha de nacimiento"),
+    ("direccion", "Dirección"),
     ("genero", "Género"),
     ("telefono", "Teléfono"),
     ("email", "Email"),
@@ -215,7 +223,22 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Nutrición Deportiva")
-        self.geometry("960x800")
+        ancho_ventana = 960
+        alto_trabajo = self.winfo_screenheight()
+        try:  # alto util de Windows, descontando la barra de tareas
+            import ctypes
+            from ctypes import wintypes
+
+            area = wintypes.RECT()
+            if ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(area), 0):
+                alto_trabajo = area.bottom - area.top
+        except Exception:
+            pass
+        alto_ventana = min(800, alto_trabajo - 46)
+        x = max(0, (self.winfo_screenwidth() - ancho_ventana) // 2)
+        y = 20 if alto_ventana >= 800 else 0
+        self.geometry(f"{ancho_ventana}x{alto_ventana}+{x}+{y}")
+        self.minsize(880, 600)
         self.configure(bg=NEGRO)
 
         self.configurar_tema()
@@ -226,8 +249,11 @@ class App(tk.Tk):
         self.id_paciente = None
         self.id_paciente_antro = None
 
+        self._logo_membrete = None
+        self._crear_membrete()
+
         self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill="both", expand=True, padx=10, pady=10)
+        self.notebook.pack(fill="both", expand=True, padx=10, pady=(6, 8))
 
         self.entries = {}
         self.entries_antro = {}
@@ -309,6 +335,10 @@ class App(tk.Tk):
         marco_paciente.rowconfigure(5, weight=1)
         self.refrescar_tabla_pacientes()
 
+        # La pestaña Antecedentes va inmediatamente después de Paciente.
+        self.tab_antecedentes = AntecedentesTab(self)
+        self.tab_antecedentes.create(self.notebook)
+
         marco_antro = self.crear_formulario(
             self.notebook,
             "  📏 Antropometría  ",
@@ -332,6 +362,9 @@ class App(tk.Tk):
 
         self._crear_tab_somatotipo()
 
+        self.tab_componentes = Componentes5Tab(self)
+        self.tab_componentes.create(self.notebook)
+
         self.tab_r24h = R24hTab(self)
         self.tab_r24h.create(self.notebook)
 
@@ -341,7 +374,35 @@ class App(tk.Tk):
         self.tab_equivalentes = EquivalesTab(self)
         self.tab_equivalentes.create(self.notebook)
 
+        self.tab_menus = MenusTab(self)
+        self.tab_menus.create(self.notebook)
+        self.tab_rutinas = RutinasTab(self)
+        self.tab_rutinas.create(self.notebook)
+
+        self.tab_suplementos = SuplementosTab(self)
+        self.tab_suplementos.create(self.notebook)
+
+        self.tab_estiramientos = EstiramientosTab(self)
+        self.tab_estiramientos.create(self.notebook)
+
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+
         self._configurar_autocompletado()
+
+    def _on_tab_changed(self, event=None):
+        seleccionado = self.notebook.select()
+        if seleccionado == str(self.tab_equivalentes.marco_canvas):
+            self.tab_equivalentes.tomar_de_formulas(silencioso=True)
+        if seleccionado == str(self.tab_menus.marco):
+            self.tab_menus.sincronizar_distribucion()
+        if seleccionado == str(self.tab_suplementos.marco):
+            self.tab_suplementos.refrescar_estado()
+        if seleccionado == str(self.tab_estiramientos.marco):
+            self.tab_estiramientos.refrescar_estado()
+        if seleccionado == str(self.tab_componentes.marco):
+            self.tab_componentes.refrescar_estado()
+        if hasattr(self, "tab_rutinas") and hasattr(self.tab_rutinas, "refrescar_estado"):
+            self.tab_rutinas.refrescar_estado()
 
     def _cargar_smae(self):
         if database.contar_smae_alimentos() > 0:
@@ -407,6 +468,72 @@ class App(tk.Tk):
 
         return marco_tab
 
+    def _crear_membrete(self):
+        """Encabezado de la ventana: el mismo membrete de las impresiones."""
+        try:
+            from impresion_utils import DATOS_PROFESIONAL, RUTA_LOGO
+
+            datos = dict(DATOS_PROFESIONAL)
+            ruta_logo = RUTA_LOGO
+        except Exception:
+            datos = {
+                "nombre": "Irving Gualberto Euan Dzul",
+                "direccion": "Calle 21 Num 42. Nunkiní, Calkiní, Camp.",
+                "telefono": "9961059072",
+                "redes_sociales": "facebook: Irving Euan",
+            }
+            ruta_logo = ""
+
+        marco = tk.Frame(self, bg=GRIS_OSCURO)
+        marco.pack(fill="x", padx=10, pady=(4, 0))
+
+        if ruta_logo and os.path.exists(ruta_logo):
+            try:
+                from PIL import Image, ImageTk
+
+                with Image.open(ruta_logo) as imagen:
+                    original = imagen.convert("RGBA")
+                alto = 32
+                ancho = max(1, int(original.width * alto / original.height))
+                copia = original.resize((ancho, alto), Image.LANCZOS)
+                self._logo_membrete = ImageTk.PhotoImage(copia)
+                tk.Label(
+                    marco, image=self._logo_membrete, bg=GRIS_OSCURO, bd=0
+                ).pack(side="left", padx=(8, 10), pady=3)
+            except Exception:
+                self._logo_membrete = None
+
+        tk.Label(
+            marco,
+            text=datos.get("nombre", ""),
+            font=("Impact", 13),
+            fg=BLANCO,
+            bg=GRIS_OSCURO,
+        ).pack(side="left", pady=3)
+
+        contacto = "  ·  ".join(
+            str(datos[clave])
+            for clave in ("direccion", "telefono", "redes_sociales")
+            if datos.get(clave)
+        )
+        tk.Label(
+            marco,
+            text=contacto,
+            font=("Segoe UI", 8),
+            fg=GRIS_TEXTO,
+            bg=GRIS_OSCURO,
+        ).pack(side="left", padx=10, pady=3)
+
+        tk.Label(
+            marco,
+            text="NUTRICIÓN DEPORTIVA",
+            font=("Impact", 11),
+            fg=NEON,
+            bg=GRIS_OSCURO,
+        ).pack(side="right", padx=10, pady=3)
+
+        tk.Frame(self, bg=NARANJA, height=2).pack(fill="x", padx=10, pady=(2, 0))
+
     def configurar_tema(self):
         style = ttk.Style(self)
         style.theme_use("clam")
@@ -438,6 +565,36 @@ class App(tk.Tk):
             bordercolor=[("focus", NEON)],
         )
         style.configure(
+            "Gym.TCombobox",
+            fieldbackground=GRIS,
+            background=GRIS,
+            foreground=BLANCO,
+            arrowcolor=NEON,
+            padding=4,
+        )
+        style.map(
+            "Gym.TCombobox",
+            fieldbackground=[("readonly", GRIS), ("focus", "#3A3A3A")],
+            foreground=[("readonly", BLANCO)],
+            background=[("readonly", GRIS)],
+            arrowcolor=[("readonly", NEON)],
+        )
+        style.configure(
+            "Gym.TSpinbox",
+            fieldbackground=GRIS,
+            background=GRIS,
+            foreground=BLANCO,
+            arrowcolor=NEON,
+            insertcolor=NEON,
+            padding=4,
+        )
+        style.map(
+            "Gym.TSpinbox",
+            fieldbackground=[("focus", "#3A3A3A")],
+            background=[("active", NARANJA)],
+            bordercolor=[("focus", NEON)],
+        )
+        style.configure(
             "TNotebook",
             background=NEGRO,
             borderwidth=0,
@@ -463,6 +620,25 @@ class App(tk.Tk):
             font=("Segoe UI", 10),
         )
         style.configure(
+            "Eq.Treeview",
+            background=GRIS,
+            fieldbackground=GRIS,
+            foreground=BLANCO,
+            rowheight=30,
+            font=("Segoe UI", 10),
+        )
+        style.configure(
+            "Eq.Treeview.Heading",
+            background=NEON,
+            foreground=NEGRO,
+            font=("Segoe UI", 10, "bold"),
+        )
+        style.map(
+            "Eq.Treeview",
+            background=[("selected", NARANJA)],
+            foreground=[("selected", BLANCO)],
+        )
+        style.configure(
             "Gym.Treeview.Heading",
             background=NEON,
             foreground=NEGRO,
@@ -484,8 +660,35 @@ class App(tk.Tk):
     def nuevo_paciente(self):
         self._limpiar(self.entries)
         self.id_paciente = None
+        self.id_paciente_antro = None
+        self._reset_tabs()
+        self.lbl_antro.configure(text="Antropometría: sin paciente")
+        self.lbl_soma.configure(text="Somatotipo: sin paciente")
         self.lbl_estado.configure(text="Nuevo paciente (sin guardar)")
         self.entries["nombre"].focus_set()
+
+    def _reset_tabs(self):
+        """Limpia el estado ligado al paciente en todas las pestañas."""
+        for tab in (
+            getattr(self, "tab_r24h", None),
+            getattr(self, "tab_formulas", None),
+            getattr(self, "tab_equivalentes", None),
+            getattr(self, "tab_menus", None),
+            getattr(self, "tab_suplementos", None),
+            getattr(self, "tab_estiramientos", None),
+            getattr(self, "tab_antecedentes", None),
+            getattr(self, "tab_componentes", None),
+        ):
+            if tab is None:
+                continue
+            metodo = getattr(tab, "desvincular", None) or getattr(
+                tab, "limpiar", None
+            )
+            if callable(metodo):
+                try:
+                    metodo()
+                except Exception:
+                    pass
 
     def refrescar_tabla_pacientes(self):
         for fila in self.tabla_pacientes.get_children():
@@ -652,6 +855,12 @@ class App(tk.Tk):
             entry_id.insert(0, paciente.get("codigo") or "")
             entry_id.state(["readonly"])
         self.tab_r24h.cargar(paciente["id"], paciente)
+        self.tab_equivalentes.cargar(paciente["id"])
+        self.tab_menus.cargar(paciente["id"])
+        self.tab_suplementos.cargar(paciente["id"])
+        self.tab_estiramientos.cargar(paciente["id"])
+        self.tab_antecedentes.cargar(paciente["id"])
+        self.tab_componentes.cargar(paciente["id"])
         return etiqueta
 
     def _iniciar_seguimiento(self, paciente):
@@ -668,7 +877,8 @@ class App(tk.Tk):
             messagebox.showwarning("Validación", "El nombre es obligatorio.")
             return
         try:
-            if self.id_paciente is None:
+            nuevo = self.id_paciente is None
+            if nuevo:
                 self.id_paciente = database.guardar_paciente(datos)
                 registro = database.obtener_paciente(self.id_paciente)
                 accion = (
@@ -689,6 +899,9 @@ class App(tk.Tk):
             text=f"Editando {registro['codigo']} — {datos['nombre']}"
         )
         self.refrescar_tabla_pacientes()
+        if nuevo:
+            # El paciente recién creado queda activo en todas las pestañas
+            self._asignar_paciente_activo(registro, "edicion")
         messagebox.showinfo("Guardado", accion)
 
     def guardar_antro(self):
@@ -893,7 +1106,7 @@ class App(tk.Tk):
         barra.grid(row=2, column=0, columnspan=2, sticky="w", pady=(12, 0))
 
         botones = [
-            ("CARGAR PROMEDIO ISAK", self.cargar_somatotipo_isak, False),
+            ("CARGAR ISAK", self.cargar_somatotipo_isak, False),
             ("CARGAR PESO/TALLA (ANTRO)", self.cargar_somatotipo_antro, False),
             ("CALCULAR", self.calcular_somatotipo, True),
             ("LIMPIAR", self.limpiar_somatotipo, False),
@@ -961,6 +1174,17 @@ class App(tk.Tk):
         return ordenados[1]
 
     @staticmethod
+    @staticmethod
+    def _valor_isak(valores):
+        if not valores:
+            return None
+        if len(valores) == 1:
+            return valores[0]
+        if len(valores) == 2:
+            return (valores[0] + valores[1]) / 2.0
+        ordenados = sorted(valores)
+        return ordenados[1]
+
     def _nivel(valor):
         if valor < 2.75:
             return "bajo"

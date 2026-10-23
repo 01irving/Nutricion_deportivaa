@@ -88,7 +88,8 @@ class R24hTab:
         )
         self.search_var = tk.StringVar()
         self._search_trace_id = self.search_var.trace("w", self._on_search)
-        ttk.Entry(search_frame, textvariable=self.search_var).pack(
+        ttk.Entry(search_frame, textvariable=self.search_var,
+                  style="Gym.TEntry").pack(
             side=tk.LEFT, fill=tk.X, expand=True, padx=2
         )
 
@@ -99,7 +100,8 @@ class R24hTab:
         )
         self.grupo_var = tk.StringVar()
         self.grupo_combo = ttk.Combobox(
-            group_frame, textvariable=self.grupo_var, state="readonly", width=28
+            group_frame, textvariable=self.grupo_var, state="readonly", width=28,
+            style="Gym.TCombobox",
         )
         self.grupo_combo.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
         self.grupo_combo.bind("<<ComboboxSelected>>", self._on_grupo_selected)
@@ -144,6 +146,7 @@ class R24hTab:
             increment=0.25,
             textvariable=self.equiv_var,
             width=8,
+            style="Gym.TSpinbox",
         ).pack(side=tk.LEFT, padx=2)
         self.add_btn = tk.Button(
             add_frame,
@@ -220,6 +223,20 @@ class R24hTab:
 
         btn_frame = ttk.Frame(center, style="Gym.TFrame")
         btn_frame.pack(fill=tk.X, pady=2)
+        tk.Button(
+            btn_frame,
+            text="GUARDAR",
+            command=self.guardar,
+            font=("Impact", 10),
+            fg=NEGRO,
+            bg=NARANJA,
+            activebackground=NEON,
+            activeforeground=NEGRO,
+            relief="flat",
+            padx=12,
+            pady=4,
+            cursor="hand2",
+        ).pack(side=tk.LEFT, padx=2)
         for texto, comando in (
             ("ELIMINAR SELECCIONADO", self._delete_selected),
             ("LIMPIAR TIEMPO", self._clear_tiempo),
@@ -289,6 +306,22 @@ class R24hTab:
         self.current_patient_id = None
         self.lbl_estado.configure(text="R24h: sin paciente seleccionado")
         self._load_registros()
+
+    def guardar(self):
+        """Confirma el guardado del recuento del tiempo actual."""
+        if not self.current_patient_id:
+            messagebox.showwarning(
+                "R24h", "Selecciona un paciente antes de guardar."
+            )
+            return
+        self._load_registros()
+        n = len(self.registros)
+        total = sum((r["energia_kcal"] or 0) for r in self.registros)
+        messagebox.showinfo(
+            "R24h",
+            f"Guardado {self.current_tiempo}: {n} alimento(s), "
+            f"{total:.1f} kcal.",
+        )
 
     def _load_grupos(self):
         grupos = database.get_smae_grupos()

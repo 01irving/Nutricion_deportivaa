@@ -1,0 +1,116 @@
+[
+  {
+    "num": "01",
+    "nombre": "Press tras nuca con barra",
+    "equipo": "BARRA",
+    "imagen": "hombro_p03_i01.jpeg"
+  },
+  {
+    "num": "02",
+    "nombre": "Press frontal con barra",
+    "equipo": "BARRA",
+    "imagen": "hombro_p04_i01.jpeg"
+  },
+  {
+    "num": "03",
+    "nombre": "Press sentado con mancuernas",
+    "equipo": "MANCUERNAS",
+    "imagen": "hombro_p05_i01.jpeg"
+  },
+  {
+    "num": "04",
+    "nombre": "Press anterior con rotación de la muñeca",
+    "equipo": "MANCUERNAS",
+    "imagen": "hombro_p06_i01.jpeg"
+  },
+  {
+    "num": "05",
+    "nombre": "Elevaciones laterales, tronco inclinado hacia delante",
+    "equipo": "MANCUERNAS",
+    "imagen": "hombro_p07_i01.jpeg"
+  },
+  {
+    "num": "06",
+    "nombre": "Elevaciones laterales de los brazos con mancuernas",
+    "equipo": "MANCUERNAS",
+    "imagen": "hombro_p08_i01.jpeg"
+  },
+  {
+    "num": "07",
+    "nombre": "Elevaciones anteriores alternas con mancuernas",
+    "equipo": "MANCUERNAS",
+    "imagen": "hombro_p09_i01.jpeg"
+  },
+  {
+    "num": "08",
+    "nombre": "Elevaciones laterales, acostado de lado",
+    "equipo": "MANCUERNAS",
+    "imagen": "hombro_p10_i01.jpeg"
+  },
+  {
+    "num": "09",
+    "nombre": "Elevaciones anteriores alternas con polea baja",
+    "equipo": "POLEA",
+    "imagen": "hombro_p11_i01.jpeg"
+  },
+  {
+    "num": "10",
+    "nombre": "Elevación anterior en polea baja, mano en semipronación",
+    "equipo": "POLEA",
+    "imagen": "hombro_p12_i01.jpeg"
+  },
+  {
+    "num": "11",
+    "nombre": "Cara posterior de los hombros en polea doble",
+    "equipo": "POLEA DOBLE",
+    "imagen": "hombro_p13_i01.jpeg"
+  },
+  {
+    "num": "12",
+    "nombre": "Rotación externa del brazo en polea baja",
+    "equipo": "POLEA",
+    "imagen": "hombro_p14_i01.jpeg"
+  },
+  {
+    "num": "13",
+    "nombre": "Elevaciones laterales con polea baja, tronco inclinado hacia delante",
+    "equipo": "POLEA",
+    "imagen": "hombro_p15_i01.jpeg"
+  },
+  {
+    "num": "14",
+    "nombre": "Elevaciones laterales alternas con polea baja",
+    "equipo": "POLEA",
+    "imagen": "hombro_p16_i01.jpeg"
+  },
+  {
+    "num": "15",
+    "nombre": "Elevaciones frontales con una mancuerna",
+    "equipo": "MANCUERNA",
+    "imagen": "hombro_p17_i01.jpeg"
+  },
+  {
+    "num": "16",
+    "nombre": "Elevaciones anteriores o frontales con barra",
+    "equipo": "BARRA",
+    "imagen": "hombro_p18_i01.jpeg"
+  },
+  {
+    "num": "17",
+    "nombre": "Tracción vertical en la barra, manos separadas (rowing vertical)",
+    "equipo": "BARRA",
+    "imagen": "hombro_p19_i01.jpeg"
+  },
+  {
+    "num": "18",
+    "nombre": "Elevaciones laterales en la máquina",
+    "equipo": "MÁQUINA",
+    "imagen": "hombro_p20_i01.jpeg"
+  },
+  {
+    "num": "19",
+    "nombre": "Parte posterior de los hombros en máquina",
+    "equipo": "MÁQUINA",
+    "imagen": "hombro_p21_i01.jpeg"
+  }
+]
