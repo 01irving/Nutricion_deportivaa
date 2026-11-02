@@ -20,6 +20,8 @@ from reportlab.platypus import (
 )
 
 from antecedentes_defs import (
+    SECCION_EVALUACION_SELECCION,
+    SECCION_EVALUACION_TEXTO,
     SECCION_NOPATOLOGICOS_HABITOS,
     SECCION_NOPATOLOGICOS_TEXTO,
     SECCION_PATOLOGICOS,
@@ -216,6 +218,15 @@ def generar_pdf_antecedentes(ruta, paciente, antecedentes, momento_impresion=Non
     elementos.append(Spacer(1, 0.10 * inch))
 
     for clave, etiqueta in SECCION_NOPATOLOGICOS_TEXTO:
+        elementos.extend(_bloque_campo(estilos, etiqueta, datos.get(clave)))
+
+    # --- Evaluación para el ejercicio ---
+    elementos.append(
+        Paragraph("EVALUACIÓN PARA EL EJERCICIO", estilos["seccion"])
+    )
+    for clave, etiqueta in SECCION_EVALUACION_SELECCION:
+        elementos.extend(_bloque_campo(estilos, etiqueta, datos.get(clave)))
+    for clave, etiqueta in SECCION_EVALUACION_TEXTO:
         elementos.extend(_bloque_campo(estilos, etiqueta, datos.get(clave)))
 
     # --- Pie ---

@@ -25,6 +25,32 @@ SECCION_NOPATOLOGICOS_TEXTO = [
     ("nopat_problemas_intestinales", "Problemas intestinales"),
 ]
 
+# Evaluación del cliente para el ejercicio (valoración de client
+# assessment: condiciones médicas, medicamentos, lesiones y
+# banderas rojas).
+SECCION_EVALUACION_SELECCION = [
+    ("eval_condiciones_medicas", "Condiciones médicas"),
+    ("eval_banderas_rojas", "Indicaciones de alerta (banderas rojas)"),
+]
+
+SECCION_EVALUACION_TEXTO = [
+    ("eval_historial_lesiones", "Historial de lesiones"),
+]
+
+OPCIONES_SELECCION = {
+    "eval_condiciones_medicas": [
+        "Ninguna", "Diabetes", "Hipertensión", "Enfermedad cardíaca",
+        "Asma", "Obesidad", "Artritis", "Colesterol alto",
+        "Problemas de tiroides", "Epilepsia", "Embarazo", "Otra",
+    ],
+    "eval_banderas_rojas": [
+        "Ninguna", "Dolor en el pecho", "Mareo o desmayo",
+        "Dificultad inusual para respirar", "Palpitaciones",
+        "Dolor articular agudo", "Dolor de cabeza severo",
+        "Fatiga inusual", "Hinchazón en los tobillos",
+    ],
+}
+
 HABITOS_OPCIONES = {
     "nopat_tabaco": ["No", "Sí", "Ex-fumador", "Ocasional", "A diario"],
     "nopat_alcohol": ["No", "Sí", "Social", "Diario", "Ex-alcoholista"],
@@ -36,6 +62,8 @@ ANTECEDENTES_CAMPOS = (
     [clave for clave, _ in SECCION_PATOLOGICOS]
     + [clave for clave, _ in SECCION_NOPATOLOGICOS_HABITOS]
     + [clave for clave, _ in SECCION_NOPATOLOGICOS_TEXTO]
+    + [clave for clave, _ in SECCION_EVALUACION_SELECCION]
+    + [clave for clave, _ in SECCION_EVALUACION_TEXTO]
 )
 
 ETIQUETA_HABITOS = {

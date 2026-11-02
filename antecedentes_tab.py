@@ -14,6 +14,9 @@ import database
 from antecedentes_defs import (
     ETIQUETA_HABITOS,
     HABITOS_OPCIONES,
+    OPCIONES_SELECCION,
+    SECCION_EVALUACION_SELECCION,
+    SECCION_EVALUACION_TEXTO,
     SECCION_NOPATOLOGICOS_HABITOS,
     SECCION_NOPATOLOGICOS_TEXTO,
     SECCION_PATOLOGICOS,
@@ -48,6 +51,7 @@ class AntecedentesTab:
         self.paciente_id = None
         self.textos = {}
         self.habitos = {}
+        self.selecciones = {}
 
     # ------------------------------------------------------------------
     def create(self, parent):
@@ -72,6 +76,7 @@ class AntecedentesTab:
 
         self._crear_panel_patologicos(paned)
         self._crear_panel_nopatologicos(paned)
+        self._crear_panel_evaluacion(paned)
 
     # ------------------------------------------------------------------
     def _crear_panel_patologicos(self, paned):
@@ -148,6 +153,38 @@ class AntecedentesTab:
                 relief="flat", padx=16, pady=5, cursor="hand2",
             ).pack(side="left", padx=2)
 
+    def _crear_panel_evaluacion(self, paned):
+        """Panel de valoración para el ejercicio: selección múltiple
+        de condiciones médicas y banderas rojas + historial de
+        lesiones."""
+        panel = ttk.LabelFrame(
+            paned, text="EVALUACIÓN PARA EL EJERCICIO", padding=5
+        )
+        paned.add(panel, weight=1)
+        ttk.Label(
+            panel,
+            text="Marca las opciones que apliquen al paciente",
+            style="Estado.TLabel", font=("Segoe UI", 8),
+        ).pack(anchor=tk.W, padx=4, pady=(0, 4))
+        for clave, etiqueta in SECCION_EVALUACION_SELECCION:
+            ttk.Label(
+                panel, text=f"{etiqueta}:", style="Gym.TLabel"
+            ).pack(anchor=tk.W, padx=4, pady=(6, 2))
+            marco = ttk.Frame(panel, style="Gym.TFrame")
+            marco.pack(fill="x", padx=2)
+            self.selecciones[clave] = {}
+            for i, opcion in enumerate(OPCIONES_SELECCION[clave]):
+                var = tk.BooleanVar(value=False)
+                tk.Checkbutton(
+                    marco, text=opcion, variable=var,
+                    bg=GRIS_OSCURO, fg=BLANCO, selectcolor=GRIS,
+                    activebackground=GRIS_OSCURO, activeforeground=NEON,
+                    font=("Segoe UI", 8),
+                ).grid(row=i // 2, column=i % 2, sticky="w", padx=2, pady=1)
+                self.selecciones[clave][opcion] = var
+        for clave, etiqueta in SECCION_EVALUACION_TEXTO:
+            self._crear_area_texto(panel, clave, etiqueta, 5)
+
     def _crear_area_texto(self, parent, clave, etiqueta, alto):
         marco = ttk.Frame(parent, style="Gym.TFrame")
         marco.pack(fill="both", expand=True, padx=2, pady=3)
@@ -171,6 +208,10 @@ class AntecedentesTab:
             datos[clave] = texto.get("1.0", tk.END).strip()
         for clave, var in self.habitos.items():
             datos[clave] = var.get().strip()
+        for clave, vars_op in self.selecciones.items():
+            datos[clave] = ", ".join(
+                opcion for opcion, var in vars_op.items() if var.get()
+            )
         return datos
 
     def _escribir(self, datos):
@@ -181,6 +222,13 @@ class AntecedentesTab:
                 texto.insert("1.0", valor)
         for clave, var in self.habitos.items():
             var.set(datos.get(clave) or "")
+        for clave, vars_op in self.selecciones.items():
+            elegidas = [
+                v.strip() for v in (datos.get(clave) or "").split(",")
+                if v.strip()
+            ]
+            for opcion, var in vars_op.items():
+                var.set(opcion in elegidas)
 
     # ------------------------------------------------------------------
     # Persistencia

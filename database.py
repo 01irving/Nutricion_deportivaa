@@ -1,6 +1,8 @@
 import json
 import sqlite3
 from pathlib import Path
+
+from antecedentes_defs import ANTECEDENTES_CAMPOS
 DB_PATH = Path(__file__).with_name("Nutrición_deportiva.db")
 MET_CSV_PATH = Path(__file__).with_name("mets.csv")
 
@@ -1154,19 +1156,8 @@ def contar_estiramientos():
 # ----------------------------------------------------------------------
 # Antecedentes (patológicos y no patológicos)
 # ----------------------------------------------------------------------
-ANTECEDENTES_CAMPOS = [
-    "pat_familiares",
-    "pat_personales",
-    "pat_alergia_alimentaria",
-    "pat_quirurgicos",
-    "nopat_tabaco",
-    "nopat_alcohol",
-    "nopat_drogas",
-    "nopat_cafe",
-    "nopat_medicamentos",
-    "nopat_actividad_fisica",
-    "nopat_problemas_intestinales",
-]
+# ANTECEDENTES_CAMPOS se define en antecedentes_defs.py (fuente unica
+# compartida con la pestana Antecedentes y el reporte imprimible).
 
 
 def guardar_antecedentes(paciente_id, datos: dict):
