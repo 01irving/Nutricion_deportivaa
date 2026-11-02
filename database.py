@@ -12,6 +12,8 @@ CAMPOS = [
     "fecha_nacimiento",
     "direccion",
     "genero",
+    "peso",
+    "talla",
     "telefono",
     "email",
     "facebook",
@@ -203,6 +205,28 @@ def init_db():
             )
             """
         )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS platillos (
+                id_platillo INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT,
+                tiempo_comida TEXT,
+                ingredientes TEXT,
+                totales TEXT,
+                imagen_nombre TEXT,
+                imagen_blob BLOB,
+                creado_en TEXT DEFAULT (datetime('now', 'localtime')),
+                actualizado_en TEXT DEFAULT (datetime('now', 'localtime'))
+            )
+            """
+        )
+
+        columnas_platillos = [
+            r[1] for r in conn.execute("PRAGMA table_info(platillos)").fetchall()
+        ]
+        if "modo_preparacion" not in columnas_platillos:
+            conn.execute("ALTER TABLE platillos ADD COLUMN modo_preparacion TEXT")
 
         conn.execute(
             """
@@ -685,6 +709,85 @@ def delete_menu_paciente(paciente_id):
         conn.execute("DELETE FROM menus WHERE paciente_id = ?", (paciente_id,))
 
 
+# ----------------------------------------------------------------------
+# Catálogo de platillos
+# ----------------------------------------------------------------------
+def guardar_platillo(datos):
+    """Upsert de un platillo del catálogo por (nombre, tiempo_comida).
+
+    ingredientes y totales van como JSON; la imagen como blob (opcional:
+    si no se pasa una nueva, conserva la guardada).
+    """
+    with get_connection() as conn:
+        fila = conn.execute(
+            "SELECT id_platillo FROM platillos "
+            "WHERE nombre = ? AND tiempo_comida = ?",
+            (datos.get("nombre"), datos.get("tiempo_comida")),
+        ).fetchone()
+        if fila:
+            conn.execute(
+                "UPDATE platillos SET ingredientes = ?, totales = ?, "
+                "modo_preparacion = ?, "
+                "imagen_nombre = COALESCE(?, imagen_nombre), "
+                "imagen_blob = COALESCE(?, imagen_blob), "
+                "actualizado_en = datetime('now', 'localtime') "
+                "WHERE id_platillo = ?",
+                (
+                    datos.get("ingredientes"),
+                    datos.get("totales"),
+                    datos.get("modo_preparacion"),
+                    datos.get("imagen_nombre"),
+                    datos.get("imagen_blob"),
+                    fila[0],
+                ),
+            )
+            return fila[0]
+        cur = conn.execute(
+            "INSERT INTO platillos (nombre, tiempo_comida, ingredientes, "
+            "totales, modo_preparacion, imagen_nombre, imagen_blob) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                datos.get("nombre"),
+                datos.get("tiempo_comida"),
+                datos.get("ingredientes"),
+                datos.get("totales"),
+                datos.get("modo_preparacion"),
+                datos.get("imagen_nombre"),
+                datos.get("imagen_blob"),
+            ),
+        )
+        return cur.lastrowid
+
+
+def get_platillos(tiempo_comida=None):
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        if tiempo_comida:
+            filas = conn.execute(
+                "SELECT * FROM platillos WHERE tiempo_comida = ? ORDER BY nombre",
+                (tiempo_comida,),
+            ).fetchall()
+        else:
+            filas = conn.execute(
+                "SELECT * FROM platillos ORDER BY tiempo_comida, nombre"
+            ).fetchall()
+    return [dict(f) for f in filas]
+
+
+def get_platillo(id_platillo):
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        fila = conn.execute(
+            "SELECT * FROM platillos WHERE id_platillo = ?", (id_platillo,)
+        ).fetchone()
+    return dict(fila) if fila else None
+
+
+def delete_platillo(id_platillo):
+    with get_connection() as conn:
+        conn.execute("DELETE FROM platillos WHERE id_platillo = ?", (id_platillo,))
+
+
 def cargar_mets():
     """Lee mets.csv (Compendio 2011) y devuelve lista de dicts."""
     import csv
@@ -1004,6 +1107,42 @@ def delete_estiramientos_paciente(paciente_id):
         conn.execute(
             "DELETE FROM estiramientos_paciente WHERE paciente_id = ?",
             (paciente_id,),
+        )
+
+
+def _asegurar_tabla_calentamiento(conn):
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS calentamiento_paciente ("
+        "paciente_id INTEGER, num TEXT, orden INTEGER, duracion TEXT, "
+        "PRIMARY KEY (paciente_id, num))"
+    )
+
+
+def get_calentamiento_paciente(paciente_id):
+    """Orden y duración que el profesional fijó para el calentamiento del paciente."""
+    with get_connection() as conn:
+        _asegurar_tabla_calentamiento(conn)
+        conn.row_factory = sqlite3.Row
+        filas = conn.execute(
+            "SELECT num, orden, duracion FROM calentamiento_paciente "
+            "WHERE paciente_id = ?",
+            (paciente_id,),
+        ).fetchall()
+    return {
+        str(f["num"]): {"orden": f["orden"], "duracion": f["duracion"]}
+        for f in filas
+    }
+
+
+def guardar_calentamiento_item(paciente_id, num, orden, duracion):
+    with get_connection() as conn:
+        _asegurar_tabla_calentamiento(conn)
+        conn.execute(
+            "INSERT INTO calentamiento_paciente (paciente_id, num, orden, duracion) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(paciente_id, num) DO UPDATE SET "
+            "orden = excluded.orden, duracion = excluded.duracion",
+            (paciente_id, str(num), int(orden), duracion),
         )
 
 

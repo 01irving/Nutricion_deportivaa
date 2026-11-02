@@ -11,7 +11,6 @@ from formulas_tab import FormulasTab
 from equivalentes_tab import EquivalesTab
 from menu_tab import MenusTab
 from suplementos_tab import SuplementosTab
-from estiramientos_tab import EstiramientosTab
 from antecedentes_tab import AntecedentesTab
 from componentes5_tab import Componentes5Tab
 from rutinas_tab import RutinasTab
@@ -24,6 +23,8 @@ ETIQUETAS = [
     ("fecha_nacimiento", "Fecha de nacimiento"),
     ("direccion", "Dirección"),
     ("genero", "Género"),
+    ("peso", "Peso (kg)"),
+    ("talla", "Talla (cm)"),
     ("telefono", "Teléfono"),
     ("email", "Email"),
     ("facebook", "Facebook"),
@@ -328,9 +329,9 @@ class App(tk.Tk):
             activeforeground=BLANCO,
             relief="flat",
             padx=16,
-            pady=6,
+            pady=4,
             cursor="hand2",
-        ).grid(row=6, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 10))
+        ).grid(row=6, column=0, columnspan=2, sticky="w", padx=8, pady=(0, 6))
 
         marco_paciente.rowconfigure(5, weight=1)
         self.refrescar_tabla_pacientes()
@@ -382,9 +383,6 @@ class App(tk.Tk):
         self.tab_suplementos = SuplementosTab(self)
         self.tab_suplementos.create(self.notebook)
 
-        self.tab_estiramientos = EstiramientosTab(self)
-        self.tab_estiramientos.create(self.notebook)
-
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
 
         self._configurar_autocompletado()
@@ -397,8 +395,6 @@ class App(tk.Tk):
             self.tab_menus.sincronizar_distribucion()
         if seleccionado == str(self.tab_suplementos.marco):
             self.tab_suplementos.refrescar_estado()
-        if seleccionado == str(self.tab_estiramientos.marco):
-            self.tab_estiramientos.refrescar_estado()
         if seleccionado == str(self.tab_componentes.marco):
             self.tab_componentes.refrescar_estado()
         if hasattr(self, "tab_rutinas") and hasattr(self.tab_rutinas, "refrescar_estado"):
@@ -424,11 +420,11 @@ class App(tk.Tk):
         titulo = tk.Label(
             marco_tab,
             text="NUTRICIÓN DEPORTIVA",
-            font=("Impact", 20),
+            font=("Impact", 15),
             fg=NEON,
             bg=GRIS_OSCURO,
         )
-        titulo.grid(row=0, column=0, columnspan=2, sticky="we", pady=(4, 10))
+        titulo.grid(row=0, column=0, columnspan=2, sticky="we", pady=(2, 6))
         marco_tab.columnconfigure(0, weight=1, uniform="col")
         marco_tab.columnconfigure(1, weight=1, uniform="col")
 
@@ -441,13 +437,13 @@ class App(tk.Tk):
             for fila, (clave, etiqueta) in enumerate(grupo):
                 ttk.Label(
                     marco, text=f"{etiqueta}:", style="Gym.TLabel"
-                ).grid(row=fila, column=0, sticky="e", padx=(4, 4), pady=6)
+                ).grid(row=fila, column=0, sticky="e", padx=(4, 4), pady=3)
                 entry = ttk.Entry(marco, width=28, style="Gym.TEntry")
-                entry.grid(row=fila, column=1, sticky="w", padx=(0, 8), pady=6)
+                entry.grid(row=fila, column=1, sticky="w", padx=(0, 8), pady=3)
                 destino[clave] = entry
 
         barra = ttk.Frame(marco_tab, style="Gym.TFrame")
-        barra.grid(row=2, column=0, columnspan=2, sticky="w", padx=4, pady=16)
+        barra.grid(row=2, column=0, columnspan=2, sticky="w", padx=4, pady=8)
 
         for i, (texto, comando) in enumerate(botones):
             primario = i == 0
@@ -579,6 +575,12 @@ class App(tk.Tk):
             background=[("readonly", GRIS)],
             arrowcolor=[("readonly", NEON)],
         )
+
+        # Lista desplegable (popdown) de los combobox: fondo negro, letra blanca
+        self.option_add("*TCombobox*Listbox.background", NEGRO)
+        self.option_add("*TCombobox*Listbox.foreground", BLANCO)
+        self.option_add("*TCombobox*Listbox.selectBackground", NARANJA)
+        self.option_add("*TCombobox*Listbox.selectForeground", NEGRO)
         style.configure(
             "Gym.TSpinbox",
             fieldbackground=GRIS,
@@ -675,7 +677,6 @@ class App(tk.Tk):
             getattr(self, "tab_equivalentes", None),
             getattr(self, "tab_menus", None),
             getattr(self, "tab_suplementos", None),
-            getattr(self, "tab_estiramientos", None),
             getattr(self, "tab_antecedentes", None),
             getattr(self, "tab_componentes", None),
         ):
@@ -858,7 +859,7 @@ class App(tk.Tk):
         self.tab_equivalentes.cargar(paciente["id"])
         self.tab_menus.cargar(paciente["id"])
         self.tab_suplementos.cargar(paciente["id"])
-        self.tab_estiramientos.cargar(paciente["id"])
+        self.tab_rutinas.cargar(paciente["id"])
         self.tab_antecedentes.cargar(paciente["id"])
         self.tab_componentes.cargar(paciente["id"])
         return etiqueta

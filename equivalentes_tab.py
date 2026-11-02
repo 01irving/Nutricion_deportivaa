@@ -323,6 +323,11 @@ class EquivalesTab:
             font=("Impact", 10), fg=NEON, bg=GRIS, activebackground=NARANJA,
             activeforeground=BLANCO, relief="flat", padx=12, pady=4, cursor="hand2",
         ).pack(side=tk.LEFT, padx=3)
+        tk.Button(
+            controles, text="💾 GUARDAR", command=self.guardar,
+            font=("Impact", 10), fg=NEGRO, bg=NEON, activebackground=NARANJA,
+            activeforeground=BLANCO, relief="flat", padx=12, pady=4, cursor="hand2",
+        ).pack(side=tk.LEFT, padx=3)
 
         self.dist_frame = ttk.Frame(dist_frame, style="Gym.TFrame")
         self.dist_frame.pack(fill="x")
