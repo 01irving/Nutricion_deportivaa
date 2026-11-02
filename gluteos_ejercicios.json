@@ -1,0 +1,62 @@
+[
+  {
+    "num": "01",
+    "nombre": "Flexiones anteriores de una pierna",
+    "equipo": "PESO CORPORAL",
+    "imagen": "gluteo_p156_i01.jpeg"
+  },
+  {
+    "num": "02",
+    "nombre": "Zancadas con mancuernas",
+    "equipo": "MANCUERNAS",
+    "imagen": "gluteo_p157_i01.jpeg"
+  },
+  {
+    "num": "03",
+    "nombre": "Extensión de la cadera en polea baja",
+    "equipo": "POLEA",
+    "imagen": "gluteo_p159_i01.jpeg"
+  },
+  {
+    "num": "04",
+    "nombre": "Extensión de la cadera en máquina",
+    "equipo": "MÁQUINA",
+    "imagen": "gluteo_p160_i01.jpeg"
+  },
+  {
+    "num": "05",
+    "nombre": "Extensión de la cadera en el suelo",
+    "equipo": "PESO CORPORAL",
+    "imagen": "gluteo_p161_i01.jpeg"
+  },
+  {
+    "num": "06",
+    "nombre": "Elevación de la pelvis en el suelo",
+    "equipo": "PESO CORPORAL",
+    "imagen": "gluteo_p162_i01.jpeg"
+  },
+  {
+    "num": "07",
+    "nombre": "Abducción de la cadera de pie, en polea baja",
+    "equipo": "POLEA",
+    "imagen": "gluteo_p164_i01.jpeg"
+  },
+  {
+    "num": "08",
+    "nombre": "Abducción de la cadera, de pie, en máquina",
+    "equipo": "MÁQUINA",
+    "imagen": "gluteo_p166_i01.jpeg"
+  },
+  {
+    "num": "09",
+    "nombre": "Abducción de la cadera, acostado",
+    "equipo": "PESO CORPORAL",
+    "imagen": "gluteo_p167_i01.jpeg"
+  },
+  {
+    "num": "10",
+    "nombre": "Abductores, sentado en máquina",
+    "equipo": "MÁQUINA",
+    "imagen": "gluteo_p168_i01.jpeg"
+  }
+]

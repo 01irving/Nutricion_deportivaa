@@ -159,26 +159,5 @@
     "equipo": "PESO CORPORAL",
     "imagen": "brazo_p25_i01.jpeg",
     "zona": ""
-  },
-  {
-    "num": "24",
-    "nombre": "Estiramiento de los músculos extensores de la muñeca",
-    "equipo": "ESTIRAMIENTO",
-    "imagen": "brazo_p26_i01.jpeg",
-    "zona": "A N T EB R A Z O"
-  },
-  {
-    "num": "25",
-    "nombre": "Estiramiento de los músculos flexores de la muñeca",
-    "equipo": "ESTIRAMIENTO",
-    "imagen": "brazo_p27_i01.jpeg",
-    "zona": "A N T EB R A Z O"
-  },
-  {
-    "num": "26",
-    "nombre": "Estiramiento del tríceps",
-    "equipo": "ESTIRAMIENTO",
-    "imagen": "brazo_p28_i01.jpeg",
-    "zona": ""
   }
 ]

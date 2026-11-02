@@ -1,0 +1,128 @@
+[
+  {
+    "num": "01",
+    "nombre": "Flexión de rodillas con mancuernas",
+    "equipo": "MANCUERNAS",
+    "imagen": "pierna_p123_i01.jpeg"
+  },
+  {
+    "num": "02",
+    "nombre": "Flexión de rodillas con una haltera sujeta entre las piernas",
+    "equipo": "BARRA",
+    "imagen": "pierna_p124_i01.jpeg"
+  },
+  {
+    "num": "03",
+    "nombre": "Squat o sentadillas frontales con barra",
+    "equipo": "BARRA",
+    "imagen": "pierna_p125_i01.jpeg"
+  },
+  {
+    "num": "04",
+    "nombre": "El squat o sentadillas",
+    "equipo": "BARRA",
+    "imagen": "pierna_p126_i01.jpeg"
+  },
+  {
+    "num": "05",
+    "nombre": "Squat o sentadillas piernas separadas",
+    "equipo": "BARRA",
+    "imagen": "pierna_p129_i01.jpeg"
+  },
+  {
+    "num": "06",
+    "nombre": "Press de piernas inclinado",
+    "equipo": "MÁQUINA",
+    "imagen": "pierna_p135_i01.jpeg"
+  },
+  {
+    "num": "07",
+    "nombre": "Press inclinado o «hack squat»",
+    "equipo": "MÁQUINA",
+    "imagen": "pierna_p136_i01.jpeg"
+  },
+  {
+    "num": "08",
+    "nombre": "Box squat, técnica de intensificación",
+    "equipo": "BARRA",
+    "imagen": "pierna_p137_i01.jpeg"
+  },
+  {
+    "num": "09",
+    "nombre": "Extensión de rodillas en máquina",
+    "equipo": "MÁQUINA",
+    "imagen": "pierna_p138_i01.jpeg"
+  },
+  {
+    "num": "10",
+    "nombre": "Isquiotibiales, en posición tendida en la máquina o «leg curl»",
+    "equipo": "MÁQUINA",
+    "imagen": "pierna_p140_i01.jpeg"
+  },
+  {
+    "num": "11",
+    "nombre": "Isquiotibiales alterno, de pie, en máquina",
+    "equipo": "MÁQUINA",
+    "imagen": "pierna_p141_i01.jpeg"
+  },
+  {
+    "num": "12",
+    "nombre": "Isquiotibiales sentado en máquina",
+    "equipo": "MÁQUINA",
+    "imagen": "pierna_p142_i01.jpeg"
+  },
+  {
+    "num": "13",
+    "nombre": "Flexión anterior de tronco o «buenos días»",
+    "equipo": "BARRA",
+    "imagen": "pierna_p144_i01.jpeg"
+  },
+  {
+    "num": "14",
+    "nombre": "Adductores en polea baja",
+    "equipo": "POLEA",
+    "imagen": "pierna_p146_i01.jpeg"
+  },
+  {
+    "num": "15",
+    "nombre": "Adductores en máquina",
+    "equipo": "MÁQUINA",
+    "imagen": "pierna_p147_i01.jpeg"
+  },
+  {
+    "num": "16",
+    "nombre": "Flexión y extensión de los pies",
+    "equipo": "PESO CORPORAL",
+    "imagen": "pierna_p148_i01.jpeg"
+  },
+  {
+    "num": "17",
+    "nombre": "Extensión de los tobillos en la máquina",
+    "equipo": "MÁQUINA",
+    "imagen": "pierna_p149_i01.jpeg"
+  },
+  {
+    "num": "18",
+    "nombre": "Extensión de un pie con mancuerna",
+    "equipo": "MANCUERNA",
+    "imagen": "pierna_p150_i01.jpeg"
+  },
+  {
+    "num": "19",
+    "nombre": "Gemelos en máquina (peso sobre la pelvis) o «donkey calf raise»",
+    "equipo": "MÁQUINA",
+    "imagen": "pierna_p151_i01.jpeg"
+  },
+  {
+    "num": "20",
+    "nombre": "Extensión de los pies, sentado, en máquina",
+    "equipo": "MÁQUINA",
+    "imagen": "pierna_p152_i01.jpeg"
+  },
+  {
+    "num": "21",
+    "nombre": "Sóleos con barra",
+    "equipo": "BARRA",
+    "imagen": "pierna_p153_i01.jpeg"
+  }
+]

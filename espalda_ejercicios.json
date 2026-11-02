@@ -1,0 +1,140 @@
+[
+  {
+    "num": "01",
+    "nombre": "Tracción o dominadas en barra fija",
+    "equipo": "PESO CORPORAL",
+    "imagen": "espalda_p086_i01.jpeg"
+  },
+  {
+    "num": "02",
+    "nombre": "Tracción o dominadas en barra fija, con agarre estrecho en supinación",
+    "equipo": "PESO CORPORAL",
+    "imagen": "espalda_p088_i01.jpeg"
+  },
+  {
+    "num": "03",
+    "nombre": "Tracción pecho en polea alta",
+    "equipo": "POLEA",
+    "imagen": "espalda_p090_i01.jpeg"
+  },
+  {
+    "num": "04",
+    "nombre": "Tracción tras nuca en polea alta",
+    "equipo": "POLEA",
+    "imagen": "espalda_p091_i01.jpeg"
+  },
+  {
+    "num": "05",
+    "nombre": "Polea al pecho con agarre estrecho",
+    "equipo": "POLEA",
+    "imagen": "espalda_p093_i01.jpeg"
+  },
+  {
+    "num": "06",
+    "nombre": "Remo en polea baja, agarre estrecho, manos en semipronación",
+    "equipo": "POLEA",
+    "imagen": "espalda_p094_i01.jpeg"
+  },
+  {
+    "num": "07",
+    "nombre": "Remo en polea baja con barra ancha, manos en pronación",
+    "equipo": "POLEA",
+    "imagen": "espalda_p095_i01.jpeg"
+  },
+  {
+    "num": "08",
+    "nombre": "«pull-over» con polea alta brazos extendidos",
+    "equipo": "POLEA",
+    "imagen": "espalda_p096_i01.jpeg"
+  },
+  {
+    "num": "09",
+    "nombre": "Remo horizontal a una mano con mancuernas",
+    "equipo": "MANCUERNA",
+    "imagen": "espalda_p097_i01.jpeg"
+  },
+  {
+    "num": "11",
+    "nombre": "Remo horizontal con barra",
+    "equipo": "BARRA",
+    "imagen": "espalda_p099_i01.jpeg"
+  },
+  {
+    "num": "12",
+    "nombre": "Remo en barra T sin apoyo ventral",
+    "equipo": "BARRA",
+    "imagen": "espalda_p100_i01.jpeg"
+  },
+  {
+    "num": "13",
+    "nombre": "Remo en barra T con apoyo ventral",
+    "equipo": "BARRA",
+    "imagen": "espalda_p101_i01.jpeg"
+  },
+  {
+    "num": "14",
+    "nombre": "Peso muerto, piernas extendidas",
+    "equipo": "BARRA",
+    "imagen": "espalda_p102_i01.jpeg"
+  },
+  {
+    "num": "15",
+    "nombre": "Peso muerto estilo «sumo»",
+    "equipo": "BARRA",
+    "imagen": "espalda_p103_i01.jpeg"
+  },
+  {
+    "num": "16",
+    "nombre": "Peso muerto con barra",
+    "equipo": "BARRA",
+    "imagen": "espalda_p104_i01.jpeg"
+  },
+  {
+    "num": "17",
+    "nombre": "Levantamiento de peso muerto pesado con barra trap",
+    "equipo": "BARRA",
+    "imagen": "espalda_p108_i01.jpeg"
+  },
+  {
+    "num": "18",
+    "nombre": "Extensión del tronco en banco",
+    "equipo": "PESO CORPORAL",
+    "imagen": "espalda_p112_i01.jpeg"
+  },
+  {
+    "num": "19",
+    "nombre": "Extensión del tronco en máquina específica",
+    "equipo": "MÁQUINA",
+    "imagen": "espalda_p113_i01.jpeg"
+  },
+  {
+    "num": "20",
+    "nombre": "Remo al cuello, con manos juntas",
+    "equipo": "BARRA",
+    "imagen": "espalda_p115_i01.jpeg"
+  },
+  {
+    "num": "21",
+    "nombre": "Encogimiento de hombros con barra",
+    "equipo": "BARRA",
+    "imagen": "espalda_p116_i01.jpeg"
+  },
+  {
+    "num": "22",
+    "nombre": "Encogimiento y rotación de los hombros con mancuernas",
+    "equipo": "MANCUERNAS",
+    "imagen": "espalda_p117_i01.jpeg"
+  },
+  {
+    "num": "23",
+    "nombre": "Elevación de los hombros, con barra trap",
+    "equipo": "BARRA",
+    "imagen": "espalda_p118_i01.jpeg"
+  },
+  {
+    "num": "24",
+    "nombre": "Levantamiento de hombros con carga guiada o en máquina",
+    "equipo": "MÁQUINA",
+    "imagen": "espalda_p119_i01.jpeg"
+  }
+]

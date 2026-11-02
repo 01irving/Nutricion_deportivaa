@@ -1,0 +1,92 @@
+[
+  {
+    "num": "01",
+    "nombre": "Press de banco inclinado",
+    "equipo": "BARRA",
+    "imagen": "pectoral_p062_i01.jpeg"
+  },
+  {
+    "num": "02",
+    "nombre": "Press de banco plano (o «bench press»)",
+    "equipo": "BARRA",
+    "imagen": "pectoral_p064_i01.jpeg"
+  },
+  {
+    "num": "03",
+    "nombre": "Press de banco plano, manos juntas",
+    "equipo": "BARRA",
+    "imagen": "pectoral_p069_i01.jpeg"
+  },
+  {
+    "num": "04",
+    "nombre": "Press de banco inclinado",
+    "equipo": "BARRA",
+    "imagen": "pectoral_p072_i01.jpeg"
+  },
+  {
+    "num": "05",
+    "nombre": "Press de banco inclinado en la máquina convergente",
+    "equipo": "MÁQUINA",
+    "imagen": "pectoral_p073_i01.jpeg"
+  },
+  {
+    "num": "06",
+    "nombre": "“dips” o fondos en paralelas",
+    "equipo": "PESO CORPORAL",
+    "imagen": "pectoral_p074_i01.jpeg"
+  },
+  {
+    "num": "07",
+    "nombre": "Flexiones de brazos en el suelo",
+    "equipo": "PESO CORPORAL",
+    "imagen": "pectoral_p076_i01.jpeg"
+  },
+  {
+    "num": "08",
+    "nombre": "Press con mancuernas en banco plano",
+    "equipo": "MANCUERNAS",
+    "imagen": "pectoral_p077_i01.jpeg"
+  },
+  {
+    "num": "09",
+    "nombre": "Aperturas con mancuernas en banco plano",
+    "equipo": "MANCUERNAS",
+    "imagen": "pectoral_p078_i01.jpeg"
+  },
+  {
+    "num": "10",
+    "nombre": "Press con mancuernas en banco inclinado",
+    "equipo": "MANCUERNAS",
+    "imagen": "pectoral_p079_i01.jpeg"
+  },
+  {
+    "num": "11",
+    "nombre": "Aperturas con mancuernas en banco inclinado",
+    "equipo": "MANCUERNAS",
+    "imagen": "pectoral_p080_i01.jpeg"
+  },
+  {
+    "num": "12",
+    "nombre": "Aperturas en contractor de pecho",
+    "equipo": "MÁQUINA",
+    "imagen": "pectoral_p081_i01.jpeg"
+  },
+  {
+    "num": "13",
+    "nombre": "Cruces de pie con poleas",
+    "equipo": "POLEA",
+    "imagen": "pectoral_p082_i01.jpeg"
+  },
+  {
+    "num": "14",
+    "nombre": "«pull-over» con mancuerna",
+    "equipo": "MANCUERNA",
+    "imagen": "pectoral_p083_i01.jpeg"
+  },
+  {
+    "num": "15",
+    "nombre": "«pull-over» con barra en banco plano",
+    "equipo": "BARRA",
+    "imagen": "pectoral_p084_i01.jpeg"
+  }
+]

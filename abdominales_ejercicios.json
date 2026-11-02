@@ -1,0 +1,92 @@
+[
+  {
+    "num": "01",
+    "nombre": "Encogimientos abdominales o «crunch»",
+    "equipo": "PESO CORPORAL",
+    "imagen": "abdominal_p172_i01.jpeg"
+  },
+  {
+    "num": "02",
+    "nombre": "Elevaciones del tronco en el suelo",
+    "equipo": "PESO CORPORAL",
+    "imagen": "abdominal_p173_i01.jpeg"
+  },
+  {
+    "num": "03",
+    "nombre": "Elevaciones del tronco en espaldera",
+    "equipo": "PESO CORPORAL",
+    "imagen": "abdominal_p174_i01.jpeg"
+  },
+  {
+    "num": "04",
+    "nombre": "Encogimientos abdominales con los pies apoyados en un banco o «crunch»",
+    "equipo": "PESO CORPORAL",
+    "imagen": "abdominal_p175_i01.jpeg"
+  },
+  {
+    "num": "05",
+    "nombre": "Elevaciones del tronco en banco inclinado",
+    "equipo": "PESO CORPORAL",
+    "imagen": "abdominal_p176_i01.jpeg"
+  },
+  {
+    "num": "06",
+    "nombre": "Elevaciones del tronco en suspensión en el banco específico",
+    "equipo": "MÁQUINA",
+    "imagen": "abdominal_p177_i01.jpeg"
+  },
+  {
+    "num": "07",
+    "nombre": "Encorvamientos abdominales o «crunch» con polea alta",
+    "equipo": "POLEA",
+    "imagen": "abdominal_p178_i01.jpeg"
+  },
+  {
+    "num": "08",
+    "nombre": "Encorvamientos abdominales o «crunch» en máquina específica",
+    "equipo": "MÁQUINA",
+    "imagen": "abdominal_p179_i01.jpeg"
+  },
+  {
+    "num": "09",
+    "nombre": "Elevaciones de piernas en plancha inclinada con enrollamiento vertebral y elevación de la pelvis",
+    "equipo": "PESO CORPORAL",
+    "imagen": "abdominal_p180_i01.jpeg"
+  },
+  {
+    "num": "10",
+    "nombre": "Elevaciones de rodillas en paralelas",
+    "equipo": "PESO CORPORAL",
+    "imagen": "abdominal_p182_i01.jpeg"
+  },
+  {
+    "num": "11",
+    "nombre": "Elevaciones de piernas, suspendido en barra fija",
+    "equipo": "BARRA",
+    "imagen": "abdominal_p183_i01.jpeg"
+  },
+  {
+    "num": "12",
+    "nombre": "Rotación del tronco con bastón",
+    "equipo": "BARRA",
+    "imagen": "abdominal_p184_i01.jpeg"
+  },
+  {
+    "num": "13",
+    "nombre": "Flexión lateral del tronco con mancuerna",
+    "equipo": "MANCUERNA",
+    "imagen": "abdominal_p185_i01.jpeg"
+  },
+  {
+    "num": "14",
+    "nombre": "Flexión lateral del tronco en banco",
+    "equipo": "PESO CORPORAL",
+    "imagen": "abdominal_p186_i01.jpeg"
+  },
+  {
+    "num": "15",
+    "nombre": "Rotación del tronco, de pie, en máquina de giros",
+    "equipo": "MÁQUINA",
+    "imagen": "abdominal_p187_i01.jpeg"
+  }
+]

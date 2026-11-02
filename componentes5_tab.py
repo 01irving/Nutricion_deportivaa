@@ -298,7 +298,7 @@ class Componentes5Tab:
             for i, (clave, etiqueta, tipo) in enumerate(campos):
                 self.etiquetas[clave] = etiqueta
                 ttk.Label(
-                    marco, text="{etiqueta}:", style="Gym.TLabel"
+                    marco, text=f"{etiqueta}:", style="Gym.TLabel"
                 ).grid(
                     row=base + i,
                     column=0,

@@ -25,6 +25,36 @@ GRUPOS = {
         "imagenes": os.path.join("assets", "rutinas", "brazos"),
         "paginas": (3, 28),
     },
+    "piernas": {
+        "catalogo": "piernas_ejercicios.json",
+        "guia": "guia_piernas_extraido.json",
+        "imagenes": os.path.join("assets", "rutinas", "piernas"),
+        "paginas": (122, 154),
+    },
+    "espalda": {
+        "catalogo": "espalda_ejercicios.json",
+        "guia": "guia_espalda_extraido.json",
+        "imagenes": os.path.join("assets", "rutinas", "espalda"),
+        "paginas": (85, 121),
+    },
+    "gluteos": {
+        "catalogo": "gluteos_ejercicios.json",
+        "guia": "guia_gluteos_extraido.json",
+        "imagenes": os.path.join("assets", "rutinas", "gluteos"),
+        "paginas": (155, 169),
+    },
+    "pectorales": {
+        "catalogo": "pectorales_ejercicios.json",
+        "guia": "guia_pectorales_extraido.json",
+        "imagenes": os.path.join("assets", "rutinas", "pectorales"),
+        "paginas": (61, 84),
+    },
+    "abdominales": {
+        "catalogo": "abdominales_ejercicios.json",
+        "guia": "guia_abdominales_extraido.json",
+        "imagenes": os.path.join("assets", "rutinas", "abdominales"),
+        "paginas": (170, 188),
+    },
 }
 
 EQUIPOS = {

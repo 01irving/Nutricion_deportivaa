@@ -10,6 +10,7 @@ except Exception:  # pragma: no cover - entorno sin Pillow
     Image = None
     ImageTk = None
 
+import calentamiento_print
 import database
 from estiramientos_tab import DURACIONES, MOMENTOS
 
@@ -25,8 +26,14 @@ RUTA_IMAGENES = os.path.join(os.path.dirname(__file__), "assets", "rutinas")
 CATALOGOS_JSON = {
     "hombros": "hombros_ejercicios.json",
     "brazos": "brazos_ejercicios.json",
+    "piernas": "piernas_ejercicios.json",
+    "espalda": "espalda_ejercicios.json",
+    "gluteos": "gluteos_ejercicios.json",
+    "pectorales": "pectorales_ejercicios.json",
+    "abdominales": "abdominales_ejercicios.json",
 }
-GRUPOS_PREFERIDOS = ("hombros", "brazos")
+GRUPOS_PREFERIDOS = ("hombros", "brazos", "pectorales", "espalda", "piernas", "gluteos", "abdominales")
+GRUPOS_ETIQUETAS = {"gluteos": "Glúteos"}
 
 TAMANO_IMG_RESPALDO = (560, 380)
 
@@ -101,15 +108,16 @@ class RutinasTab:
 
         self.titulo = tk.Label(
             fila_titulo,
-            text=f"RUTINAS · {self.grupo.upper()}",
+            text=f"RUTINAS · {GRUPOS_ETIQUETAS.get(self.grupo, self.grupo).upper()}",
             font=("Impact", 15),
             fg=NEON,
             bg=GRIS_OSCURO,
         )
-        self.titulo.pack(side="left", fill="x", expand=True)
+        self.marco_grupo = ttk.Frame(fila_titulo, style="Gym.TFrame")
+        self.marco_grupo.pack(side="left", padx=(8, 10), pady=2)
 
         self.lbl_grupo_titulo = tk.Label(
-            fila_titulo,
+            self.marco_grupo,
             text="Grupo:",
             font=("Segoe UI", 8),
             fg=GRIS_TEXTO,
@@ -117,15 +125,17 @@ class RutinasTab:
         )
         self.lbl_grupo_titulo.pack(side="left", padx=(0, 4))
         self.grupo_combo = ttk.Combobox(
-            fila_titulo,
-            values=[g["grupo"].capitalize() for g in self.grupos],
+            self.marco_grupo,
+            values=[GRUPOS_ETIQUETAS.get(g["grupo"], g["grupo"].capitalize()) for g in self.grupos],
             state="readonly",
             width=12,
             style="Gym.TCombobox",
         )
-        self.grupo_combo.pack(side="left", padx=(0, 8), pady=2)
+        self.grupo_combo.pack(side="left")
         self.grupo_combo.set(self.grupo.capitalize())
         self.grupo_combo.bind("<<ComboboxSelected>>", self._al_cambiar_grupo)
+
+        self.titulo.pack(side="left", fill="x", expand=True)
 
         self.lbl_estado = ttk.Label(
             self.marco,
@@ -146,15 +156,297 @@ class RutinasTab:
     def _crear_tab_calentamiento(self):
         marco = ttk.Frame(self.notebook_rut, style="Gym.TFrame")
         self.notebook_rut.add(marco, text="  Calentamiento  ")
-        tk.Label(
+
+        self.calent_items = self._cargar_catalogo_calentamiento()
+        self.calent_paciente = {}
+        self.calent_actual = None
+        self.calent_foto = None
+
+        self.lbl_calent = tk.Label(
             marco,
-            text="Calentamiento general/articular para hombros",
+            text=f"Calentamiento dinámico · {len(self.calent_items)} fichas",
             font=("Segoe UI", 10),
             fg=GRIS_TEXTO,
             bg=GRIS_OSCURO,
-        ).pack(anchor="w", padx=10, pady=(8, 4))
-        self.frame_calent = ttk.Frame(marco, style="Gym.TFrame")
-        self.frame_calent.pack(fill="both", expand=True, padx=10, pady=4)
+        )
+        self.lbl_calent.pack(anchor="w", padx=10, pady=(8, 4))
+
+        contenedor = ttk.Frame(marco, style="Gym.TFrame")
+        contenedor.pack(fill="both", expand=True, padx=10, pady=(0, 6))
+
+        izq = ttk.Frame(contenedor, style="Gym.TFrame")
+        izq.pack(side="left", fill="both", padx=(0, 10))
+
+        self.calent_tree = ttk.Treeview(
+            izq, columns=("orden", "nombre", "dur"), show="headings",
+            height=13, style="Gym.Treeview",
+        )
+        self.calent_tree.heading("orden", text="#")
+        self.calent_tree.heading("nombre", text="Ejercicio")
+        self.calent_tree.heading("dur", text="Duración")
+        self.calent_tree.column("orden", width=36, anchor="center", stretch=False)
+        self.calent_tree.column("nombre", width=268, anchor="w")
+        self.calent_tree.column("dur", width=80, anchor="center", stretch=False)
+        self.calent_tree.pack(fill="both", expand=True)
+        self.calent_tree.bind("<<TreeviewSelect>>", self._al_seleccionar_calent)
+
+        caja = ttk.LabelFrame(izq, text="Orden y duración", padding=6)
+        caja.pack(fill="x", pady=(6, 0))
+
+        tk.Label(
+            caja, text="Orden:", font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO
+        ).grid(row=0, column=0, sticky="w")
+        self.calent_orden_var = tk.StringVar()
+        self.calent_orden = tk.Spinbox(
+            caja, from_=1, to=40, width=4, textvariable=self.calent_orden_var,
+            bg=GRIS, fg=BLANCO, insertbackground=BLANCO, relief="flat",
+        )
+        self.calent_orden.grid(row=0, column=1, padx=(4, 14))
+
+        tk.Label(
+            caja, text="Duración:", font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO
+        ).grid(row=0, column=2, sticky="w")
+        self.calent_dur_var = tk.StringVar()
+        self.calent_dur = ttk.Combobox(
+            caja, textvariable=self.calent_dur_var, width=8, state="readonly",
+            values=["30 s", "45 s", "60 s", "75 s", "90 s", "2 min", "3 min"],
+            style="Gym.TCombobox",
+        )
+        self.calent_dur.grid(row=0, column=3, padx=(4, 14))
+
+        ttk.Button(caja, text="GUARDAR", command=self._guardar_calent).grid(row=0, column=4)
+        tk.Button(
+            caja,
+            text="IMPRIMIR",
+            command=self._imprimir_calent,
+            font=("Impact", 9),
+            fg=NEGRO,
+            bg=NEON,
+            activebackground=NARANJA,
+            activeforeground=BLANCO,
+            relief="flat",
+            padx=9,
+            pady=3,
+            cursor="hand2",
+        ).grid(row=0, column=5, padx=(10, 0))
+
+        der = ttk.Frame(contenedor, style="Gym.TFrame")
+        der.pack(side="left", fill="both", expand=True)
+
+        self.calent_img = tk.Label(
+            der, text="Selecciona un ejercicio", bg=GRIS_OSCURO, fg=GRIS_TEXTO
+        )
+        self.calent_img.pack(fill="x")
+
+        marco_desc = ttk.Frame(der, style="Gym.TFrame")
+        marco_desc.pack(fill="both", expand=True, pady=(6, 0))
+        self.calent_desc = tk.Text(
+            marco_desc, height=10, wrap="word", bg=GRIS, fg=BLANCO, relief="flat",
+            padx=8, pady=6, font=("Segoe UI", 9),
+        )
+        barra = ttk.Scrollbar(
+            marco_desc, orient="vertical", command=self.calent_desc.yview
+        )
+        self.calent_desc.configure(yscrollcommand=barra.set)
+        barra.pack(side="right", fill="y")
+        self.calent_desc.pack(side="left", fill="both", expand=True)
+        self.calent_desc.configure(state="disabled")
+
+        self._render_calentamiento()
+
+    # ------------------------------------------------------------------
+    # Calentamiento dinámico: catálogo, selección y orden del paciente
+    # ------------------------------------------------------------------
+    def _cargar_catalogo_calentamiento(self):
+        ruta = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "calentamiento_powerlifting.json"
+        )
+        try:
+            with open(ruta, encoding="utf-8") as fh:
+                datos = json.load(fh)
+        except Exception:
+            return []
+        return sorted(datos, key=lambda d: (int(d.get("orden", 0)), str(d.get("num", ""))))
+
+    def _cargar_calentamiento_paciente(self):
+        if not hasattr(self, "calent_tree"):
+            return
+        paciente_id = getattr(self, "paciente_id", None) or getattr(
+            self.app, "id_paciente_antro", None
+        )
+        if paciente_id is None:
+            self.calent_paciente = {}
+        else:
+            try:
+                self.calent_paciente = database.get_calentamiento_paciente(paciente_id) or {}
+            except Exception:
+                self.calent_paciente = {}
+        self._render_calentamiento()
+
+    def _ficha_calentamiento(self, num):
+        for ficha in getattr(self, "calent_items", []):
+            if str(ficha.get("num")) == str(num):
+                return ficha
+        return None
+
+    def _render_calentamiento(self):
+        if not hasattr(self, "calent_tree"):
+            return
+        seleccion = self.calent_tree.selection()
+        for item in self.calent_tree.get_children():
+            self.calent_tree.delete(item)
+
+        filas = []
+        for ficha in getattr(self, "calent_items", []):
+            num = str(ficha.get("num"))
+            ajuste = (getattr(self, "calent_paciente", {}) or {}).get(num, {})
+            orden = ajuste.get("orden", ficha.get("orden", 0))
+            duracion = ajuste.get("duracion", ficha.get("duracion", ""))
+            filas.append((int(orden), num, ficha.get("nombre", ""), duracion))
+        filas.sort(key=lambda f: (f[0], f[1]))
+
+        for orden, num, nombre, duracion in filas:
+            self.calent_tree.insert("", "end", iid=num, values=(orden, nombre, duracion))
+
+        if not seleccion:
+            hijos = self.calent_tree.get_children()
+            if hijos:
+                self.calent_tree.selection_set(hijos[0])
+                self.calent_tree.focus(hijos[0])
+                self._al_seleccionar_calent()
+            return
+
+        for num in seleccion:
+            if self.calent_tree.exists(num):
+                self.calent_tree.selection_set(num)
+                break
+
+    def _al_seleccionar_calent(self, event=None):
+        seleccion = self.calent_tree.selection()
+        if not seleccion:
+            return
+        num = seleccion[0]
+        ficha = self._ficha_calentamiento(num)
+        if not ficha:
+            return
+        self.calent_actual = num
+
+        ajuste = (getattr(self, "calent_paciente", {}) or {}).get(num, {})
+        self.calent_orden_var.set(str(ajuste.get("orden", ficha.get("orden", ""))))
+        self.calent_dur_var.set(str(ajuste.get("duracion", ficha.get("duracion", ""))))
+
+        texto = f"{ficha.get('nombre', '')}\n\n{ficha.get('descripcion', '')}"
+        self.calent_desc.configure(state="normal")
+        self.calent_desc.delete("1.0", "end")
+        self.calent_desc.insert("1.0", texto)
+        self.calent_desc.configure(state="disabled")
+
+        self._cargar_imagen_calent(ficha)
+
+    def _cargar_imagen_calent(self, ficha):
+        if ImageTk is None:
+            self.calent_img.configure(image="", text="Sin vista previa (Pillow no disponible)")
+            return
+        ruta = os.path.join(
+            RUTA_IMAGENES, "calentamiento", "cal_%s.jpeg" % ficha.get("imagen", "")
+        )
+        try:
+            with Image.open(ruta) as imagen:
+                copia = imagen.convert("RGB")
+                copia.thumbnail((320, 250))
+                self.calent_foto = ImageTk.PhotoImage(copia)
+        except Exception:
+            self.calent_foto = None
+            self.calent_img.configure(image="", text="Sin ilustración")
+            return
+        self.calent_img.configure(image=self.calent_foto, text="")
+
+    def _guardar_calent(self):
+        num = getattr(self, "calent_actual", None)
+        if not num:
+            messagebox.showinfo("Calentamiento", "Selecciona un ejercicio de la lista.")
+            return
+        try:
+            orden = int(str(self.calent_orden_var.get()).strip())
+        except Exception:
+            messagebox.showwarning("Calentamiento", "El orden debe ser un número entero.")
+            return
+        duracion = str(self.calent_dur_var.get()).strip()
+        if not duracion:
+            messagebox.showwarning("Calentamiento", "Elige una duración.")
+            return
+
+        self.calent_paciente[num] = {"orden": orden, "duracion": duracion}
+        paciente_id = getattr(self, "paciente_id", None) or getattr(
+            self.app, "id_paciente_antro", None
+        )
+        if paciente_id is not None:
+            try:
+                database.guardar_calentamiento_item(paciente_id, num, orden, duracion)
+            except Exception as exc:
+                messagebox.showerror("Calentamiento", "No se pudo guardar:\n%s" % exc)
+                return
+        self._render_calentamiento()
+        self._mensaje("Calentamiento: orden %s, %s" % (orden, duracion))
+
+    def _plan_calentamiento(self):
+        """Fichas del calentamiento en el orden fijado para el paciente."""
+        plan = []
+        for ficha in getattr(self, "calent_items", []):
+            num = str(ficha.get("num"))
+            ajuste = (getattr(self, "calent_paciente", {}) or {}).get(num, {})
+            plan.append(
+                {
+                    "num": num,
+                    "nombre": ficha.get("nombre", ""),
+                    "zona": ficha.get("zona", ""),
+                    "equipo": ficha.get("equipo", ""),
+                    "orden": int(ajuste.get("orden", ficha.get("orden", 0)) or 0),
+                    "duracion": ajuste.get("duracion", ficha.get("duracion", "")),
+                    "imagen": ficha.get("imagen", ""),
+                    "descripcion": ficha.get("descripcion", ""),
+                }
+            )
+        plan.sort(key=lambda f: (f["orden"], f["num"]))
+        return plan
+
+    def _imprimir_calent(self):
+        """Genera el PDF del calentamiento y lo abre para impresión."""
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            messagebox.showwarning(
+                "Calentamiento", "Selecciona un paciente antes de imprimir."
+            )
+            return
+        plan = self._plan_calentamiento()
+        if not plan:
+            messagebox.showwarning(
+                "Calentamiento", "No hay ejercicios de calentamiento para imprimir."
+            )
+            return
+
+        paciente = database.obtener_paciente(paciente_id) or {}
+        nombre = paciente.get("nombre") or f"paciente_{paciente_id}"
+        ruta = calentamiento_print.ruta_temporal_pdf(nombre)
+        try:
+            calentamiento_print.generar_pdf_calentamiento(ruta, paciente, plan)
+        except Exception as error:
+            messagebox.showerror(
+                "Imprimir", f"No se pudo generar el reporte:\n{error}"
+            )
+            return
+
+        try:
+            calentamiento_print.abrir_para_imprimir(ruta)
+        except Exception as error:
+            messagebox.showerror(
+                "Imprimir",
+                f"Se generó el PDF en:\n{ruta}\n\n"
+                f"No se pudo abrir automáticamente: {error}",
+            )
+            return
+
+        self._mensaje("Calentamiento: reporte generado.")
 
     def _crear_tab_rutina(self):
         marco = ttk.Frame(self.notebook_rut, style="Gym.TFrame")
@@ -397,12 +689,13 @@ class RutinasTab:
             self.lbl_preview_fuente.configure(text="")
 
     def _al_cambiar_grupo(self, event=None):
-        elegido = self.grupo_combo.get().strip().lower()
+        texto = self.grupo_combo.get().strip()
+        elegido = {v: k for k, v in GRUPOS_ETIQUETAS.items()}.get(texto, texto.lower())
         if not elegido or elegido == self.grupo:
             return
         self._cargar_ejercicios(elegido)
         if self._subpestana_actual() != 2:
-            self.titulo.configure(text=f"RUTINAS · {self.grupo.upper()}")
+            self.titulo.configure(text=f"RUTINAS · {GRUPOS_ETIQUETAS.get(self.grupo, self.grupo).upper()}")
         self._poblar_combo_ejercicios()
 
     def _subpestana_actual(self):
@@ -415,14 +708,12 @@ class RutinasTab:
         """En Estiramientos el título y el filtro de grupo son otros."""
         if self._subpestana_actual() == 2:
             self.titulo.configure(text="ESTIRAMIENTOS")
-            self.lbl_grupo_titulo.pack_forget()
-            self.grupo_combo.pack_forget()
+            self.marco_grupo.pack_forget()
             self._cargar_est_paciente()
         else:
-            self.titulo.configure(text=f"RUTINAS · {self.grupo.upper()}")
-            if not self.lbl_grupo_titulo.winfo_ismapped():
-                self.lbl_grupo_titulo.pack(side="left", padx=(0, 4))
-                self.grupo_combo.pack(side="left", padx=(0, 8), pady=2)
+            self.titulo.configure(text=f"RUTINAS · {GRUPOS_ETIQUETAS.get(self.grupo, self.grupo).upper()}")
+            if not self.marco_grupo.winfo_ismapped():
+                self.marco_grupo.pack(side="left", padx=(8, 10), pady=2, before=self.titulo)
 
     def _al_seleccionar_combo(self, event=None):
         idx = self.combo_ej.current()
@@ -1010,6 +1301,7 @@ class RutinasTab:
             self.lbl_estado.configure(text=texto)
         self._cargar_rutina()
         self._cargar_est_paciente()
+        self._cargar_calentamiento_paciente()
 
     def refrescar_estado(self):
         paciente_id = getattr(self.app, "id_paciente_antro", None)

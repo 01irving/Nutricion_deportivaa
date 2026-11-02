@@ -95,6 +95,37 @@ class FormulasTab:
         self.marco = ttk.Frame(parent, style="Gym.TFrame")
         parent.add(self.marco, text="  ⚡ Fórmulas predictivas  ")
 
+        # --- Área con scroll vertical ---
+        self.canvas = tk.Canvas(
+            self.marco, bg=GRIS_OSCURO, highlightthickness=0, bd=0
+        )
+        self.scrollbar = ttk.Scrollbar(
+            self.marco, orient="vertical", command=self.canvas.yview
+        )
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.canvas.pack(side=tk.LEFT, fill="both", expand=True)
+
+        contenido = ttk.Frame(self.canvas, style="Gym.TFrame")
+        self._canvas_window = self.canvas.create_window(
+            (0, 0), window=contenido, anchor="nw"
+        )
+
+        def _on_config(_e):
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+        def _on_canvas_width(event):
+            self.canvas.itemconfigure(self._canvas_window, width=event.width)
+
+        contenido.bind("<Configure>", _on_config)
+        self.canvas.bind("<Configure>", _on_canvas_width)
+        for widget in (self.canvas, contenido):
+            widget.bind(
+                "<MouseWheel>",
+                lambda e: self.canvas.yview_scroll(int(-e.delta / 120), "units"),
+            )
+        self.marco = contenido
+
         titulo = tk.Label(
             self.marco,
             text="FÓRMULAS PREDICTIVAS DE ENERGÍA",
@@ -133,8 +164,8 @@ class FormulasTab:
 
         tk.Button(
             datos,
-            text="TOMAR DE ANTROPOMETRÍA",
-            command=self.cargar_desde_antropometria,
+            text="TOMAR DE PACIENTE",
+            command=self.cargar_datos_paciente,
             font=("Impact", 10),
             fg=NEGRO,
             bg=NEON,
@@ -145,6 +176,21 @@ class FormulasTab:
             pady=4,
             cursor="hand2",
         ).grid(row=4, column=0, columnspan=2, sticky="we", padx=4, pady=(8, 2))
+
+        tk.Button(
+            datos,
+            text="⚡ CALCULAR",
+            command=self.calcular,
+            font=("Impact", 12),
+            fg=NEGRO,
+            bg=NEON,
+            activebackground=NARANJA,
+            activeforeground=BLANCO,
+            relief="flat",
+            padx=12,
+            pady=6,
+            cursor="hand2",
+        ).grid(row=5, column=0, columnspan=2, sticky="we", padx=4, pady=(2, 4))
 
         # ----- Actividad / MET -----
         act = ttk.LabelFrame(
@@ -186,10 +232,13 @@ class FormulasTab:
             row=2, column=2, sticky="e", padx=4, pady=5
         )
         self.horas_var = tk.StringVar(value="1")
-        ttk.Entry(act, textvariable=self.horas_var, width=8,
-                  style="Gym.TEntry").grid(
-            row=2, column=3, sticky="w", padx=4, pady=5
-        )
+        self.horas_entry = ttk.Entry(act, textvariable=self.horas_var, width=8,
+                                     style="Gym.TEntry")
+        self.horas_entry.grid(row=2, column=3, sticky="w", padx=4, pady=5)
+        for evento in ("<KeyRelease>", "<FocusOut>"):
+            self.horas_entry.bind(
+                evento, lambda _e: self._sincronizar_horas("ejercicio")
+            )
 
         # ----- PAL / actividad diaria -----
         pal = ttk.LabelFrame(
@@ -229,10 +278,13 @@ class FormulasTab:
             row=2, column=0, sticky="e", padx=4, pady=5
         )
         self.h24_var = tk.StringVar(value="23")
-        ttk.Entry(pal, textvariable=self.h24_var, width=10,
-                  style="Gym.TEntry").grid(
-            row=2, column=1, sticky="w", padx=4, pady=5
-        )
+        self.h24_entry = ttk.Entry(pal, textvariable=self.h24_var, width=10,
+                                   style="Gym.TEntry")
+        self.h24_entry.grid(row=2, column=1, sticky="w", padx=4, pady=5)
+        for evento in ("<KeyRelease>", "<FocusOut>"):
+            self.h24_entry.bind(
+                evento, lambda _e: self._sincronizar_horas("no_ejercicio")
+            )
 
         # ----- Botones -----
         barra = ttk.Frame(contenedor, style="Gym.TFrame")
@@ -297,10 +349,10 @@ class FormulasTab:
             self.cat_combo.current(0)
             self._on_categoria()
 
-    def cargar_desde_antropometria(self):
-        """Toma peso y talla de antropometría y calcula la edad por fecha de nacimiento.
-
-        Si falta algún dato, deja el campo vacío y muestra el aviso correspondiente.
+    def cargar_datos_paciente(self):
+        """Toma peso y talla de la ficha del paciente; si falta alguno,
+        usa la antropometría más reciente. La edad sale de la fecha de
+        nacimiento.
         """
         paciente_id = getattr(self.app, "id_paciente_antro", None)
         if paciente_id is None:
@@ -311,24 +363,34 @@ class FormulasTab:
             return
 
         avisos = []
+        paciente = database.obtener_paciente(paciente_id) or {}
 
-        # --- Peso y talla desde la antropometría más reciente ---
-        filas = database.obtener_antropometria()
-        fila = next(
-            (f for f in filas if f["paciente_id"] == paciente_id), None
-        )
+        peso_texto = str(paciente.get("peso") or "").strip().replace(",", ".")
+        talla_texto = str(paciente.get("talla") or "").strip().replace(",", ".")
+        origen_peso = "ficha del paciente" if peso_texto else ""
+        origen_talla = "ficha del paciente" if talla_texto else ""
 
-        peso_texto = ""
-        talla_texto = ""
-        if fila is None:
-            avisos.append("El paciente no tiene antropometría guardada.")
-        else:
-            peso_texto = str(fila["peso"] or "").strip().replace(",", ".")
-            talla_texto = str(fila["altura"] or "").strip().replace(",", ".")
+        # --- Respaldo: antropometría más reciente del paciente ---
+        if not peso_texto or not talla_texto:
+            filas = database.obtener_antropometria()
+            fila = next(
+                (f for f in filas if f["paciente_id"] == paciente_id), None
+            )
+            if fila is not None:
+                if not peso_texto:
+                    peso_texto = (
+                        str(fila["peso"] or "").strip().replace(",", ".")
+                    )
+                    origen_peso = "antropometría" if peso_texto else ""
+                if not talla_texto:
+                    talla_texto = (
+                        str(fila["altura"] or "").strip().replace(",", ".")
+                    )
+                    origen_talla = "antropometría" if talla_texto else ""
             if not peso_texto:
-                avisos.append("La antropometría no tiene peso.")
+                avisos.append("El paciente no tiene peso (ficha ni antropometría).")
             if not talla_texto:
-                avisos.append("La antropometría no tiene talla.")
+                avisos.append("El paciente no tiene talla (ficha ni antropometría).")
 
         try:
             self.peso_var.set(f"{float(peso_texto):g}")
@@ -336,6 +398,9 @@ class FormulasTab:
             self.peso_var.set("")
             if peso_texto:
                 avisos.append("El peso guardado no es válido.")
+        else:
+            if origen_peso == "antropometría":
+                avisos.append("Peso tomado de antropometría (sin peso en la ficha).")
 
         try:
             self.talla_var.set(f"{float(talla_texto):g}")
@@ -343,9 +408,26 @@ class FormulasTab:
             self.talla_var.set("")
             if talla_texto:
                 avisos.append("La talla guardada no es válida.")
+        else:
+            if origen_talla == "antropometría":
+                avisos.append("Talla tomada de antropometría (sin talla en la ficha).")
+
+        # --- Sexo desde el género de la ficha del paciente ---
+        genero = str(paciente.get("genero") or "").strip().lower()
+        mapa_sexo = {
+            "h": "H", "hombre": "H", "masculino": "H", "varón": "H",
+            "varon": "H", "masc": "H",
+            "m": "M", "mujer": "M", "femenino": "M", "f": "M", "fem": "M",
+        }
+        if genero in mapa_sexo:
+            self.sexo_var.set(mapa_sexo[genero])
+        elif genero:
+            avisos.append(
+                f"Género «{paciente.get('genero')}» no reconocido; "
+                "usa Hombre o Mujer en la ficha."
+            )
 
         # --- Edad desde la fecha de nacimiento del paciente ---
-        paciente = database.obtener_paciente(paciente_id) or {}
         fecha_nac = paciente.get("fecha_nacimiento") or paciente.get("dob")
         edad = calcular_edad(fecha_nac)
         if edad is not None:
@@ -359,7 +441,8 @@ class FormulasTab:
         else:
             messagebox.showinfo(
                 "Fórmulas predictivas",
-                "Peso, talla y edad tomados correctamente.",
+                "Peso, talla y sexo tomados de la ficha del paciente, "
+                "edad calculada por fecha de nacimiento.",
             )
 
     def _on_categoria(self, event=None):
@@ -397,6 +480,23 @@ class FormulasTab:
         except ValueError:
             raise ValueError(f"{nombre} debe ser un número.")
 
+    def _sincronizar_horas(self, origen):
+        """Mantiene horas de ejercicio + horas de no ejercicio = 24."""
+        if origen == "ejercicio":
+            try:
+                horas = float(self.horas_var.get().replace(",", "."))
+            except ValueError:
+                return
+            horas = min(max(horas, 0.0), 24.0)
+            self.h24_var.set(f"{24.0 - horas:g}")
+        else:
+            try:
+                horas = float(self.h24_var.get().replace(",", "."))
+            except ValueError:
+                return
+            horas = min(max(horas, 0.0), 24.0)
+            self.horas_var.set(f"{24.0 - horas:g}")
+
     def calcular(self):
         try:
             peso = self._float(self.peso_var, "Peso")
@@ -407,6 +507,25 @@ class FormulasTab:
             h24 = self._float(self.h24_var, "Horas NO ejercicio")
         except ValueError as error:
             messagebox.showwarning("Validación", str(error))
+            return
+
+        if not (0 <= horas <= 24):
+            messagebox.showwarning(
+                "Validación", "Las horas de ejercicio deben estar entre 0 y 24."
+            )
+            return
+        if not (0 <= h24 <= 24):
+            messagebox.showwarning(
+                "Validación",
+                "Las horas sin ejercicio deben estar entre 0 y 24.",
+            )
+            return
+        if horas + h24 > 24 + 1e-9:
+            messagebox.showwarning(
+                "Validación",
+                "El día solo tiene 24 horas: ejercicio + no ejercicio "
+                "no puede superar 24 h.",
+            )
             return
 
         bmr, rango = bmr_schofield(peso, edad, self.sexo_var.get())

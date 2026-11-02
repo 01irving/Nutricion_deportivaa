@@ -1,0 +1,112 @@
+[
+  {
+    "num": "04",
+    "nombre": "Gato-camello",
+    "equipo": "PESO CORPORAL",
+    "zona": "movilidad",
+    "orden": 1,
+    "duracion": "45 s",
+    "imagen": "04_gato_camello",
+    "descripcion": "POSICIÓN INICIAL\nEn cuadrupedia, manos bajo los hombros, rodillas bajo la cadera, columna neutra.\n\nEJECUCIÓN DEL MOVIMIENTO\nRedondear la columna llevando el pubis hacia el ombligo y la barbilla al pecho (gato); después arquearla suavemente mirando al frente (camello). Movimiento segmentado, 6 a 8 ciclos lentos.\n\nMÚSCULOS TRABAJADOS\nMusculatura erectora de la columna, recto y transverso del abdomen, multífidos.\n\nCOMENTARIOS\nAbre la movilidad segmentaria del raquis antes de cargar la barra. Coincide con el capítulo «Spinal mobility» del calentamiento de Axiom/NASM."
+  },
+  {
+    "num": "05",
+    "nombre": "Apertura torácica en cuadrupedia («open book»)",
+    "equipo": "PESO CORPORAL",
+    "zona": "movilidad",
+    "orden": 2,
+    "duracion": "45 s",
+    "imagen": "05_open_book",
+    "descripcion": "POSICIÓN INICIAL\nRodillas flexionadas sentado sobre los tobillos, la palma de una mano sobre la nuca y la otra apoyada en el suelo a la altura del hombro.\n\nEJECUCIÓN DEL MOVIMIENTO\nGirar el tronco en dirección al suelo y en dirección al techo. 6 a 8 veces por lado.\n\nMÚSCULOS TRABAJADOS\nPectoral mayor, dorsal ancho, romboides, rotadores torácicos.\n\nCOMENTARIOS\nEl press banca necesita extensión torácica para apoyar y retraer la escápula. Capítulo «Thoracic rotation» del video."
+  },
+  {
+    "num": "02",
+    "nombre": "Círculos de cadera",
+    "equipo": "PESO CORPORAL",
+    "zona": "movilidad",
+    "orden": 3,
+    "duracion": "45 s",
+    "imagen": "02_circulos_cadera",
+    "descripcion": "POSICIÓN INICIAL\nSentado en el suelo con las rodillas flexionadas, gira la cadera hasta que las rodillas formen ángulos de 90 grados.\n\nEJECUCIÓN DEL MOVIMIENTO\nGira la cadera a ambos lados manteniendo el movimiento 20 seg.\n\nMÚSCULOS TRABAJADOS\nGlúteo medio y mayor, psoas ilíaco, cápsula de la cadera, rotadores profundos.\n\nCOMENTARIOS\nPrepara la cadera para el rango de la sentadilla y del peso muerto. Capítulo «Hip mobility»."
+  },
+  {
+    "num": "03",
+    "nombre": "Zancada lateral con movilidad",
+    "equipo": "PESO CORPORAL",
+    "zona": "movilidad",
+    "orden": 4,
+    "duracion": "60 s",
+    "imagen": "03_zancada_lateral",
+    "descripcion": "POSICIÓN INICIAL\nDe pie, pies muy separados y punta ligeramente hacia fuera.\n\nEJECUCIÓN DEL MOVIMIENTO\nFlexionar una rodilla llevando la cadera atrás y abajo, con la otra pierna completamente extendida; volver y alternar. 6 a 8 repeticiones por lado.\n\nMÚSCULOS TRABAJADOS\nAductores (adductor mayor), glúteo mayor y medio, cuádriceps.\n\nCOMENTARIOS\nAbre el aductor mayor, el músculo que más se lesiona en el squat cuando el tronco se inclina con cargas altas. Capítulo «Lateral lunge mobility»."
+  },
+  {
+    "num": "06",
+    "nombre": "Puente de glúteo",
+    "equipo": "PESO CORPORAL",
+    "zona": "activación",
+    "orden": 5,
+    "duracion": "45 s",
+    "imagen": "06_puente_gluteo",
+    "descripcion": "POSICIÓN INICIAL\nTumbado supino, rodillas flexionadas, pies a la anchura de la cadera, brazos al lado.\n\nEJECUCIÓN DEL MOVIMIENTO\nEmpujar con los talones y elevar la pelvis hasta la línea rodillas-cadera-hombros, apretando el glúteo un segundo arriba. 12 a 15 repeticiones.\n\nMÚSCULOS TRABAJADOS\nGlúteo mayor, isquiotibiales, transverso del abdomen.\n\nCOMENTARIOS\nActiva el glúteo antes de que la barra lo exija. Capítulo «Glute activation»."
+  },
+  {
+    "num": "01",
+    "nombre": "Movilidad de tobillo contra la pared",
+    "equipo": "PESO CORPORAL",
+    "zona": "movilidad",
+    "orden": 6,
+    "duracion": "45 s",
+    "imagen": "01_tobillo",
+    "descripcion": "POSICIÓN INICIAL\nDe pie frente a una pared, en media rodilla, con el pie de delante a unos 10 cm y el talón apoyado.\n\nEJECUCIÓN DEL MOVIMIENTO\nLlevar la rodilla hacia la pared sin despegar el talón ni perder el arco del pie; sostener un segundo y volver. 8 a 10 por lado.\n\nMÚSCULOS TRABAJADOS\nSóleo, gastrocnemio profundo, cápsula posterior del tobillo, fascia plantar.\n\nCOMENTARIOS\nSin dorsiflexión el atleta adelanta el tronco o levanta el talón y pierde profundidad en la sentadilla."
+  },
+  {
+    "num": "07",
+    "nombre": "Walkout (caminar con las manos)",
+    "equipo": "PESO CORPORAL",
+    "zona": "movilidad",
+    "orden": 7,
+    "duracion": "60 s",
+    "imagen": "07_walkout",
+    "descripcion": "POSICIÓN INICIAL\nDe pie, pies a la anchura de la cadera, rodillas ligeramente flexionadas.\n\nEJECUCIÓN DEL MOVIMIENTO\nFlexionar el tronco y apoyar las manos; caminar con las manos hasta la plancha, sostener dos segundos y volver caminando con las manos. 4 a 6 repeticiones.\n\nMÚSCULOS TRABAJADOS\nIsquiotibiales, glúteo mayor, deltoides anterior, serrato anterior y core.\n\nCOMENTARIOS\nEncadena la bisagra de cadera con el apoyo de hombro y la estabilidad del tronco. Capítulo «Walkout mobility»."
+  },
+  {
+    "num": "08",
+    "nombre": "Empuje con banda",
+    "equipo": "BANDA ELÁSTICA",
+    "zona": "activación",
+    "orden": 8,
+    "duracion": "45 s",
+    "imagen": "08_band_pressing",
+    "descripcion": "POSICIÓN INICIAL\nDe pie, banda anclada detrás a la altura del pecho, codos flexionados y palmas al frente.\n\nEJECUCIÓN DEL MOVIMIENTO\nEmpujar al frente extendiendo los codos sin perder la posición de las escápulas; 12 a 15 repeticiones.\n\nMÚSCULOS TRABAJADOS\nPectoral mayor, deltoides anterior, serrato anterior y tríceps braquial.\n\nCOMENTARIOS\nActiva el patrón de empuje antes de la banca y calienta el hombro en su rango funcional. Capítulo «Band pressing»."
+  },
+  {
+    "num": "09",
+    "nombre": "Remo con banda",
+    "equipo": "BANDA ELÁSTICA",
+    "zona": "activación",
+    "orden": 9,
+    "duracion": "60 s",
+    "imagen": "09_band_rows",
+    "descripcion": "POSICIÓN INICIAL\nDe pie con las piernas flexionadas, de frente a la banda, tomada con las manos a la altura del pecho para calentar.\n\nEJECUCIÓN DEL MOVIMIENTO\nTirar hacia el tronco con el codo pegado al cuerpo; 12 a 15 repeticiones.\n\nMÚSCULOS TRABAJADOS\nDorsal ancho, romboides, trapecio medio y bíceps braquial.\n\nCOMENTARIOS\nEquilibra el empuje y prepara la retracción escapular que sostiene el press banca. Capítulo «Circuit: band rows»."
+  },
+  {
+    "num": "10",
+    "nombre": "Plancha lateral",
+    "equipo": "PESO CORPORAL",
+    "zona": "activación",
+    "orden": 10,
+    "duracion": "60 s",
+    "imagen": "10_plancha_lateral",
+    "descripcion": "POSICIÓN INICIAL\nTumbado de lado, apoyo en el antebrazo, pies uno delante del otro, cuerpo alineado.\n\nEJECUCIÓN DEL MOVIMIENTO\nElevar la cadera y mantener 20 a 30 segundos por lado sin que la cadera caiga ni suba.\n\nMÚSCULOS TRABAJADOS\nOblicuos, transverso del abdomen, glúteo medio y cuadrado lumbar.\n\nCOMENTARIOS\nEstabilidad lateral para no perder la posición del tronco en sentadilla y peso muerto. Capítulo «Circuit: lateral planks»."
+  },
+  {
+    "num": "12",
+    "nombre": "Saltos al cajón",
+    "equipo": "CAJÓN",
+    "zona": "neural",
+    "orden": 12,
+    "duracion": "60 s",
+    "imagen": "12_box_jumps",
+    "descripcion": "POSICIÓN INICIAL\nDe pie frente a un cajón bajo, pies a la anchura de la cadera.\n\nEJECUCIÓN DEL MOVIMIENTO\nSaltar al cajón con caída suave y rodillas alineadas; bajar caminando. 6 repeticiones, 2 series.\n\nMÚSCULOS TRABAJADOS\nCuádriceps, glúteo mayor, tríceps sural y sistema nervioso central.\n\nCOMENTARIOS\nActiva el sistema nervioso al cerrar el calentamiento; si el atleta llega fatigado, una sola serie. Capítulo «Circuit: box jumps»."
+  }
+]
