@@ -232,6 +232,18 @@ def init_db():
 
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS menus_guardados (
+                id_menu_guardado INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT UNIQUE,
+                kcal INTEGER,
+                detalle TEXT,
+                creado_en TEXT DEFAULT (datetime('now', 'localtime'))
+            )
+            """
+        )
+
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS suplementos (
                 id_suplemento INTEGER PRIMARY KEY AUTOINCREMENT,
                 categoria TEXT,
@@ -709,6 +721,48 @@ def get_menu(paciente_id):
 def delete_menu_paciente(paciente_id):
     with get_connection() as conn:
         conn.execute("DELETE FROM menus WHERE paciente_id = ?", (paciente_id,))
+
+
+# ----------------------------------------------------------------------
+# Menús guardados (plantillas por kcal)
+# ----------------------------------------------------------------------
+def guardar_menu_guardado(nombre, kcal, detalle):
+    """Upsert de una plantilla de menú semanal por nombre."""
+    with get_connection() as conn:
+        fila = conn.execute(
+            "SELECT id_menu_guardado FROM menus_guardados WHERE nombre = ?",
+            (nombre,),
+        ).fetchone()
+        if fila:
+            conn.execute(
+                "UPDATE menus_guardados SET kcal = ?, detalle = ?, "
+                "creado_en = datetime('now', 'localtime') "
+                "WHERE id_menu_guardado = ?",
+                (kcal, detalle, fila[0]),
+            )
+            return fila[0]
+        cur = conn.execute(
+            "INSERT INTO menus_guardados (nombre, kcal, detalle) VALUES (?, ?, ?)",
+            (nombre, kcal, detalle),
+        )
+        return cur.lastrowid
+
+
+def get_menus_guardados():
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        filas = conn.execute(
+            "SELECT * FROM menus_guardados ORDER BY kcal, nombre"
+        ).fetchall()
+        return [dict(f) for f in filas]
+
+
+def delete_menu_guardado(id_menu_guardado):
+    with get_connection() as conn:
+        conn.execute(
+            "DELETE FROM menus_guardados WHERE id_menu_guardado = ?",
+            (id_menu_guardado,),
+        )
 
 
 # ----------------------------------------------------------------------

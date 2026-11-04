@@ -6,8 +6,11 @@ from tkinter import messagebox, ttk
 
 import database
 import smae_loader
+import voz
 from r24h_tab import R24hTab
 from formulas_tab import FormulasTab
+from intercambiables_tab import IntercambiablesTab
+from recomendaciones_tab import RecomendacionesTab
 from equivalentes_tab import EquivalesTab
 from menu_tab import MenusTab
 from suplementos_tab import SuplementosTab
@@ -266,6 +269,7 @@ class App(tk.Tk):
             [
                 ("NUEVO PACIENTE", self.nuevo_paciente),
                 ("GUARDAR PACIENTE", self.guardar),
+                ("🎙 DICTAR", self._dictar_foco),
             ],
             self.entries,
         )
@@ -371,6 +375,10 @@ class App(tk.Tk):
 
         self.tab_formulas = FormulasTab(self)
         self.tab_formulas.create(self.notebook)
+        self.tab_intercamb = IntercambiablesTab(self)
+        self.tab_intercamb.create(self.notebook)
+        self.tab_recom = RecomendacionesTab(self)
+        self.tab_recom.create(self.notebook)
 
         self.tab_equivalentes = EquivalesTab(self)
         self.tab_equivalentes.create(self.notebook)
@@ -391,6 +399,12 @@ class App(tk.Tk):
         seleccionado = self.notebook.select()
         if seleccionado == str(self.tab_equivalentes.marco_canvas):
             self.tab_equivalentes.tomar_de_formulas(silencioso=True)
+        if seleccionado == str(self.tab_formulas._pestana):
+            self.tab_formulas.refrescar()
+        if seleccionado == str(self.tab_intercamb._pestana):
+            self.tab_intercamb.refrescar()
+        if seleccionado == str(self.tab_recom._pestana):
+            self.tab_recom.refrescar()
         if seleccionado == str(self.tab_menus.marco):
             self.tab_menus.sincronizar_distribucion()
         if seleccionado == str(self.tab_suplementos.marco):
@@ -652,6 +666,37 @@ class App(tk.Tk):
             foreground=[("selected", BLANCO)],
         )
 
+    def _dictar_foco(self):
+        """Dicta por voz al campo enfocado del formulario."""
+        widget = self.focus_get()
+        if isinstance(widget, ttk.Entry):
+            es_entry = True
+        elif isinstance(widget, tk.Text):
+            es_entry = False
+        else:
+            messagebox.showinfo(
+                "Voz",
+                "Haz clic en el campo donde quieres dictar "
+                "y vuelve a intentarlo.",
+            )
+            return
+
+        def recibir(texto, error):
+            if error:
+                messagebox.showwarning("Voz", error)
+                return
+            if not texto:
+                return
+            if es_entry:
+                actual = widget.get().strip()
+                widget.delete(0, tk.END)
+                widget.insert(0, (actual + " " + texto).strip())
+            else:
+                actual = widget.get("1.0", tk.END).rstrip()
+                widget.insert("end", (" " if actual else "") + texto)
+
+        voz.dictar(recibir, parent=self)
+
     def _leer(self, destino):
         return {clave: entry.get().strip() for clave, entry in destino.items()}
 
@@ -862,6 +907,9 @@ class App(tk.Tk):
         self.tab_rutinas.cargar(paciente["id"])
         self.tab_antecedentes.cargar(paciente["id"])
         self.tab_componentes.cargar(paciente["id"])
+        self.tab_formulas.cargar(paciente["id"])
+        self.tab_intercamb.cargar(paciente["id"])
+        self.tab_recom.cargar(paciente["id"])
         return etiqueta
 
     def _iniciar_seguimiento(self, paciente):

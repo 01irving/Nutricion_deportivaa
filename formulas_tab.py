@@ -94,6 +94,7 @@ class FormulasTab:
     def create(self, parent):
         self.marco = ttk.Frame(parent, style="Gym.TFrame")
         parent.add(self.marco, text="  ⚡ Fórmulas predictivas  ")
+        self._pestana = self.marco  # widget gestionado por el notebook
 
         # --- Área con scroll vertical ---
         self.canvas = tk.Canvas(
@@ -162,35 +163,8 @@ class FormulasTab:
         ttk.Entry(datos, textvariable=self.talla_var, width=10,
                   style="Gym.TEntry").grid(row=3, column=1, sticky="w", padx=4, pady=5)
 
-        tk.Button(
-            datos,
-            text="TOMAR DE PACIENTE",
-            command=self.cargar_datos_paciente,
-            font=("Impact", 10),
-            fg=NEGRO,
-            bg=NEON,
-            activebackground=NARANJA,
-            activeforeground=BLANCO,
-            relief="flat",
-            padx=12,
-            pady=4,
-            cursor="hand2",
-        ).grid(row=4, column=0, columnspan=2, sticky="we", padx=4, pady=(8, 2))
-
-        tk.Button(
-            datos,
-            text="⚡ CALCULAR",
-            command=self.calcular,
-            font=("Impact", 12),
-            fg=NEGRO,
-            bg=NEON,
-            activebackground=NARANJA,
-            activeforeground=BLANCO,
-            relief="flat",
-            padx=12,
-            pady=6,
-            cursor="hand2",
-        ).grid(row=5, column=0, columnspan=2, sticky="we", padx=4, pady=(2, 4))
+        # Los datos del paciente se cargan de forma directa cuando se
+        # selecciona un paciente (ver cargar()). Sin botones aquí.
 
         # ----- Actividad / MET -----
         act = ttk.LabelFrame(
@@ -349,21 +323,50 @@ class FormulasTab:
             self.cat_combo.current(0)
             self._on_categoria()
 
-    def cargar_datos_paciente(self):
+    def cargar(self, paciente_id):
+        """Carga directa y silenciosa de los datos del paciente activo."""
+        self.cargar_datos_paciente(paciente_id=paciente_id, silencioso=True)
+
+    def refrescar(self):
+        """Recarga los datos al entrar a la pestaña: primero el formulario
+        de Paciente del paciente activo; si falta algo, el registro."""
+        self.cargar_datos_paciente(
+            paciente_id=getattr(self.app, "id_paciente_antro", None),
+            silencioso=True)
+
+    def cargar_datos_paciente(self, paciente_id=None, silencioso=False):
         """Toma peso y talla de la ficha del paciente; si falta alguno,
         usa la antropometría más reciente. La edad sale de la fecha de
         nacimiento.
         """
-        paciente_id = getattr(self.app, "id_paciente_antro", None)
+        paciente_id = paciente_id or getattr(
+            self.app, "id_paciente_antro", None)
         if paciente_id is None:
-            messagebox.showwarning(
-                "Fórmulas predictivas",
-                "Selecciona un paciente antes de tomar datos.",
-            )
+            if not silencioso:
+                messagebox.showwarning(
+                    "Fórmulas predictivas",
+                    "Selecciona un paciente antes de tomar datos.",
+                )
             return
 
         avisos = []
         paciente = database.obtener_paciente(paciente_id) or {}
+        # Preferir el formulario de la pestaña Paciente cuando refleja al
+        # paciente activo (valores en pantalla, aunque no estén guardados).
+        entradas = getattr(self.app, "entries", None) or {}
+        id_form = getattr(self.app, "id_paciente", None)
+        if id_form is not None and id_form == paciente_id:
+            for campo in ("peso", "talla", "genero", "fecha_nacimiento",
+                          "dob"):
+                entry = entradas.get(campo)
+                if entry is None:
+                    continue
+                try:
+                    texto = str(entry.get()).strip()
+                except Exception:
+                    texto = ""
+                if texto:
+                    paciente[campo] = texto
 
         peso_texto = str(paciente.get("peso") or "").strip().replace(",", ".")
         talla_texto = str(paciente.get("talla") or "").strip().replace(",", ".")
@@ -436,9 +439,9 @@ class FormulasTab:
             self.edad_var.set("")
             avisos.append("No se pudo calcular la edad (fecha de nacimiento).")
 
-        if avisos:
+        if avisos and not silencioso:
             messagebox.showinfo("Fórmulas predictivas", "\n".join(avisos))
-        else:
+        elif not avisos and not silencioso:
             messagebox.showinfo(
                 "Fórmulas predictivas",
                 "Peso, talla y sexo tomados de la ficha del paciente, "

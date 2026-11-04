@@ -11,6 +11,7 @@ from tkinter import messagebox, ttk
 
 import antecedentes_print
 import database
+import voz
 from antecedentes_defs import (
     ETIQUETA_HABITOS,
     HABITOS_OPCIONES,
@@ -188,9 +189,19 @@ class AntecedentesTab:
     def _crear_area_texto(self, parent, clave, etiqueta, alto):
         marco = ttk.Frame(parent, style="Gym.TFrame")
         marco.pack(fill="both", expand=True, padx=2, pady=3)
-        ttk.Label(marco, text=f"{etiqueta}:", style="Gym.TLabel").pack(
-            anchor=tk.W, pady=(0, 2)
+        encabezado = ttk.Frame(marco, style="Gym.TFrame")
+        encabezado.pack(fill="x", pady=(0, 2))
+        ttk.Label(encabezado, text=f"{etiqueta}:", style="Gym.TLabel").pack(
+            side=tk.LEFT
         )
+        boton_voz = tk.Button(
+            encabezado, text="🎙 DICTAR",
+            command=lambda: self._dictar_campo(clave, boton_voz),
+            font=("Segoe UI", 7, "bold"), fg=NEGRO, bg=NEON,
+            activebackground=NARANJA, relief="flat", padx=5,
+            cursor="hand2", borderwidth=0,
+        )
+        boton_voz.pack(side=tk.RIGHT)
         texto = tk.Text(
             marco, height=alto, wrap=tk.WORD, bg=GRIS_OSCURO, fg=BLANCO,
             insertbackground=NEON, relief="flat", padx=6, pady=4,
@@ -202,6 +213,25 @@ class AntecedentesTab:
     # ------------------------------------------------------------------
     # Datos
     # ------------------------------------------------------------------
+    def _dictar_campo(self, clave, boton):
+        """Dicta por voz y añade el texto al área indicada."""
+        destino = self.textos[clave]
+
+        def recibir(texto, error):
+            boton.configure(text="🎙 DICTAR", state="normal")
+            if error:
+                messagebox.showwarning("Voz", error)
+                return
+            if texto:
+                actual = destino.get("1.0", tk.END).rstrip()
+                destino.insert("end", (" " if actual else "") + texto)
+
+        ok, mensaje = voz.dictar(recibir, parent=destino)
+        if not ok:
+            messagebox.showwarning("Voz", mensaje)
+            return
+        boton.configure(text="🎙 ESCUCHANDO...", state="disabled")
+
     def _leer(self):
         datos = {}
         for clave, texto in self.textos.items():
