@@ -1,9 +1,9 @@
 """
 Pestaña Recomendaciones — biblioteca de PDFs en carpetas.
 
-Permite crear carpetas, subir documentos PDF (desde el disco), abrirlos y
-eliminarlos, para tener a mano las recomendaciones que se comparten con
-el paciente.
+Permite crear carpetas, subir documentos PDF (desde el disco), abrirlos,
+imprimirlos con el membrete institucional y eliminarlos, para tener a mano
+las recomendaciones que se comparten con el paciente.
 """
 import os
 import shutil
@@ -11,6 +11,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 import database
+from impresion_utils import abrir_para_imprimir, estampar_membrete
 
 NEGRO = "#121212"
 GRIS_OSCURO = "#1E1E1E"
@@ -50,6 +51,7 @@ class RecomendacionesTab:
         for texto, comando, color_fg, color_bg in (
             ("➕ NUEVA CARPETA", self.nueva_carpeta, NEGRO, NEON),
             ("📤 SUBIR PDF", self.subir_pdf, NEGRO, NEON),
+            ("🖨 IMPRIMIR CON MEMBRETE", self.imprimir_pdf, NEGRO, NARANJA),
             ("📂 ABRIR", self.abrir_pdf, NEGRO, GRIS),
             ("🗑 ELIMINAR", self.eliminar, NEON, GRIS),
             ("🔄 ACTUALIZAR", self.refrescar, NEON, GRIS),
@@ -246,6 +248,29 @@ class RecomendacionesTab:
             messagebox.showerror(
                 "Recomendaciones",
                 f"No se pudo abrir «{os.path.basename(ruta)}»:\n{error}")
+
+    def imprimir_pdf(self):
+        """Abre una copia del PDF con el membrete estampado para imprimir."""
+        ruta = self._pdf_seleccionado()
+        if not ruta:
+            messagebox.showwarning(
+                "Recomendaciones", "Selecciona un PDF de la lista.")
+            return
+        try:
+            ruta_membrete = estampar_membrete(ruta)
+        except Exception as error:
+            messagebox.showwarning(
+                "Recomendaciones",
+                f"No se pudo estampar el membrete de "
+                f"«{os.path.basename(ruta)}»:\n{error}\n\n"
+                "Se abrirá el PDF original.")
+            ruta_membrete = ruta
+        try:
+            abrir_para_imprimir(ruta_membrete)
+        except Exception as error:
+            messagebox.showerror(
+                "Recomendaciones",
+                f"No se pudo abrir «{os.path.basename(ruta_membrete)}»:\n{error}")
 
     def eliminar(self):
         """Elimina el PDF seleccionado o, si no hay, la carpeta seleccionada

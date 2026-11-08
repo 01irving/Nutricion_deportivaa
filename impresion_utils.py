@@ -4,17 +4,21 @@ Utilidades compartidas de impresión (ReportLab + Windows).
 - calcular_edad: edad en años a partir de la fecha de nacimiento.
 - abrir_para_imprimir: abre el archivo con la aplicación predeterminada.
 - ruta_temporal_pdf: arma la ruta de un PDF temporal con prefijo y paciente.
+- estampar_membrete: copia un PDF externo con el membrete institucional.
 """
+import io
 import os
 import re
 import subprocess
 import tempfile
 from datetime import date, datetime
 
+from pypdf import PdfReader, PdfWriter, Transformation
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas as rl_canvas
 from reportlab.platypus import (
     HRFlowable,
     Image as RLImage,
@@ -145,6 +149,102 @@ def crear_membrete(ancho_total=6.3 * inch):
             spaceAfter=8,
         ),
     ]
+
+
+# ----------------------------------------------------------------------
+# Estampado del membrete sobre PDFs externos (p. ej. recomendaciones)
+# ----------------------------------------------------------------------
+ENCABEZADO_ALTO = 1.05 * inch  # banda superior que ocupa el membrete
+
+
+def _overlay_membrete(ancho, alto):
+    """Página pypdf con el membrete dibujado en la banda superior."""
+    bufer = io.BytesIO()
+    lienzo = rl_canvas.Canvas(bufer, pagesize=(ancho, alto))
+    margen = 0.6 * inch
+    ancho_logo = 1.35 * inch
+    tope = alto - 16          # borde superior del bloque de texto
+    bloque = 49               # nombre (16) + tres líneas de datos (3×11)
+    x_texto = margen + ancho_logo + 8
+
+    lienzo.setFillColor(NEGRO)
+    lienzo.setFont("Helvetica-Bold", 13)
+    lienzo.drawString(x_texto, tope - 12, DATOS_PROFESIONAL.get("nombre", ""))
+
+    lienzo.setFillColor(GRIS_TEXTO)
+    lienzo.setFont("Helvetica", 8.5)
+    y = tope - 25
+    for clave in ("direccion", "telefono", "redes_sociales"):
+        dato = str(DATOS_PROFESIONAL.get(clave) or "")
+        if dato:
+            lienzo.drawString(x_texto, y, dato)
+        y -= 11
+
+    if RUTA_LOGO and os.path.exists(RUTA_LOGO):
+        try:
+            ancho_px, alto_px = ImageReader(RUTA_LOGO).getSize()
+        except Exception:
+            ancho_px = alto_px = 0
+        if ancho_px and alto_px:
+            escala = min(ancho_logo / ancho_px, 0.62 * inch / alto_px)
+            lienzo.drawImage(
+                RUTA_LOGO, margen, tope - (bloque + alto_px * escala) / 2,
+                width=ancho_px * escala, height=alto_px * escala,
+                mask="auto",
+            )
+
+    lienzo.setStrokeColor(NARANJA)
+    lienzo.setLineWidth(1.2)
+    y_linea = alto - ENCABEZADO_ALTO + 2
+    lienzo.line(margen, y_linea, ancho - margen, y_linea)
+
+    lienzo.showPage()
+    lienzo.save()
+    bufer.seek(0)
+    return PdfReader(bufer).pages[0]
+
+
+def estampar_membrete(ruta_pdf, destino=None):
+    """
+    Copia un PDF con el membrete institucional estampado arriba de la
+    primera página; el original no se modifica.
+
+    El contenido de la primera página se reduce y centra dentro del espacio
+    restante para que no quede encimado con el membrete. Devuelve la ruta
+    de la copia (en la carpeta temporal si no se indica destino).
+    """
+    if destino is None:
+        base, _ext = os.path.splitext(os.path.basename(str(ruta_pdf)))
+        base = re.sub(r"[^\w\s-]", "", base).strip() or "documento"
+        destino = os.path.join(
+            tempfile.gettempdir(), f"{base}_con_membrete.pdf")
+
+    lector = PdfReader(str(ruta_pdf))
+    if not lector.pages:
+        raise ValueError("El PDF no tiene páginas.")
+    escritor = PdfWriter()
+    escritor.append(lector)
+
+    pagina = escritor.pages[0]
+    if pagina.get("/Rotate", 0):
+        pagina.transfer_rotation_to_content()
+    caja = pagina.mediabox
+    x0, y0 = float(caja.left), float(caja.bottom)
+    ancho, alto = float(caja.width), float(caja.height)
+    escala = (alto - ENCABEZADO_ALTO) / alto
+    pagina.add_transformation(
+        Transformation()
+        .translate(-x0, -y0)
+        .scale(escala, escala)
+        .translate((ancho - ancho * escala) / 2, 0)
+        .translate(x0, y0)
+    )
+    pagina.merge_transformed_page(
+        _overlay_membrete(ancho, alto), Transformation().translate(x0, y0))
+
+    with open(destino, "wb") as archivo:
+        escritor.write(archivo)
+    return destino
 
 
 def calcular_edad(fecha_nacimiento, referencia=None):

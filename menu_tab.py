@@ -305,6 +305,8 @@ class MenusTab:
         self.platillo_combo.bind(
             "<<ComboboxSelected>>", self._on_platillo_seleccionado
         )
+        self.platillo_combo.bind("<KeyRelease>", self._filtrar_platillos)
+        self.platillo_combo.bind("<Return>", self._aplicar_platillo_escrito)
         tk.Button(
             plat_bar, text="💾 GUARDAR PLATILLO", command=self.guardar_platillo,
             font=("Impact", 8), fg=NEGRO, bg=NEON, activebackground=NARANJA,
@@ -1331,10 +1333,17 @@ class MenusTab:
 
     def _refrescar_platillos(self):
         """Puebla el combo de platillos: primero las partes del tiempo actual
-        (menús cargados), luego los guardados del catálogo."""
+        (menús cargados), luego los guardados del catálogo de ese tiempo y
+        al final los de los demás tiempos (el autocompletado no depende del
+        tiempo de comida)."""
         tiempo = self.tiempo_var.get()
-        platillos = database.get_platillos(tiempo) if tiempo else []
-        self._platillos_tiempo = {p["nombre"]: p for p in platillos}
+        todos = database.get_platillos_resumen()
+        platillos = [p for p in todos if p["tiempo_comida"] == tiempo] + [
+            p for p in todos if p["tiempo_comida"] != tiempo
+        ]
+        self._platillos_tiempo = {}
+        for p in platillos:
+            self._platillos_tiempo.setdefault(p["nombre"], p)
         valores = []
         idx = self._tiempo_idx()
         for parte in self._partes(self.dia_actual, idx):
@@ -1349,7 +1358,42 @@ class MenusTab:
         for p in platillos:
             if p["nombre"] not in valores:
                 valores.append(p["nombre"])
+        self._platillos_valores = valores
         self.platillo_combo["values"] = valores
+
+    def _filtrar_platillos(self, event=None):
+        """Autocompletado del campo Platillo: deja en la lista los platillos
+        de cualquier tiempo que contengan todas las palabras escritas (sin
+        importar acentos ni mayúsculas)."""
+        if event is not None and event.keysym in (
+                "Up", "Down", "Return", "KP_Enter", "Escape", "Tab",
+                "Left", "Right", "Home", "End"):
+            return
+        valores = getattr(self, "_platillos_valores", [])
+        palabras = _texto_normal(self.platillo_var.get()).split()
+        if not palabras:
+            self.platillo_combo["values"] = valores
+            return
+        self.platillo_combo["values"] = [
+            v for v in valores
+            if all(p in _texto_normal(v) for p in palabras)
+        ]
+
+    def _aplicar_platillo_escrito(self, _event=None):
+        """Enter en el campo Platillo: si lo escrito coincide con un platillo
+        (o solo queda uno en la lista filtrada) lo agrega al tiempo."""
+        escrito = _texto_normal(self.platillo_var.get()).strip()
+        if not escrito:
+            return
+        candidatos = list(self.platillo_combo["values"])
+        nombre = next((v for v in candidatos
+                       if _texto_normal(v).strip() == escrito), None)
+        if nombre is None and len(candidatos) == 1:
+            nombre = candidatos[0]
+        if nombre is None:
+            return
+        self.platillo_var.set(nombre)
+        self._on_platillo_seleccionado()
 
     def _agregar_parte(self, nombre, ingredientes):
         """Agrega (o reemplaza) un platillo como parte del tiempo actual y

@@ -375,16 +375,18 @@ class App(tk.Tk):
 
         self.tab_formulas = FormulasTab(self)
         self.tab_formulas.create(self.notebook)
-        self.tab_intercamb = IntercambiablesTab(self)
-        self.tab_intercamb.create(self.notebook)
-        self.tab_recom = RecomendacionesTab(self)
-        self.tab_recom.create(self.notebook)
 
         self.tab_equivalentes = EquivalesTab(self)
         self.tab_equivalentes.create(self.notebook)
 
         self.tab_menus = MenusTab(self)
         self.tab_menus.create(self.notebook)
+
+        self.tab_intercamb = IntercambiablesTab(self)
+        self.tab_intercamb.create(self.notebook)
+        self.tab_recom = RecomendacionesTab(self)
+        self.tab_recom.create(self.notebook)
+
         self.tab_rutinas = RutinasTab(self)
         self.tab_rutinas.create(self.notebook)
 

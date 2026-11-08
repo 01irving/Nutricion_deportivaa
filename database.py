@@ -815,6 +815,18 @@ def guardar_platillo(datos):
         return cur.lastrowid
 
 
+def get_platillos_resumen():
+    """Nombre, tiempo e ingredientes de todo el catálogo (sin imagen), para
+    el autocompletado del campo Platillo."""
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        filas = conn.execute(
+            "SELECT id_platillo, nombre, tiempo_comida, ingredientes "
+            "FROM platillos ORDER BY nombre"
+        ).fetchall()
+    return [dict(f) for f in filas]
+
+
 def get_platillos(tiempo_comida=None):
     with get_connection() as conn:
         conn.row_factory = sqlite3.Row

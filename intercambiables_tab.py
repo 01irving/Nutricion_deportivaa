@@ -12,6 +12,7 @@ from datetime import datetime
 from tkinter import messagebox, ttk
 
 import database
+from impresion_utils import crear_membrete
 from menu_tab import SUBGRUPOS, SUBGRUPOS_CORTO
 from menus_print import abrir_para_imprimir
 
@@ -101,7 +102,7 @@ def generar_pdf_intercambiables(ruta, paciente, dia, secciones,
         title=f"Alimentos intercambiables — {nombre}",
         author="Nutrición Deportiva",
     )
-    flujo = [
+    flujo = list(crear_membrete()) + [
         _franja(f"Alimentos intercambiables — {nombre}", estilos),
         Spacer(1, 4),
         Paragraph(
