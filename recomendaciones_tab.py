@@ -12,6 +12,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import database
 from impresion_utils import abrir_para_imprimir, estampar_membrete
+from rutas import base_dir
 
 NEGRO = "#121212"
 GRIS_OSCURO = "#1E1E1E"
@@ -21,8 +22,7 @@ NARANJA = "#FF6D00"
 BLANCO = "#F5F5F5"
 GRIS_TEXTO = "#B0B0B0"
 
-BASE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "recomendaciones")
+BASE = os.path.join(base_dir(), "recomendaciones")
 
 
 class RecomendacionesTab:

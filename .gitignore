@@ -8,3 +8,10 @@ SMAE-5_respaldo_*.xlsx
 app_err.log
 app_out.log
 respaldo_*/
+
+# Empaquetado (PyInstaller)
+build/
+dist/
+build_log.txt
+build_cons_log.txt
+dist_cons/

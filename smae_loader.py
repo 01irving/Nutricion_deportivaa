@@ -8,6 +8,8 @@ import openpyxl
 
 import database
 
+from rutas import base_dir
+
 XLSX_NAME = "SMAE-5.xlsx"
 
 COLUMNAS = [
@@ -91,7 +93,7 @@ def _mapear_columnas(encabezados):
 
 
 def _leer_alimentos():
-    ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), XLSX_NAME)
+    ruta = os.path.join(base_dir(), XLSX_NAME)
     if not os.path.exists(ruta):
         raise FileNotFoundError(f"No se encuentra {ruta}")
 

@@ -13,6 +13,7 @@ except Exception:  # pragma: no cover - entorno sin Pillow
 import calentamiento_print
 import database
 from estiramientos_tab import DURACIONES, MOMENTOS
+from rutas import base_dir
 
 NEGRO = "#121212"
 GRIS_OSCURO = "#1E1E1E"
@@ -22,7 +23,7 @@ NARANJA = "#FF6D00"
 BLANCO = "#F5F5F5"
 GRIS_TEXTO = "#B0B0B0"
 
-RUTA_IMAGENES = os.path.join(os.path.dirname(__file__), "assets", "rutinas")
+RUTA_IMAGENES = os.path.join(base_dir(), "assets", "rutinas")
 CATALOGOS_JSON = {
     "hombros": "hombros_ejercicios.json",
     "brazos": "brazos_ejercicios.json",
@@ -89,7 +90,7 @@ class RutinasTab:
             pass
         # Respaldo: JSON local si la base no responde o está vacía
         nombre_json = CATALOGOS_JSON.get(self.grupo, "")
-        ruta_json = os.path.join(os.path.dirname(__file__), nombre_json) if nombre_json else ""
+        ruta_json = os.path.join(base_dir(), nombre_json) if nombre_json else ""
         for codificacion in ("utf-8-sig", "utf-8"):
             try:
                 with open(ruta_json, "r", encoding=codificacion) as f:
@@ -258,9 +259,7 @@ class RutinasTab:
     # Calentamiento dinámico: catálogo, selección y orden del paciente
     # ------------------------------------------------------------------
     def _cargar_catalogo_calentamiento(self):
-        ruta = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "calentamiento_powerlifting.json"
-        )
+        ruta = os.path.join(base_dir(), "calentamiento_powerlifting.json")
         try:
             with open(ruta, encoding="utf-8") as fh:
                 datos = json.load(fh)
@@ -1029,7 +1028,7 @@ class RutinasTab:
             if nombre:
                 for ext in (".png", ".jpg", ".jpeg"):
                     ruta = os.path.join(
-                        os.path.dirname(os.path.abspath(__file__)),
+                        base_dir(),
                         "estiramientos_img", nombre + ext,
                     )
                     if os.path.exists(ruta):

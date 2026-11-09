@@ -2,7 +2,7 @@ import json
 import math
 import os
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 import database
 import smae_loader
@@ -248,6 +248,7 @@ class App(tk.Tk):
         self.configurar_tema()
 
         database.init_db()
+        self._actualizar_titulo()
         self._cargar_smae()
 
         self.id_paciente = None
@@ -480,30 +481,46 @@ class App(tk.Tk):
 
         return marco_tab
 
+    def _actualizar_titulo(self):
+        """Título de la ventana con el nombre personalizado del profesional."""
+        try:
+            from impresion_utils import datos_profesional
+
+            nombre = str(datos_profesional().get("nombre", "")).strip()
+        except Exception:
+            nombre = ""
+        self.title(
+            f"Nutrición Deportiva — {nombre}" if nombre else "Nutrición Deportiva"
+        )
+
     def _crear_membrete(self):
         """Encabezado de la ventana: el mismo membrete de las impresiones."""
         try:
-            from impresion_utils import DATOS_PROFESIONAL, RUTA_LOGO
+            from impresion_utils import datos_profesional, logo_bytes
 
-            datos = dict(DATOS_PROFESIONAL)
-            ruta_logo = RUTA_LOGO
+            datos = datos_profesional()
+            logo = logo_bytes()
         except Exception:
-            datos = {
-                "nombre": "Irving Gualberto Euan Dzul",
-                "direccion": "Calle 21 Num 42. Nunkiní, Calkiní, Camp.",
-                "telefono": "9961059072",
-                "redes_sociales": "facebook: Irving Euan",
-            }
-            ruta_logo = ""
+            from impresion_utils import DATOS_PREDETERMINADOS
+
+            datos = dict(DATOS_PREDETERMINADOS)
+            logo = None
+
+        # Reconstruible: al personalizar se destruye y se vuelve a crear
+        if getattr(self, "_marco_membrete", None) is not None:
+            self._marco_membrete.destroy()
 
         marco = tk.Frame(self, bg=GRIS_OSCURO)
         marco.pack(fill="x", padx=10, pady=(4, 0))
+        self._marco_membrete = marco
 
-        if ruta_logo and os.path.exists(ruta_logo):
+        if logo:
             try:
+                import io
+
                 from PIL import Image, ImageTk
 
-                with Image.open(ruta_logo) as imagen:
+                with Image.open(io.BytesIO(logo)) as imagen:
                     original = imagen.convert("RGBA")
                 alto = 32
                 ancho = max(1, int(original.width * alto / original.height))
@@ -536,6 +553,21 @@ class App(tk.Tk):
             bg=GRIS_OSCURO,
         ).pack(side="left", padx=10, pady=3)
 
+        tk.Button(
+            marco,
+            text="⚙ PERSONALIZAR",
+            command=self.abrir_personalizacion,
+            font=("Segoe UI", 9, "bold"),
+            fg=NEGRO,
+            bg=NEON,
+            activebackground=NARANJA,
+            activeforeground=BLANCO,
+            relief="flat",
+            padx=10,
+            pady=2,
+            cursor="hand2",
+        ).pack(side="right", padx=(0, 10), pady=3)
+
         tk.Label(
             marco,
             text="NUTRICIÓN DEPORTIVA",
@@ -544,7 +576,169 @@ class App(tk.Tk):
             bg=GRIS_OSCURO,
         ).pack(side="right", padx=10, pady=3)
 
-        tk.Frame(self, bg=NARANJA, height=2).pack(fill="x", padx=10, pady=(2, 0))
+        if getattr(self, "_linea_naranja", None) is not None:
+            self._linea_naranja.destroy()
+        self._linea_naranja = tk.Frame(self, bg=NARANJA, height=2)
+        self._linea_naranja.pack(fill="x", padx=10, pady=(2, 0))
+
+    def abrir_personalizacion(self):
+        """Diálogo para personalizar nombre, dirección, redes y logo."""
+        from impresion_utils import (
+            datos_profesional,
+            guardar_datos_profesional,
+            guardar_logo,
+            imagen_a_png,
+            logo_bytes,
+            quitar_logo,
+        )
+
+        datos = datos_profesional()
+        dialogo = tk.Toplevel(self)
+        dialogo.title("Personalización")
+        dialogo.configure(bg=GRIS_OSCURO)
+        dialogo.transient(self)
+        dialogo.grab_set()
+        dialogo.resizable(False, False)
+
+        marco = tk.Frame(dialogo, bg=GRIS_OSCURO, padx=16, pady=14)
+        marco.pack(fill="both", expand=True)
+
+        tk.Label(
+            marco, text="PERSONALIZACIÓN", font=("Impact", 14),
+            fg=NEON, bg=GRIS_OSCURO,
+        ).pack(anchor="w", pady=(0, 8))
+
+        tk.Label(
+            marco,
+            text="Estos datos aparecen en el encabezado de la app y en los "
+                 "PDF que imprimas. Se guardan en la base de datos.",
+            font=("Segoe UI", 8),
+            fg=GRIS_TEXTO,
+            bg=GRIS_OSCURO,
+            wraplength=460,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 10))
+
+        entradas = {}
+        for clave, etiqueta in (
+            ("nombre", "Nombre (profesional / negocio)"),
+            ("direccion", "Dirección"),
+            ("telefono", "Teléfono"),
+            ("redes_sociales", "Redes sociales"),
+        ):
+            fila = tk.Frame(marco, bg=GRIS_OSCURO)
+            fila.pack(fill="x", pady=3)
+            tk.Label(
+                fila, text=etiqueta + ":", width=28, anchor="e",
+                fg=BLANCO, bg=GRIS_OSCURO, font=("Segoe UI", 9, "bold"),
+            ).pack(side="left")
+            entrada = tk.Entry(
+                fila, width=44, bg=GRIS, fg=BLANCO,
+                insertbackground=NEON, relief="flat",
+            )
+            entrada.pack(side="left", padx=(8, 0), ipady=3)
+            entrada.insert(0, datos.get(clave, ""))
+            entradas[clave] = entrada
+
+        # --------------------------- logo ---------------------------
+        pendiente = {"nuevo": None, "quitar": False}
+        fila_logo = tk.Frame(marco, bg=GRIS_OSCURO)
+        fila_logo.pack(fill="x", pady=(12, 2))
+        tk.Label(
+            fila_logo, text="Logo:", width=28, anchor="e",
+            fg=BLANCO, bg=GRIS_OSCURO, font=("Segoe UI", 9, "bold"),
+        ).pack(side="left")
+        preview = tk.Label(fila_logo, bg=GRIS_OSCURO, fg=GRIS_TEXTO,
+                           text="(sin logo)")
+        preview.pack(side="left", padx=8)
+
+        def mostrar_preview(png_bytes):
+            from PIL import Image, ImageTk
+            import io
+
+            try:
+                with Image.open(io.BytesIO(png_bytes)) as imagen:
+                    copia = imagen.convert("RGBA")
+                copia.thumbnail((110, 42))
+                foto = ImageTk.PhotoImage(copia)
+                preview.configure(image=foto, text="")
+                preview.image = foto  # conservar referencia
+            except Exception:
+                pass
+
+        actual = logo_bytes()
+        if actual:
+            mostrar_preview(actual)
+
+        botones_logo = tk.Frame(marco, bg=GRIS_OSCURO)
+        botones_logo.pack(fill="x")
+
+        def elegir_logo():
+            ruta = filedialog.askopenfilename(
+                title="Elegir logo",
+                filetypes=[
+                    ("Imágenes", "*.png *.jpg *.jpeg *.gif *.bmp"),
+                    ("Todos los archivos", "*.*"),
+                ],
+            )
+            if not ruta:
+                return
+            try:
+                pendiente["nuevo"] = imagen_a_png(ruta)
+                pendiente["quitar"] = False
+                mostrar_preview(pendiente["nuevo"])
+            except Exception as error:
+                messagebox.showerror(
+                    "Logo", f"No se pudo abrir la imagen:\n{error}",
+                    parent=dialogo,
+                )
+
+        def quitar():
+            pendiente["nuevo"] = None
+            pendiente["quitar"] = True
+            preview.configure(image="", text="(sin logo)")
+
+        for texto, comando in (("Elegir imagen…", elegir_logo),
+                               ("Quitar logo", quitar)):
+            tk.Button(
+                botones_logo, text=texto, command=comando,
+                font=("Segoe UI", 9, "bold"), fg=NEON, bg=GRIS,
+                activebackground=NARANJA, activeforeground=BLANCO,
+                relief="flat", padx=12, pady=3, cursor="hand2",
+            ).pack(side="left", padx=(8, 0), pady=4)
+
+        # ------------------------- guardar --------------------------
+        def guardar():
+            guardar_datos_profesional(
+                {clave: entrada.get() for clave, entrada in entradas.items()}
+            )
+            if pendiente["nuevo"] is not None:
+                guardar_logo(pendiente["nuevo"])
+            elif pendiente["quitar"]:
+                quitar_logo()
+            self._actualizar_titulo()
+            self._crear_membrete()
+            dialogo.destroy()
+
+        barra = tk.Frame(marco, bg=GRIS_OSCURO)
+        barra.pack(fill="x", pady=(14, 0))
+
+        def boton(texto, comando, primario):
+            tk.Button(
+                barra, text=texto, command=comando,
+                font=("Impact", 12),
+                fg=NEGRO if primario else NEON,
+                bg=NEON if primario else GRIS,
+                activebackground=NARANJA,
+                activeforeground=BLANCO,
+                relief="flat", padx=16, pady=6, cursor="hand2",
+            ).pack(side="left", padx=(0, 8))
+
+        boton("GUARDAR", guardar, True)
+        boton("CANCELAR", dialogo.destroy, False)
+
+        dialogo.bind("<Return>", lambda _e: guardar())
+        dialogo.bind("<Escape>", lambda _e: dialogo.destroy())
 
     def configurar_tema(self):
         style = ttk.Style(self)

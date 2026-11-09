@@ -31,6 +31,7 @@ from impresion_utils import (
     nombre_pdf,
 )
 from impresion_utils import ruta_temporal_pdf as _ruta_temporal_pdf
+from rutas import base_dir
 
 __all__ = [
     "abrir_para_imprimir",
@@ -46,9 +47,7 @@ GRIS = colors.HexColor("#2C2C2C")
 NARANJA = colors.HexColor("#FF6D00")
 GRIS_TEXTO = colors.HexColor("#B0B0B0")
 
-RUTA_IMAGENES = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "estiramientos_img"
-)
+RUTA_IMAGENES = os.path.join(base_dir(), "estiramientos_img")
 
 MAX_ANCHO_IMAGEN = 3.1 * inch
 MAX_ALTO_IMAGEN = 3.4 * inch

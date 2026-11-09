@@ -3,8 +3,9 @@ import sqlite3
 from pathlib import Path
 
 from antecedentes_defs import ANTECEDENTES_CAMPOS
-DB_PATH = Path(__file__).with_name("Nutrición_deportiva.db")
-MET_CSV_PATH = Path(__file__).with_name("mets.csv")
+from rutas import base_dir
+DB_PATH = Path(base_dir()) / "Nutrición_deportiva.db"
+MET_CSV_PATH = Path(base_dir()) / "mets.csv"
 
 CAMPOS = [
     "deporte",
@@ -43,6 +44,27 @@ def get_connection():
     return conn
 
 
+def get_config(clave, predeterminado=""):
+    """Lee un valor de la tabla configuracion (membrete, logo, etc.)."""
+    with get_connection() as conn:
+        fila = conn.execute(
+            "SELECT valor FROM configuracion WHERE clave = ?", (clave,)
+        ).fetchone()
+    return fila[0] if fila else predeterminado
+
+
+def set_config(clave, valor):
+    """Guarda un valor de configuración (texto o bytes para el logo)."""
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO configuracion (clave, valor) VALUES (?, ?)
+            ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor
+            """,
+            (clave, valor),
+        )
+
+
 def init_db():
     with get_connection() as conn:
         columnas = ",\n    ".join(f"{c} TEXT" for c in CAMPOS)
@@ -70,6 +92,16 @@ def init_db():
             "UPDATE pacientes "
             "SET codigo = 'PAC-' || printf('%04d', id) "
             "WHERE codigo IS NULL OR codigo = ''"
+        )
+
+        # Personalización (membrete: nombre, dirección, redes, logo...)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS configuracion (
+                clave TEXT PRIMARY KEY,
+                valor
+            )
+            """
         )
 
         columnas_antro = ",\n    ".join(

@@ -10,7 +10,9 @@ import json
 import os
 import re
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+from rutas import base_dir
+
+BASE = base_dir()
 
 GRUPOS = {
     "hombros": {

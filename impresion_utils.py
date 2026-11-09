@@ -27,17 +27,28 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+import database
+
 # ----------------------------------------------------------------------
-# Membrete: datos del profesional que encabezan los reportes imprimibles
+# Membrete: datos del profesional que encabezan los reportes imprimibles.
+# Se guardan en la BD (tabla configuracion), así viajan con la base de
+# datos al compartir la app y se personalizan desde ⚙ en el encabezado.
 # ----------------------------------------------------------------------
-DATOS_PROFESIONAL = {
+CLAVES_MEMBRETE = ("nombre", "direccion", "telefono", "redes_sociales")
+
+# Datos con los que arranca la app si aún no se ha personalizado nada
+DATOS_PREDETERMINADOS = {
     "nombre": "Irving Gualberto Euan Dzul",
     "direccion": "Calle 21 Num 42. Nunkiní, Calkiní, Camp.",
     "telefono": "9961059072",
     "redes_sociales": "facebook: Irving Euan",
 }
 
+# Logo heredado: si existe al primer arranque se importa a la BD
 RUTA_LOGO = r"C:\Users\hp\Pictures\Saved Pictures\Nutritio-Hominis.png"
+
+_CLAVE_LOGO = "membrete_logo"
+_CLAVE_INICIALIZADO = "membrete_inicializado"
 
 # Acrobat (o Acrobat Reader) para abrir el PDF y ajustarlo antes de imprimir
 RUTAS_ACROBAT = [
@@ -53,6 +64,69 @@ NEGRO = colors.HexColor("#121212")
 GRIS = colors.HexColor("#2C2C2C")
 NARANJA = colors.HexColor("#FF6D00")
 GRIS_TEXTO = colors.HexColor("#444444")
+
+
+def datos_profesional():
+    """
+    Datos del profesional que encabezan la app y las impresiones.
+
+    Se leen de la base de datos (van con ella al compartir la app). En el
+    primer arranque siembra los valores predeterminados e importa el logo
+    heredado de RUTA_LOGO si ese archivo existe.
+    """
+    if not database.get_config(_CLAVE_INICIALIZADO):
+        for clave, valor in DATOS_PREDETERMINADOS.items():
+            database.set_config("membrete_" + clave, valor)
+        if not logo_bytes() and RUTA_LOGO and os.path.exists(RUTA_LOGO):
+            try:
+                guardar_logo(imagen_a_png(RUTA_LOGO))
+            except Exception:
+                pass
+        database.set_config(_CLAVE_INICIALIZADO, "1")
+    return {
+        clave: str(database.get_config("membrete_" + clave, "") or "")
+        for clave in CLAVES_MEMBRETE
+    }
+
+
+def guardar_datos_profesional(datos):
+    """Guarda nombre, dirección, teléfono y redes en la base de datos."""
+    for clave in CLAVES_MEMBRETE:
+        database.set_config("membrete_" + clave, str(datos.get(clave, "") or ""))
+    database.set_config(_CLAVE_INICIALIZADO, "1")
+
+
+def logo_bytes():
+    """PNG (bytes) del logo institucional guardado en la BD; None si no hay."""
+    datos = database.get_config(_CLAVE_LOGO)
+    if not datos:
+        return None
+    return bytes(datos) if isinstance(datos, (bytes, bytearray)) else None
+
+
+def guardar_logo(imagen_bytes):
+    """Guarda el logo (PNG bytes) en la base de datos."""
+    database.set_config(_CLAVE_LOGO, bytes(imagen_bytes))
+
+
+def quitar_logo():
+    """Elimina el logo guardado."""
+    database.set_config(_CLAVE_LOGO, "")
+
+
+def imagen_a_png(ruta_o_bytes):
+    """Convierte una imagen (ruta o bytes) a PNG para guardarla en la BD."""
+    import io
+
+    from PIL import Image
+
+    origen = ruta_o_bytes
+    if isinstance(origen, (bytes, bytearray)):
+        origen = io.BytesIO(bytes(origen))
+    with Image.open(origen) as imagen:
+        bufer = io.BytesIO()
+        imagen.convert("RGBA").save(bufer, format="PNG")
+        return bufer.getvalue()
 
 
 def _escapar(texto):
@@ -81,17 +155,19 @@ def _estilos_membrete():
 
 
 def _logo_flowable(ancho):
-    """Logo institucional si el archivo existe; si no, devuelve None."""
-    if not RUTA_LOGO or not os.path.exists(RUTA_LOGO):
+    """Logo institucional (de la BD) como flowable; None si no hay."""
+    logo = logo_bytes()
+    if not logo:
         return None
     try:
-        ancho_px, alto_px = ImageReader(RUTA_LOGO).getSize()
+        reader = ImageReader(io.BytesIO(logo))
+        ancho_px, alto_px = reader.getSize()
     except Exception:
         return None
     if not ancho_px or not alto_px:
         return None
     escala = ancho / float(ancho_px)
-    return RLImage(RUTA_LOGO, width=ancho, height=alto_px * escala)
+    return RLImage(io.BytesIO(logo), width=ancho, height=alto_px * escala)
 
 
 def crear_membrete(ancho_total=6.3 * inch):
@@ -100,8 +176,8 @@ def crear_membrete(ancho_total=6.3 * inch):
 
     Devuelve una lista (puede ir vacía si no hay datos configurados).
     """
-    datos = DATOS_PROFESIONAL
-    if not datos:
+    datos = datos_profesional()
+    if not any(datos.values()):
         return []
 
     estilos = _estilos_membrete()
@@ -159,6 +235,8 @@ ENCABEZADO_ALTO = 1.05 * inch  # banda superior que ocupa el membrete
 
 def _overlay_membrete(ancho, alto):
     """Página pypdf con el membrete dibujado en la banda superior."""
+    datos = datos_profesional()
+    logo = logo_bytes()
     bufer = io.BytesIO()
     lienzo = rl_canvas.Canvas(bufer, pagesize=(ancho, alto))
     margen = 0.6 * inch
@@ -169,26 +247,27 @@ def _overlay_membrete(ancho, alto):
 
     lienzo.setFillColor(NEGRO)
     lienzo.setFont("Helvetica-Bold", 13)
-    lienzo.drawString(x_texto, tope - 12, DATOS_PROFESIONAL.get("nombre", ""))
+    lienzo.drawString(x_texto, tope - 12, datos.get("nombre", ""))
 
     lienzo.setFillColor(GRIS_TEXTO)
     lienzo.setFont("Helvetica", 8.5)
     y = tope - 25
     for clave in ("direccion", "telefono", "redes_sociales"):
-        dato = str(DATOS_PROFESIONAL.get(clave) or "")
+        dato = str(datos.get(clave) or "")
         if dato:
             lienzo.drawString(x_texto, y, dato)
         y -= 11
 
-    if RUTA_LOGO and os.path.exists(RUTA_LOGO):
+    if logo:
         try:
-            ancho_px, alto_px = ImageReader(RUTA_LOGO).getSize()
+            reader = ImageReader(io.BytesIO(logo))
+            ancho_px, alto_px = reader.getSize()
         except Exception:
             ancho_px = alto_px = 0
         if ancho_px and alto_px:
             escala = min(ancho_logo / ancho_px, 0.62 * inch / alto_px)
             lienzo.drawImage(
-                RUTA_LOGO, margen, tope - (bloque + alto_px * escala) / 2,
+                reader, margen, tope - (bloque + alto_px * escala) / 2,
                 width=ancho_px * escala, height=alto_px * escala,
                 mask="auto",
             )

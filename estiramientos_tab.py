@@ -13,6 +13,7 @@ from tkinter import messagebox, ttk
 
 import database
 import estiramientos_print
+from rutas import base_dir
 
 NEGRO = "#121212"
 GRIS_OSCURO = "#1E1E1E"
@@ -22,9 +23,7 @@ NARANJA = "#FF6D00"
 BLANCO = "#F5F5F5"
 GRIS_TEXTO = "#B0B0B0"
 
-RUTA_IMAGENES = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "estiramientos_img"
-)
+RUTA_IMAGENES = os.path.join(base_dir(), "estiramientos_img")
 
 MOMENTOS = [
     "Antes del entrenamiento",
