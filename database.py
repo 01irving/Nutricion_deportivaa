@@ -191,6 +191,7 @@ def init_db():
                 peso REAL,
                 edad REAL,
                 sexo TEXT,
+                formula TEXT,
                 pal REAL,
                 horas_no_ejercicio REAL,
                 categoria TEXT,
@@ -207,6 +208,13 @@ def init_db():
             )
             """
         )
+
+        # Migración: bases creadas antes de la fórmula seleccionable
+        columnas_formulas = [
+            r[1] for r in conn.execute("PRAGMA table_info(formulas)").fetchall()
+        ]
+        if "formula" not in columnas_formulas:
+            conn.execute("ALTER TABLE formulas ADD COLUMN formula TEXT")
 
         conn.execute(
             """
@@ -637,6 +645,7 @@ FORMULAS_CAMPOS = [
     "peso",
     "edad",
     "sexo",
+    "formula",
     "pal",
     "horas_no_ejercicio",
     "categoria",

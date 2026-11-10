@@ -140,6 +140,13 @@ class EquivalesTab:
             cursor="hand2",
         ).pack(side=tk.LEFT, padx=10)
 
+        # Fórmula de GEB con la que se obtuvo el GET tomado de Fórmulas
+        self.lbl_formula = tk.Label(
+            info, text="", fg=BLANCO, bg=GRIS_OSCURO,
+            font=("Segoe UI", 9, "italic"),
+        )
+        self.lbl_formula.pack(side=tk.LEFT, padx=(0, 4))
+
         # ----- Cuadro dietosintético -----
         cuadro = ttk.LabelFrame(
             self.marco, text="Cuadro dietosintético", padding=8
@@ -909,6 +916,12 @@ class EquivalesTab:
         self.tee_var.set(f"{tab.tee:.1f}")
         if tab.peso:
             self.peso_var.set(f"{tab.peso:.1f}")
+        # Indicar con qué fórmula se calculó el GET (Schofield-METs o
+        # Valencia); da igual cuál sea, el GET carga igual en los canjes.
+        formula = (getattr(tab, "resultado", None) or {}).get("formula")
+        self.lbl_formula.configure(
+            text=f"GET con fórmula: {formula}" if formula else ""
+        )
 
     def recalcular(self, *args):
         try:

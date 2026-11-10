@@ -1,7 +1,8 @@
 """
 Pestaña Fórmulas predictivas - Cálculo de energía.
-Basado en NUTR107x Formula Card (Schofield BMR, PAL) y el Compendio de
-Actividades Físicas 2011 (mets.csv) para la energía del ejercicio (EEE).
+GEB seleccionable: Schofield (NUTR107x Formula Card) con GEE = GEB x PAL
+x h/24 + EEE del Compendio de Actividades Físicas 2011 (mets.csv), o
+Valencia con GET = GEB x factor de actividad.
 """
 import tkinter as tk
 from datetime import date, datetime
@@ -84,6 +85,46 @@ def bmr_schofield(peso, edad, sexo):
     return valor, ">60 años"
 
 
+def bmr_valencia(peso, edad, sexo):
+    """GEB con las ecuaciones de Valencia (kcal/día), solo desde los 18 años.
+    Devuelve (valor, etiqueta_rango). Si el sujeto es menor de 18 años se
+    usa Schofield para no romper el cálculo.
+    """
+    if edad < 18:
+        valor, rango = bmr_schofield(peso, edad, sexo)
+        return valor, f"{rango} (Schofield; Valencia desde 18 años)"
+    if edad < 30:
+        valor = (13.37 if sexo == "H" else 11.02) * peso + (
+            747 if sexo == "H" else 679
+        )
+        return valor, "18-30 años"
+    if edad < 60:
+        valor = (13.08 if sexo == "H" else 10.92) * peso + (
+            693 if sexo == "H" else 677
+        )
+        return valor, "30-60 años"
+    valor = (14.21 if sexo == "H" else 10.98) * peso + (
+        429 if sexo == "H" else 520
+    )
+    return valor, ">60 años"
+
+
+# Fórmulas de GEB disponibles en la pestaña (etiqueta -> función)
+FORMULAS_GEB = {
+    "Schofield-METs": bmr_schofield,
+    "Valencia": bmr_valencia,
+}
+
+# Factor de actividad para Valencia (GET = GEB x factor)
+FACTORES_ACTIVIDAD = {
+    "Sedentario (1.2)": 1.2,
+    "Actividad ligera (1.375)": 1.375,
+    "Actividad moderada (1.55)": 1.55,
+    "Actividad intensa (1.725)": 1.725,
+    "Actividad muy intensa (1.9)": 1.9,
+}
+
+
 class FormulasTab:
     def __init__(self, app):
         self.app = app
@@ -162,6 +203,30 @@ class FormulasTab:
         )
         ttk.Entry(datos, textvariable=self.talla_var, width=10,
                   style="Gym.TEntry").grid(row=3, column=1, sticky="w", padx=4, pady=5)
+
+        # Fórmula de GEB: Schofield-METs (la de siempre) o Valencia
+        self.formula_var = tk.StringVar(value="Schofield-METs")
+        ttk.Label(datos, text="Fórmula GEB:", style="Gym.TLabel").grid(
+            row=4, column=0, sticky="e", padx=4, pady=5
+        )
+        ttk.Combobox(
+            datos, textvariable=self.formula_var,
+            values=list(FORMULAS_GEB), state="readonly", width=16,
+            style="Gym.TCombobox",
+        ).grid(row=4, column=1, sticky="w", padx=4, pady=5)
+
+        # Nivel de actividad para Valencia (GET = GEB x factor)
+        self.actividad_var = tk.StringVar(
+            value="Actividad moderada (1.55)"
+        )
+        ttk.Label(datos, text="Actividad:", style="Gym.TLabel").grid(
+            row=5, column=0, sticky="e", padx=4, pady=5
+        )
+        ttk.Combobox(
+            datos, textvariable=self.actividad_var,
+            values=list(FACTORES_ACTIVIDAD), state="readonly", width=24,
+            style="Gym.TCombobox",
+        ).grid(row=5, column=1, sticky="w", padx=4, pady=5)
 
         # Los datos del paciente se cargan de forma directa cuando se
         # selecciona un paciente (ver cargar()). Sin botones aquí.
@@ -290,17 +355,18 @@ class FormulasTab:
         contenedor.columnconfigure(1, weight=1)
         self.res_labels = {}
         filas = [
-            ("bmr", "BMR (Schofield)"),
+            ("bmr", "GEB (Schofield-METs)"),
             ("rango", "Rango de edad"),
-            ("gee", "GEE (BMR x PAL x h/24)"),
+            ("gee", "GEE (GEB x PAL x h/24)"),
             ("eee", "EEE (MET x peso x h)"),
-            ("tee", "TEE (GEE + EEE)"),
+            ("tee", "GET/TEE (GEE + EEE)"),
             ("ea", "EA (EI - EEE)"),
         ]
         for i, (clave, etiqueta) in enumerate(filas):
-            ttk.Label(res, text=f"{etiqueta}:", style="Gym.TLabel").grid(
-                row=i, column=0, sticky="w", padx=4, pady=4
-            )
+            lbl_row = ttk.Label(res, text=f"{etiqueta}:", style="Gym.TLabel")
+            lbl_row.grid(row=i, column=0, sticky="w", padx=4, pady=4)
+            if clave == "bmr":
+                self.lbl_row_bmr = lbl_row  # se renombra según la fórmula
             lbl = tk.Label(res, text="—", fg=NEON, bg=GRIS_OSCURO,
                            font=("Segoe UI", 11, "bold"))
             lbl.grid(row=i, column=1, sticky="w", padx=4, pady=4)
@@ -504,38 +570,60 @@ class FormulasTab:
         try:
             peso = self._float(self.peso_var, "Peso")
             edad = self._float(self.edad_var, "Edad")
-            met = self._float(self.mets_var, "METs")
-            horas = self._float(self.horas_var, "Horas de ejercicio")
-            pal = self._float(self.pal_var, "PAL")
-            h24 = self._float(self.h24_var, "Horas NO ejercicio")
         except ValueError as error:
             messagebox.showwarning("Validación", str(error))
             return
 
-        if not (0 <= horas <= 24):
-            messagebox.showwarning(
-                "Validación", "Las horas de ejercicio deben estar entre 0 y 24."
-            )
-            return
-        if not (0 <= h24 <= 24):
-            messagebox.showwarning(
-                "Validación",
-                "Las horas sin ejercicio deben estar entre 0 y 24.",
-            )
-            return
-        if horas + h24 > 24 + 1e-9:
-            messagebox.showwarning(
-                "Validación",
-                "El día solo tiene 24 horas: ejercicio + no ejercicio "
-                "no puede superar 24 h.",
-            )
-            return
+        # GEB según la fórmula elegida; si la seleccionada no está
+        # disponible se usa Schofield para no romper el flujo hacia
+        # Equivalentes.
+        nombre_formula = self.formula_var.get() or "Schofield-METs"
+        funcion_bmr = FORMULAS_GEB.get(nombre_formula, bmr_schofield)
 
-        bmr, rango = bmr_schofield(peso, edad, self.sexo_var.get())
-        gee = bmr * pal * (h24 / 24.0)
-        eee = met * peso * horas
-        tee = gee + eee
-        ea = tee - eee
+        factor = None
+        if nombre_formula == "Valencia":
+            # GET = GEB x factor de actividad (tabla de Valencia)
+            factor = FACTORES_ACTIVIDAD.get(self.actividad_var.get(), 1.55)
+            bmr, rango = funcion_bmr(peso, edad, self.sexo_var.get())
+            gee = eee = ea = None
+            met = horas = h24 = None
+            pal = factor
+            tee = bmr * factor
+        else:
+            try:
+                met = self._float(self.mets_var, "METs")
+                horas = self._float(self.horas_var, "Horas de ejercicio")
+                pal = self._float(self.pal_var, "PAL")
+                h24 = self._float(self.h24_var, "Horas NO ejercicio")
+            except ValueError as error:
+                messagebox.showwarning("Validación", str(error))
+                return
+
+            if not (0 <= horas <= 24):
+                messagebox.showwarning(
+                    "Validación",
+                    "Las horas de ejercicio deben estar entre 0 y 24.",
+                )
+                return
+            if not (0 <= h24 <= 24):
+                messagebox.showwarning(
+                    "Validación",
+                    "Las horas sin ejercicio deben estar entre 0 y 24.",
+                )
+                return
+            if horas + h24 > 24 + 1e-9:
+                messagebox.showwarning(
+                    "Validación",
+                    "El día solo tiene 24 horas: ejercicio + no ejercicio "
+                    "no puede superar 24 h.",
+                )
+                return
+
+            bmr, rango = funcion_bmr(peso, edad, self.sexo_var.get())
+            gee = bmr * pal * (h24 / 24.0)
+            eee = met * peso * horas
+            tee = gee + eee
+            ea = tee - eee
 
         self.tee = tee
         self.peso = peso
@@ -543,10 +631,18 @@ class FormulasTab:
             "peso": peso,
             "edad": edad,
             "sexo": self.sexo_var.get(),
+            "formula": nombre_formula,
+            "factor_actividad": factor,
             "pal": pal,
             "horas_no_ejercicio": h24,
-            "categoria": self.cat_var.get(),
-            "actividad": self.act_var.get(),
+            "categoria": (
+                "Valencia" if nombre_formula == "Valencia"
+                else self.cat_var.get()
+            ),
+            "actividad": (
+                self.actividad_var.get() if nombre_formula == "Valencia"
+                else self.act_var.get()
+            ),
             "mets": met,
             "horas_ejercicio": horas,
             "bmr": bmr,
@@ -557,12 +653,19 @@ class FormulasTab:
             "ea": ea,
         }
 
+        self.lbl_row_bmr.configure(text=f"GEB ({nombre_formula}):")
         self.res_labels["bmr"].configure(text=f"{bmr:.0f} kcal/día")
         self.res_labels["rango"].configure(text=rango)
-        self.res_labels["gee"].configure(text=f"{gee:.0f} kcal")
-        self.res_labels["eee"].configure(text=f"{eee:.0f} kcal")
+        self.res_labels["gee"].configure(
+            text="—" if gee is None else f"{gee:.0f} kcal"
+        )
+        self.res_labels["eee"].configure(
+            text="—" if eee is None else f"{eee:.0f} kcal"
+        )
         self.res_labels["tee"].configure(text=f"{tee:.0f} kcal/día")
-        self.res_labels["ea"].configure(text=f"{ea:.0f} kcal")
+        self.res_labels["ea"].configure(
+            text="—" if ea is None else f"{ea:.0f} kcal"
+        )
 
     def limpiar(self):
         self.tee = None
