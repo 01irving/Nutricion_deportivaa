@@ -236,6 +236,7 @@ class FormulasTab:
             contenedor, text="Actividad física (Compendio METs)", padding=8
         )
         act.grid(row=1, column=0, sticky="new", padx=(0, 8), pady=(8, 0))
+        self.frame_mets = act  # se contrae al elegir Valencia
 
         ttk.Label(act, text="Categoría:", style="Gym.TLabel").grid(
             row=0, column=0, sticky="e", padx=4, pady=5
@@ -284,6 +285,7 @@ class FormulasTab:
             contenedor, text="Actividad diaria (GEE = BMR x PAL x h/24)", padding=8
         )
         pal.grid(row=2, column=0, sticky="new", padx=(0, 8), pady=(8, 0))
+        self.frame_pal = pal  # se contrae al elegir Valencia
 
         ttk.Label(pal, text="Nivel PAL:", style="Gym.TLabel").grid(
             row=0, column=0, sticky="e", padx=4, pady=5
@@ -354,6 +356,7 @@ class FormulasTab:
         res.grid(row=0, column=1, rowspan=4, sticky="nsew", padx=(8, 0))
         contenedor.columnconfigure(1, weight=1)
         self.res_labels = {}
+        self.lbl_rows = {}  # etiquetas de la columna izquierda de Resultados
         filas = [
             ("bmr", "GEB (Schofield-METs)"),
             ("rango", "Rango de edad"),
@@ -365,12 +368,17 @@ class FormulasTab:
         for i, (clave, etiqueta) in enumerate(filas):
             lbl_row = ttk.Label(res, text=f"{etiqueta}:", style="Gym.TLabel")
             lbl_row.grid(row=i, column=0, sticky="w", padx=4, pady=4)
+            self.lbl_rows[clave] = lbl_row
             if clave == "bmr":
                 self.lbl_row_bmr = lbl_row  # se renombra según la fórmula
             lbl = tk.Label(res, text="—", fg=NEON, bg=GRIS_OSCURO,
                            font=("Segoe UI", 11, "bold"))
             lbl.grid(row=i, column=1, sticky="w", padx=4, pady=4)
             self.res_labels[clave] = lbl
+
+        # Contraer los cuadros que no aplican según la fórmula elegida
+        self.formula_var.trace_add("write", self._on_formula)
+        self._on_formula()
 
         self._cargar_categorias()
 
@@ -542,6 +550,24 @@ class FormulasTab:
         }
         if texto in valores:
             self.pal_var.set(valores[texto])
+
+    def _on_formula(self, *_):
+        """Al elegir Valencia contrae los cuadros que solo usa
+        Schofield-METs (Compendio METs y PAL) y oculta los resultados que
+        no aplican, dejando solo GEB, rango y GET; al volver a
+        Schofield-METs todo se restaura. Limpia resultados previos para no
+        mezclar cálculos de fórmulas distintas.
+        """
+        valencia = self.formula_var.get() == "Valencia"
+        for marco in (self.frame_mets, self.frame_pal):
+            (marco.grid_remove if valencia else marco.grid)()
+        for clave in ("gee", "eee", "ea"):
+            for widget in (self.lbl_rows[clave], self.res_labels[clave]):
+                (widget.grid_remove if valencia else widget.grid)()
+        self.lbl_row_bmr.configure(
+            text=f"GEB ({self.formula_var.get() or 'Schofield-METs'}):"
+        )
+        self.limpiar()
 
     def _float(self, var, nombre):
         try:
