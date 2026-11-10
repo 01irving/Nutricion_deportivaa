@@ -172,6 +172,96 @@ BLANCO = "#F5F5F5"
 GRIS_TEXTO = "#B0B0B0"
 
 
+class NotebookDosFilas(tk.Frame):
+    """Contenedor de pestañas con la barra repartida en dos filas.
+
+    ttk.Notebook solo acomoda las pestañas en una fila y con muchas se
+    salen de la pantalla; esta clase imita la API que usa la app
+    (add, select con y sin argumento y el evento virtual
+    <<NotebookTabChanged>>) repartiendo las pestañas en dos filas.
+    """
+
+    def __init__(self, master, **kwargs):
+        kwargs.setdefault("bg", NEGRO)
+        super().__init__(master, **kwargs)
+        self._pestanas = []  # [marco, boton, texto]
+        self._actual = None
+
+        self._barra = tk.Frame(self, bg=NEGRO)
+        self._barra.pack(fill="x")
+        self._cuerpo = tk.Frame(self, bg=GRIS_OSCURO)
+        self._cuerpo.pack(fill="both", expand=True)
+        self._cuerpo.rowconfigure(0, weight=1)
+        self._cuerpo.columnconfigure(0, weight=1)
+
+    def add(self, hijo, text="", **_extra):
+        boton = tk.Label(
+            self._barra,
+            text=text,
+            bg=GRIS,
+            fg=GRIS_TEXTO,
+            font=("Segoe UI", 10, "bold"),
+            padx=14,
+            pady=6,
+            cursor="hand2",
+        )
+        boton.bind("<Button-1>", lambda _e, m=hijo: self.select(m))
+        self._pestanas.append([hijo, boton, text])
+        self._recolocar()
+        hijo.grid(in_=self._cuerpo, row=0, column=0, sticky="nsew")
+        if self._actual is None:
+            self.select(hijo)
+        else:
+            hijo.grid_remove()
+
+    def _recolocar(self):
+        """Reparte las pestañas en dos filas lo más parejo posible."""
+        total = len(self._pestanas)
+        mitad = (total + 1) // 2
+        columnas = max(mitad, total - mitad)
+        for _marco, boton, _texto in self._pestanas:
+            boton.grid_forget()
+        for c in range(columnas):
+            self._barra.columnconfigure(c, weight=1, uniform="pestanas")
+        for i, (_marco, boton, _texto) in enumerate(self._pestanas):
+            if i < mitad:
+                fila, columna = 0, i
+            else:
+                # desplaza la segunda fila para que quede centrada
+                fila = 1
+                columna = i - mitad + (columnas - (total - mitad)) // 2
+            # sticky="ew": cada pestaña llena su columna (todas iguales)
+            boton.grid(row=fila, column=columna, sticky="ew",
+                       padx=2, pady=(2, 1))
+
+    def select(self, hijo=None):
+        """Sin argumento devuelve la ruta de la pestaña activa (como
+        ttk.Notebook); con argumento (marco o ruta textual) cambia la
+        pestaña activa y lanza <<NotebookTabChanged>>.
+        """
+        if hijo is None:
+            return str(self._actual) if self._actual is not None else ""
+        destino = None
+        for marco, _boton, _texto in self._pestanas:
+            if marco is hijo or str(marco) == str(hijo):
+                destino = marco
+                break
+        if destino is None:
+            return ""
+        if self._actual is not None and self._actual is not destino:
+            self._actual.grid_remove()
+        self._actual = destino
+        for marco, boton, _texto in self._pestanas:
+            activo = marco is destino
+            boton.configure(
+                bg=NEON if activo else GRIS,
+                fg=NEGRO if activo else GRIS_TEXTO,
+            )
+        destino.grid()
+        self.event_generate("<<NotebookTabChanged>>")
+        return str(destino)
+
+
 class DialogoAccion(tk.Toplevel):
     def __init__(self, parent, paciente):
         super().__init__(parent)
@@ -257,7 +347,7 @@ class App(tk.Tk):
         self._logo_membrete = None
         self._crear_membrete()
 
-        self.notebook = ttk.Notebook(self)
+        self.notebook = NotebookDosFilas(self)
         self.notebook.pack(fill="both", expand=True, padx=10, pady=(6, 8))
 
         self.entries = {}

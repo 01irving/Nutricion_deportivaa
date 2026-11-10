@@ -187,33 +187,33 @@ class FormulasTab:
         self.peso_var = tk.StringVar(value="70")
         self.edad_var = tk.StringVar(value="25")
         self.sexo_var = tk.StringVar(value="H")
-        self._campo(datos, 0, "Peso (kg):", self.peso_var)
-        self._campo(datos, 1, "Edad (años):", self.edad_var)
-        ttk.Label(datos, text="Sexo:", style="Gym.TLabel").grid(
-            row=2, column=0, sticky="e", padx=4, pady=5
-        )
-        ttk.Combobox(
-            datos, textvariable=self.sexo_var, values=["H", "M"],
-            state="readonly", width=6, style="Gym.TCombobox",
-        ).grid(row=2, column=1, sticky="w", padx=4, pady=5)
-
-        self.talla_var = tk.StringVar(value="")
-        ttk.Label(datos, text="Talla (cm):", style="Gym.TLabel").grid(
-            row=3, column=0, sticky="e", padx=4, pady=5
-        )
-        ttk.Entry(datos, textvariable=self.talla_var, width=10,
-                  style="Gym.TEntry").grid(row=3, column=1, sticky="w", padx=4, pady=5)
-
         # Fórmula de GEB: Schofield-METs (la de siempre) o Valencia
         self.formula_var = tk.StringVar(value="Schofield-METs")
         ttk.Label(datos, text="Fórmula GEB:", style="Gym.TLabel").grid(
-            row=4, column=0, sticky="e", padx=4, pady=5
+            row=0, column=0, sticky="e", padx=4, pady=5
         )
         ttk.Combobox(
             datos, textvariable=self.formula_var,
             values=list(FORMULAS_GEB), state="readonly", width=16,
             style="Gym.TCombobox",
-        ).grid(row=4, column=1, sticky="w", padx=4, pady=5)
+        ).grid(row=0, column=1, sticky="w", padx=4, pady=5)
+
+        self._campo(datos, 1, "Peso (kg):", self.peso_var)
+        self._campo(datos, 2, "Edad (años):", self.edad_var)
+        ttk.Label(datos, text="Sexo:", style="Gym.TLabel").grid(
+            row=3, column=0, sticky="e", padx=4, pady=5
+        )
+        ttk.Combobox(
+            datos, textvariable=self.sexo_var, values=["H", "M"],
+            state="readonly", width=6, style="Gym.TCombobox",
+        ).grid(row=3, column=1, sticky="w", padx=4, pady=5)
+
+        self.talla_var = tk.StringVar(value="")
+        ttk.Label(datos, text="Talla (cm):", style="Gym.TLabel").grid(
+            row=4, column=0, sticky="e", padx=4, pady=5
+        )
+        ttk.Entry(datos, textvariable=self.talla_var, width=10,
+                  style="Gym.TEntry").grid(row=4, column=1, sticky="w", padx=4, pady=5)
 
         # Nivel de actividad para Valencia (GET = GEB x factor)
         self.actividad_var = tk.StringVar(
