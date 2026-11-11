@@ -219,7 +219,7 @@ class EquivalesTab:
             "kcal_t", "prot_t", "lip_t", "hc_t",
         )
         self.eq_tree = ttk.Treeview(
-            eq_frame, columns=columnas, show="headings", height=19,
+            eq_frame, columns=columnas, show="headings", height=20,
             style="Eq.Treeview",
         )
         for col, texto, ancho in (
@@ -334,6 +334,12 @@ class EquivalesTab:
             activeforeground=BLANCO, relief="flat", padx=12, pady=4, cursor="hand2",
         ).pack(side=tk.LEFT, padx=3)
         tk.Button(
+            controles, text="A TODOS LOS DÍAS",
+            command=self.aplicar_a_todos_los_dias,
+            font=("Impact", 10), fg=NEGRO, bg=NARANJA, activebackground=NEON,
+            activeforeground=NEGRO, relief="flat", padx=12, pady=4, cursor="hand2",
+        ).pack(side=tk.LEFT, padx=3)
+        tk.Button(
             controles, text="💾 GUARDAR", command=self.guardar,
             font=("Impact", 10), fg=NEGRO, bg=NEON, activebackground=NARANJA,
             activeforeground=BLANCO, relief="flat", padx=12, pady=4, cursor="hand2",
@@ -378,12 +384,35 @@ class EquivalesTab:
             "total", background=GRIS, foreground=NEON,
             font=("Segoe UI", 10, "bold"),
         )
+        # Fila con los objetivos fijados en el cuadro dietosintetico
+        self.eq_tree.insert(
+            "", tk.END, iid="objetivo",
+            values=("OBJETIVO", "", "", "", "", "", "", "", "0", "0", "0", "0"),
+            tags=("objetivo",),
+        )
+        self.eq_tree.tag_configure(
+            "objetivo", background=GRIS, foreground=BLANCO,
+            font=("Segoe UI", 10, "bold"),
+        )
+        # Fila de diferencia en % (etiquetas superpuestas, una por macronutriente)
+        self.eq_tree.insert(
+            "", tk.END, iid="dif",
+            values=("DIFERENCIA", "", "", "", "", "", "", "", "", "", "", ""),
+            tags=("dif",),
+        )
+        self.eq_tree.tag_configure(
+            "dif", background=GRIS_OSCURO, font=("Segoe UI", 9, "bold"),
+        )
+        self.dif_labels = []
+        for _col in ("#9", "#10", "#11", "#12"):
+            self.dif_labels.append(
+                tk.Label(self.eq_tree, text="0%", bg=GRIS_OSCURO,
+                         font=("Segoe UI", 9, "bold"))
+            )
         self.eq_tree.after(50, self._posicionar_inputs)
 
     def _posicionar_inputs(self):
-        if not getattr(self, "inputs_eq", None):
-            return
-        for i, entrada in enumerate(self.inputs_eq):
+        for i, entrada in enumerate(getattr(self, "inputs_eq", [])):
             bbox = self.eq_tree.bbox(str(i), "#8")
             if not bbox:
                 entrada.place_forget()
@@ -392,6 +421,16 @@ class EquivalesTab:
             alto_entry = max(alto - 2, 22)
             entrada.place(
                 x=x + 2, y=y + 1, width=max(ancho - 4, 40), height=alto_entry
+            )
+        for j, lbl in enumerate(getattr(self, "dif_labels", [])):
+            bbox = self.eq_tree.bbox("dif", f"#{9 + j}")
+            if not bbox:
+                lbl.place_forget()
+                continue
+            x, y, ancho, alto = bbox
+            lbl.place(
+                x=x + 1, y=y + 1, width=max(ancho - 2, 30),
+                height=max(alto - 2, 18),
             )
 
     def _reposicionar_after(self):
@@ -427,6 +466,7 @@ class EquivalesTab:
         self.totales_eq = totales
         self._actualizar_totales_eq()
         self._actualizar_faltantes()
+        self._actualizar_objetivo_dia()
         self.actualizar_objetivos_distribucion()
 
     def _actualizar_totales_eq(self):
@@ -456,6 +496,54 @@ class EquivalesTab:
                 text=f"{falta:.1f}",
                 fg=NEON if abs(falta) < 0.05 else NARANJA,
             )
+
+    def _actualizar_objetivo_dia(self):
+        """Filas OBJETIVO y DIFERENCIA (%) del día bajo TOTAL DEL DÍA.
+
+        El objetivo sale del cuadro dietosintetico (gramos de HC, proteina
+        y grasa) y la diferencia usa el mismo semaforo de la distribucion
+        por tiempos: amarillo si falta, verde si esta completo y rojo si
+        se pasa."""
+        if not getattr(self, "dif_labels", None):
+            return
+        gramos = getattr(self, "gramos", None)
+        if gramos:
+            obj = {
+                "kcal": 4 * gramos["carbohidratos"]
+                + 4 * gramos["proteina"]
+                + 9 * gramos["grasa"],
+                "prot": gramos["proteina"],
+                "lip": gramos["grasa"],
+                "hc": gramos["carbohidratos"],
+            }
+        else:
+            obj = {"kcal": 0.0, "prot": 0.0, "lip": 0.0, "hc": 0.0}
+        self.eq_tree.item(
+            "objetivo",
+            values=(
+                "OBJETIVO", "", "", "", "", "", "", "",
+                f"{obj['kcal']:.1f}",
+                f"{obj['prot']:.1f}",
+                f"{obj['lip']:.1f}",
+                f"{obj['hc']:.1f}",
+            ),
+        )
+        totales = getattr(self, "totales_eq", None) or {
+            "kcal": 0.0, "prot": 0.0, "lip": 0.0, "hc": 0.0,
+        }
+        for clave, lbl in zip(("kcal", "prot", "lip", "hc"), self.dif_labels):
+            objetivo = obj[clave]
+            actual = totales.get(clave, 0.0)
+            if objetivo <= 0:
+                pct = 0.0 if actual <= 0 else 100.0
+            else:
+                pct = (actual - objetivo) / objetivo * 100
+            if abs(pct) < 0.05:
+                lbl.configure(text="0%", fg=VERDE)      # completo
+            elif pct < 0:
+                lbl.configure(text=f"{pct:.1f}%", fg=AMARILLO)  # falta
+            else:
+                lbl.configure(text=f"+{pct:.1f}%", fg=ROJO)     # se pasa
 
     def _objetivo_equivalentes(self):
         gramos = getattr(self, "gramos", None)
@@ -721,6 +809,30 @@ class EquivalesTab:
                 var.set("0")
         self._registrar_dia_actual()
 
+    def aplicar_a_todos_los_dias(self):
+        """Copia la distribucion del dia visible a los 7 dias y guarda."""
+        if not getattr(self, "dist_vars", None) or not self.dist_vars:
+            return
+        self._registrar_dia_actual()
+        origen = self.dist_datos.get(self.dia_actual)
+        if not origen:
+            return
+        # copia profunda: cada dia necesita sus propias listas
+        copia = {
+            "num_t": origen.get("num_t", 4),
+            "nombres": list(origen.get("nombres", [])),
+            "valores": [list(fila) for fila in origen.get("valores", [])],
+        }
+        for dia in DIAS_SEMANA:
+            self.dist_datos[dia] = {
+                "num_t": copia["num_t"],
+                "nombres": list(copia["nombres"]),
+                "valores": [list(fila) for fila in copia["valores"]],
+            }
+        self.guardar(
+            "Distribución del día aplicada a toda la semana y guardada."
+        )
+
     def distribuciones_dato(self):
         """Devuelve el diccionario de los 7 días para persistir."""
         self._registrar_dia_actual()
@@ -766,7 +878,7 @@ class EquivalesTab:
             var.set("")
         self._actualizar_totales()
 
-    def guardar(self):
+    def guardar(self, mensaje=None):
         paciente_id = getattr(self.app, "id_paciente_antro", None)
         if paciente_id is None:
             messagebox.showwarning(
@@ -815,7 +927,7 @@ class EquivalesTab:
         database.insert_equivalentes(datos)
         messagebox.showinfo(
             "Equivalentes",
-            "Distribución de equivalentes guardada para el paciente activo.",
+            mensaje or "Distribución de equivalentes guardada para el paciente activo.",
         )
 
     def imprimir(self):
@@ -985,4 +1097,5 @@ class EquivalesTab:
         self.lbl_total_g.configure(text=f"{g_carb + g_prot + g_grasa:.1f}")
 
         self._actualizar_faltantes()
+        self._actualizar_objetivo_dia()
 
