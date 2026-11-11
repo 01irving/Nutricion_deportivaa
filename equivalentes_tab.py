@@ -17,6 +17,9 @@ GRIS = "#2C2C2C"
 NEON = "#C6FF00"
 NARANJA = "#FF6D00"
 BLANCO = "#F5F5F5"
+AMARILLO = "#FFD600"
+VERDE = "#00E676"
+ROJO = "#FF1744"
 
 # Tabla de aporte nutrimental promedio por subgrupo SMAE-5
 # (grupo, kcal, proteína g, lípidos g, HC g)
@@ -563,7 +566,7 @@ class EquivalesTab:
             ).grid(row=0, column=t_idx + 1, sticky="nsew", padx=1, pady=1)
             self.dist_nombres_vars.append(nombre_var)
 
-        for offset, texto in enumerate(("Total", "Objetivo", "Falta")):
+        for offset, texto in enumerate(("Total", "Objetivo", "Diferencia")):
             ttk.Label(self.dist_frame, text=texto, style="Estado.TLabel").grid(
                 row=0, column=num_t + 1 + offset, sticky="nsew", padx=1, pady=1
             )
@@ -610,7 +613,7 @@ class EquivalesTab:
                          padx=1, pady=1)
             self.dist_objetivo_labels.append(lbl_obj)
 
-            lbl_diff = tk.Label(self.dist_frame, text="0", fg=NARANJA,
+            lbl_diff = tk.Label(self.dist_frame, text="0", fg=VERDE,
                                 bg=GRIS_OSCURO, font=("Segoe UI", 9))
             lbl_diff.grid(row=row_idx, column=num_t + 3, sticky="nsew",
                           padx=1, pady=1)
@@ -672,8 +675,14 @@ class EquivalesTab:
             except ValueError:
                 obj_val = 0.0
             diff = obj_val - sg_total
+            if abs(diff) < 0.05:
+                color = VERDE      # completo
+            elif diff > 0:
+                color = AMARILLO   # faltan equivalentes
+            else:
+                color = ROJO       # se pasa del objetivo
             self.dist_diferencia_labels[sg_idx].configure(
-                text=f"{diff:.0f}", fg=NEON if abs(diff) < 0.05 else NARANJA
+                text=f"{diff:.0f}", fg=color
             )
             total_general_kcal += kcal_val_sg * sg_total
 
