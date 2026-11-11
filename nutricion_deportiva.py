@@ -7,6 +7,7 @@ from tkinter import filedialog, messagebox, ttk
 import database
 import smae_loader
 import voz
+from version import VERSION
 from r24h_tab import R24hTab
 from formulas_tab import FormulasTab
 from intercambiables_tab import IntercambiablesTab
@@ -572,16 +573,23 @@ class App(tk.Tk):
         return marco_tab
 
     def _actualizar_titulo(self):
-        """Título de la ventana con el nombre personalizado del profesional."""
+        """Título de la ventana con la versión y el nombre del profesional."""
         try:
             from impresion_utils import datos_profesional
 
             nombre = str(datos_profesional().get("nombre", "")).strip()
         except Exception:
             nombre = ""
-        self.title(
-            f"Nutrición Deportiva — {nombre}" if nombre else "Nutrición Deportiva"
-        )
+        base = f"Nutrición Deportiva v{VERSION}"
+        try:
+            import licencia
+
+            if licencia.en_prueba():
+                restantes = licencia.dias_restantes_prueba()
+                base += f" — PRUEBA ({restantes} día{'s' if restantes != 1 else ''})"
+        except Exception:
+            pass
+        self.title(f"{base} — {nombre}" if nombre else base)
 
     def _crear_membrete(self):
         """Encabezado de la ventana: el mismo membrete de las impresiones."""
@@ -696,6 +704,10 @@ class App(tk.Tk):
         tk.Label(
             marco, text="PERSONALIZACIÓN", font=("Impact", 14),
             fg=NEON, bg=GRIS_OSCURO,
+        ).pack(anchor="w", pady=(0, 2))
+        tk.Label(
+            marco, text=f"Versión {VERSION}", font=("Segoe UI", 8),
+            fg=GRIS_TEXTO, bg=GRIS_OSCURO,
         ).pack(anchor="w", pady=(0, 8))
 
         tk.Label(
@@ -796,6 +808,26 @@ class App(tk.Tk):
                 activebackground=NARANJA, activeforeground=BLANCO,
                 relief="flat", padx=12, pady=3, cursor="hand2",
             ).pack(side="left", padx=(8, 0), pady=4)
+
+        # -------------------- contraseña de acceso -------------------
+        fila_acceso = tk.Frame(marco, bg=GRIS_OSCURO)
+        fila_acceso.pack(fill="x", pady=(10, 0))
+        tk.Label(
+            fila_acceso, text="Contraseña de acceso:", width=28, anchor="e",
+            fg=BLANCO, bg=GRIS_OSCURO, font=("Segoe UI", 9, "bold"),
+        ).pack(side="left")
+
+        def cambiar_contrasena():
+            import acceso
+
+            acceso.dialogo_cambiar(dialogo)
+
+        tk.Button(
+            fila_acceso, text="Cambiar…", command=cambiar_contrasena,
+            font=("Segoe UI", 9, "bold"), fg=NEON, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=12, pady=3, cursor="hand2",
+        ).pack(side="left", padx=(8, 0))
 
         # ------------------------- guardar --------------------------
         def guardar():
@@ -1906,4 +1938,10 @@ class App(tk.Tk):
 
 
 if __name__ == "__main__":
-    App().mainloop()
+    # Puertas de entrada: activación por equipo y contraseña de acceso.
+    database.init_db()
+    import acceso
+    import licencia
+
+    if licencia.pedir_activacion() and acceso.pedir_acceso():
+        App().mainloop()
