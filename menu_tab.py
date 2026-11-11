@@ -218,6 +218,32 @@ class MenusTab:
         paned.add(left, weight=2)
         self._marco_izq = left
 
+        # --- contenedor con scroll vertical (como el panel de Totales):
+        # con tantas secciones apiladas la tabla de ingredientes queda
+        # fuera de la vista en pantallas bajas ---
+        lienzo_izq = tk.Canvas(left, bg=GRIS_OSCURO, highlightthickness=0)
+        barra_izq = ttk.Scrollbar(
+            left, orient="vertical", command=lienzo_izq.yview
+        )
+        interior = ttk.Frame(lienzo_izq, style="Gym.TFrame")
+        interior.bind(
+            "<Configure>",
+            lambda _e: lienzo_izq.configure(
+                scrollregion=lienzo_izq.bbox("all"))
+        )
+        lienzo_izq.create_window((0, 0), window=interior, anchor="nw",
+                                 tags="marco_izq")
+        lienzo_izq.configure(yscrollcommand=barra_izq.set)
+        lienzo_izq.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        barra_izq.pack(side=tk.RIGHT, fill=tk.Y)
+        lienzo_izq.bind(
+            "<Configure>",
+            lambda e: lienzo_izq.itemconfigure("marco_izq", width=e.width),
+        )
+        self._lienzo_izq = lienzo_izq
+        self._interior_izq = interior
+        left = interior  # el resto de secciones vive en el marco interior
+
         # --- Menú: desplegable principal (carga directa) ---
         men_bar = ttk.Frame(left, style="Gym.TFrame")
         men_bar.pack(fill="x", pady=(0, 2))
@@ -389,7 +415,14 @@ class MenusTab:
             self.ing_tree.column(col, width=ancho, anchor="center")
         self.ing_tree.column("alimento", anchor="w")
         self.ing_tree.column("subgrupo", anchor="w")
-        self.ing_tree.pack(fill="both", expand=True, pady=3)
+        marco_ing = ttk.Frame(left, style="Gym.TFrame")
+        marco_ing.pack(fill="both", expand=True, pady=3)
+        barra_ing = ttk.Scrollbar(
+            marco_ing, orient="vertical", command=self.ing_tree.yview
+        )
+        self.ing_tree.configure(yscrollcommand=barra_ing.set)
+        barra_ing.pack(side=tk.RIGHT, fill=tk.Y)
+        self.ing_tree.pack(side=tk.LEFT, fill="both", expand=True)
         self.ing_tree.bind("<Double-1>", self._editar_eq_menu)
         self.ing_tree.bind(
             "<Delete>", lambda _e: self._eliminar_ingrediente()
@@ -456,7 +489,21 @@ class MenusTab:
                     return
             except Exception:
                 pass
-            lienzo.yview_scroll(-1 * int(event.delta / 120), "units")
+            # desplaza solo el panel sobre el que está el puntero
+            objetivo = event.widget.winfo_containing(
+                event.x_root, event.y_root)
+            lienzo_obj = None
+            widget = objetivo
+            while widget is not None:
+                if widget is lienzo:
+                    lienzo_obj = lienzo
+                    break
+                if widget is getattr(self, "_lienzo_izq", None):
+                    lienzo_obj = self._lienzo_izq
+                    break
+                widget = widget.master
+            if lienzo_obj is not None:
+                lienzo_obj.yview_scroll(-1 * int(event.delta / 120), "units")
 
         lienzo.bind_all("<MouseWheel>", _al_rueda, add="+")
 
