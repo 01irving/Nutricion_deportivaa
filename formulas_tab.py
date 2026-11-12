@@ -1,8 +1,9 @@
 """
 Pestaña Fórmulas predictivas - Cálculo de energía.
 GEB seleccionable: Schofield (NUTR107x Formula Card) con GEE = GEB x PAL
-x h/24 + EEE del Compendio de Actividades Físicas 2011 (mets.csv), o
-Valencia con GET = GEB x factor de actividad.
+x h/24 + EEE del Compendio de Actividades Físicas 2011 (mets.csv),
+Valencia con GET = GEB x factor de actividad, o Mifflin-St Jeor
+(también con factor de actividad; usa peso, talla, edad y sexo).
 """
 import tkinter as tk
 from datetime import date, datetime
@@ -109,11 +110,32 @@ def bmr_valencia(peso, edad, sexo):
     return valor, ">60 años"
 
 
-# Fórmulas de GEB disponibles en la pestaña (etiqueta -> función)
+def bmr_mifflin(peso, talla, edad, sexo):
+    """GEB con Mifflin-St Jeor (kcal/día), adultos desde los 18 años.
+    Hombres: 10*peso + 6.25*talla - 5*edad + 5
+    Mujeres: 10*peso + 6.25*talla - 5*edad - 161
+    Si el sujeto es menor de 18 años se usa Schofield para no romper
+    el cálculo.
+    """
+    if edad < 18:
+        valor, rango = bmr_schofield(peso, edad, sexo)
+        return valor, f"{rango} (Schofield; Mifflin-St Jeor desde 18 años)"
+    valor = 10 * peso + 6.25 * talla - 5 * edad + (
+        5 if sexo == "H" else -161
+    )
+    return valor, "Adulto (18+ años)"
+
+
+# Fórmulas de GEB disponibles en la pestaña (etiqueta -> función).
+# Mifflin-St Jeor se maneja aparte porque además usa la talla.
 FORMULAS_GEB = {
     "Schofield-METs": bmr_schofield,
     "Valencia": bmr_valencia,
 }
+FORMULA_MIFFLIN = "Mifflin-St Jeor"
+FORMULAS_SELECTOR = ("Schofield-METs", "Valencia", FORMULA_MIFFLIN)
+# Fórmulas con GET = GEB x factor de actividad (contraen METs y PAL)
+FORMULAS_CON_FACTOR = ("Valencia", FORMULA_MIFFLIN)
 
 # Factor de actividad para Valencia (GET = GEB x factor)
 FACTORES_ACTIVIDAD = {
@@ -187,14 +209,14 @@ class FormulasTab:
         self.peso_var = tk.StringVar(value="70")
         self.edad_var = tk.StringVar(value="25")
         self.sexo_var = tk.StringVar(value="H")
-        # Fórmula de GEB: Schofield-METs (la de siempre) o Valencia
+        # Fórmula de GEB: Schofield-METs, Valencia o Mifflin-St Jeor
         self.formula_var = tk.StringVar(value="Schofield-METs")
         ttk.Label(datos, text="Fórmula GEB:", style="Gym.TLabel").grid(
             row=0, column=0, sticky="e", padx=4, pady=5
         )
         ttk.Combobox(
             datos, textvariable=self.formula_var,
-            values=list(FORMULAS_GEB), state="readonly", width=16,
+            values=list(FORMULAS_SELECTOR), state="readonly", width=16,
             style="Gym.TCombobox",
         ).grid(row=0, column=1, sticky="w", padx=4, pady=5)
 
@@ -215,18 +237,28 @@ class FormulasTab:
         ttk.Entry(datos, textvariable=self.talla_var, width=10,
                   style="Gym.TEntry").grid(row=4, column=1, sticky="w", padx=4, pady=5)
 
-        # Nivel de actividad para Valencia (GET = GEB x factor)
+        # Nivel de actividad para Valencia/Mifflin (GET = GEB x factor).
+        # Cada fórmula recuerda su propio factor: cambiar de fórmula no
+        # hereda la selección de la otra.
         self.actividad_var = tk.StringVar(
             value="Actividad moderada (1.55)"
         )
+        self._factores_por_formula = {
+            "Valencia": "Actividad moderada (1.55)",
+            FORMULA_MIFFLIN: "Actividad moderada (1.55)",
+        }
         ttk.Label(datos, text="Actividad:", style="Gym.TLabel").grid(
             row=5, column=0, sticky="e", padx=4, pady=5
         )
-        ttk.Combobox(
+        combo_actividad = ttk.Combobox(
             datos, textvariable=self.actividad_var,
             values=list(FACTORES_ACTIVIDAD), state="readonly", width=24,
             style="Gym.TCombobox",
-        ).grid(row=5, column=1, sticky="w", padx=4, pady=5)
+        )
+        combo_actividad.grid(row=5, column=1, sticky="w", padx=4, pady=5)
+        combo_actividad.bind(
+            "<<ComboboxSelected>>", self._guardar_factor_formula
+        )
 
         # Los datos del paciente se cargan de forma directa cuando se
         # selecciona un paciente (ver cargar()). Sin botones aquí.
@@ -551,19 +583,34 @@ class FormulasTab:
         if texto in valores:
             self.pal_var.set(valores[texto])
 
+    def _guardar_factor_formula(self, _evento=None):
+        """Guarda el factor elegido para la fórmula actual, sin afectar
+        la selección de las demás."""
+        formula = self.formula_var.get()
+        if formula in self._factores_por_formula:
+            self._factores_por_formula[formula] = self.actividad_var.get()
+
     def _on_formula(self, *_):
-        """Al elegir Valencia contrae los cuadros que solo usa
-        Schofield-METs (Compendio METs y PAL) y oculta los resultados que
-        no aplican, dejando solo GEB, rango y GET; al volver a
-        Schofield-METs todo se restaura. Limpia resultados previos para no
-        mezclar cálculos de fórmulas distintas.
+        """Al elegir Valencia o Mifflin-St Jeor contrae los cuadros que
+        solo usa Schofield-METs (Compendio METs y PAL) y oculta los
+        resultados que no aplican, dejando solo GEB, rango y GET; al
+        volver a Schofield-METs todo se restaura. Cada fórmula con
+        factor recupera su propia selección de actividad. Limpia
+        resultados previos para no mezclar cálculos de fórmulas
+        distintas.
         """
-        valencia = self.formula_var.get() == "Valencia"
+        con_factor = self.formula_var.get() in FORMULAS_CON_FACTOR
         for marco in (self.frame_mets, self.frame_pal):
-            (marco.grid_remove if valencia else marco.grid)()
+            (marco.grid_remove if con_factor else marco.grid)()
         for clave in ("gee", "eee", "ea"):
             for widget in (self.lbl_rows[clave], self.res_labels[clave]):
-                (widget.grid_remove if valencia else widget.grid)()
+                (widget.grid_remove if con_factor else widget.grid)()
+        if con_factor:
+            self.actividad_var.set(
+                self._factores_por_formula.get(
+                    self.formula_var.get(), "Actividad moderada (1.55)"
+                )
+            )
         self.lbl_row_bmr.configure(
             text=f"GEB ({self.formula_var.get() or 'Schofield-METs'}):"
         )
@@ -607,10 +654,28 @@ class FormulasTab:
         funcion_bmr = FORMULAS_GEB.get(nombre_formula, bmr_schofield)
 
         factor = None
-        if nombre_formula == "Valencia":
-            # GET = GEB x factor de actividad (tabla de Valencia)
+        talla = None
+        if nombre_formula in FORMULAS_CON_FACTOR:
+            # GET = GEB x factor de actividad
             factor = FACTORES_ACTIVIDAD.get(self.actividad_var.get(), 1.55)
-            bmr, rango = funcion_bmr(peso, edad, self.sexo_var.get())
+            if nombre_formula == FORMULA_MIFFLIN:
+                try:
+                    talla = self._float(self.talla_var, "Talla")
+                except ValueError as error:
+                    messagebox.showwarning("Validación", str(error))
+                    return
+                if talla <= 0:
+                    messagebox.showwarning(
+                        "Validación",
+                        "Mifflin-St Jeor necesita la talla del paciente "
+                        "en cm (ficha o antropometría).",
+                    )
+                    return
+                bmr, rango = bmr_mifflin(
+                    peso, talla, edad, self.sexo_var.get()
+                )
+            else:
+                bmr, rango = funcion_bmr(peso, edad, self.sexo_var.get())
             gee = eee = ea = None
             met = horas = h24 = None
             pal = factor
@@ -659,14 +724,15 @@ class FormulasTab:
             "sexo": self.sexo_var.get(),
             "formula": nombre_formula,
             "factor_actividad": factor,
+            "talla": talla,
             "pal": pal,
             "horas_no_ejercicio": h24,
             "categoria": (
-                "Valencia" if nombre_formula == "Valencia"
+                nombre_formula if nombre_formula in FORMULAS_CON_FACTOR
                 else self.cat_var.get()
             ),
             "actividad": (
-                self.actividad_var.get() if nombre_formula == "Valencia"
+                self.actividad_var.get() if nombre_formula in FORMULAS_CON_FACTOR
                 else self.act_var.get()
             ),
             "mets": met,
