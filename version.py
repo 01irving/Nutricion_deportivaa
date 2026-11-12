@@ -6,4 +6,4 @@ crear_zip_distribucion.py). La versión se muestra en el título de la
 ventana y en el diálogo PERSONALIZAR.
 """
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
