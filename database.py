@@ -218,6 +218,23 @@ def init_db():
 
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS uno_rm (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                paciente_id INTEGER REFERENCES pacientes(id),
+                fecha TEXT,
+                ejercicio TEXT,
+                metodo TEXT,
+                peso REAL,
+                rpe INTEGER,
+                repeticiones INTEGER,
+                resultado REAL,
+                creado_en TEXT DEFAULT (datetime('now', 'localtime'))
+            )
+            """
+        )
+
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS equivalentes (
                 id_distribucion INTEGER PRIMARY KEY AUTOINCREMENT,
                 paciente_id INTEGER REFERENCES pacientes(id),
@@ -680,6 +697,43 @@ def get_formulas(paciente_id):
             (paciente_id,),
         )
         return [dict(f) for f in cur.fetchall()]
+
+
+UNO_RM_CAMPOS = [
+    "paciente_id",
+    "fecha",
+    "ejercicio",
+    "metodo",
+    "peso",
+    "rpe",
+    "repeticiones",
+    "resultado",
+]
+
+
+def insert_uno_rm(data):
+    with get_connection() as conn:
+        cur = conn.execute(
+            f"INSERT INTO uno_rm ({', '.join(UNO_RM_CAMPOS)}) "
+            f"VALUES ({', '.join(':' + c for c in UNO_RM_CAMPOS)})",
+            {c: data.get(c) for c in UNO_RM_CAMPOS},
+        )
+        return cur.lastrowid
+
+
+def get_uno_rm(paciente_id):
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.execute(
+            "SELECT * FROM uno_rm WHERE paciente_id = ? ORDER BY id DESC",
+            (paciente_id,),
+        )
+        return [dict(f) for f in cur.fetchall()]
+
+
+def delete_uno_rm(registro_id):
+    with get_connection() as conn:
+        conn.execute("DELETE FROM uno_rm WHERE id = ?", (registro_id,))
 
 
 def delete_formulas_paciente(paciente_id):

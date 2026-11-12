@@ -59,6 +59,12 @@ class RutinasTab:
         self._img_after = None
         self.ejercicio_seleccionado = None
 
+    def _abrir_1rm(self):
+        """Calculadora de 1RM de press de banca (ramas de árbol)."""
+        import calculadora_1rm
+
+        calculadora_1rm.abrir_dialogo_1rm(self.marco, self.app)
+
     def _cargar_grupos(self):
         """Grupos musculares disponibles en la base, con hombros primero."""
         try:
@@ -135,6 +141,22 @@ class RutinasTab:
         self.grupo_combo.pack(side="left")
         self.grupo_combo.set(self.grupo.capitalize())
         self.grupo_combo.bind("<<ComboboxSelected>>", self._al_cambiar_grupo)
+
+        # Calculadora 1RM (press de banca, ramas de árbol) a la derecha
+        tk.Button(
+            fila_titulo,
+            text="🏋 1RM",
+            command=self._abrir_1rm,
+            font=("Impact", 12),
+            fg=NEGRO,
+            bg=NEON,
+            activebackground=NARANJA,
+            activeforeground=BLANCO,
+            relief="flat",
+            padx=14,
+            pady=4,
+            cursor="hand2",
+        ).pack(side="right", padx=(0, 8))
 
         self.titulo.pack(side="left", fill="x", expand=True)
 
