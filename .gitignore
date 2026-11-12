@@ -15,3 +15,10 @@ dist/
 build_log.txt
 build_cons_log.txt
 dist_cons/
+app_run_tmp.log
+app_err_tmp.log
+prueba_menu_scroll.log
+build_log_consola.txt
+build_log_nuevo.txt
+build_log_ultima.txt
+.zcode/

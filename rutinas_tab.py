@@ -38,6 +38,130 @@ GRUPOS_ETIQUETAS = {"gluteos": "Glúteos"}
 
 TAMANO_IMG_RESPALDO = (560, 380)
 
+# ----------------------------------------------------------------------
+# Pestaña Progresión — Position Stand del ACSM: "Progression Models in
+# Resistance Training for Healthy Adults" (Med Sci Sports Exerc,
+# 2009;41(3):687-708). Tres ramas: principiantes, intermedios, avanzados.
+# ----------------------------------------------------------------------
+CONTENIDO_INTRO_PROGRESION = """TITULO: MODELO DE PROGRESIÓN (ACSM 2009)
+
+Elige tu nivel en el árbol de la izquierda.
+
+◆ Principiantes — sin experiencia o desentrenados por años
+◆ Intermedios — alrededor de 6 meses de entrenamiento constante
+◆ Avanzados — años de entrenamiento con cargas
+
+Regla que atraviesa todos los niveles: cuando el atleta complete
+1-2 repeticiones más que las objetivo con su carga actual, se
+aumenta el peso entre 2% y 10%.
+"""
+
+CONTENIDO_PROGRESION = {
+    "principiantes": """TITULO: 🟢 PRINCIPIANTES
+
+Sin experiencia en pesas o desentrenados durante varios años.
+
+◆ Frecuencia
+2-3 días por semana, entrenando cada grupo muscular en cada
+sesión (rutina de cuerpo completo).
+
+◆ Carga y repeticiones
+Cargas que permitan 8-12 repeticiones máximas (RM) por
+ejercicio.
+
+◆ Series
+1-3 series por ejercicio; empezar conservador y sumar series
+según se adapte.
+
+◆ Velocidad de ejecución
+Moderada: 1-2 segundos la fase concéntrica (subida) y 1-2
+segundos la excéntrica (bajada).
+
+◆ Descanso
+1-2 minutos entre series; 2-3 minutos en multiarticulares
+pesadas.
+
+◆ Selección de ejercicios
+Multiarticulares antes que unilaterales; grandes grupos
+musculares antes que los pequeños.
+
+◆ Progresión
+Al completar 1-2 repeticiones por encima del rango objetivo,
+aumentar la carga 2-10%.
+""",
+    "intermedios": """TITULO: 🟡 INTERMEDIOS
+
+Alrededor de 6 meses de entrenamiento de fuerza constante.
+
+◆ Frecuencia
+3-4 días por semana.
+
+◆ Carga y repeticiones
+Rango más amplio: 1-12 RM usado EN FORMA PERIODIZADA, con
+énfasis en cargas pesadas (1-6 RM).
+
+◆ Series
+Múltiples series por ejercicio; variar el volumen por ciclos.
+
+◆ Velocidad de ejecución
+Moderada: 1-2 segundos concéntrico, 1-2 segundos excéntrico.
+
+◆ Descanso
+3-5 minutos entre series con cargas pesadas multiarticulares;
+1-2 minutos si el objetivo de la serie es hipertrofia.
+
+◆ Periodización
+Entrenar en forma periodizada (lineal u ondulante): alternar
+bloques de volumen e intensidad para seguir progresando.
+
+◆ Progresión
+2-10% de aumento de carga al superar el rango objetivo;
+manipular también series y frecuencia entre microciclos.
+""",
+    "avanzados": """TITULO: 🔴 AVANZADOS
+
+Años de entrenamiento de fuerza sistemático.
+
+◆ Frecuencia
+4-5 días por semana (rutinas divididas por grupos musculares).
+
+◆ Carga y repeticiones
+1-12 RM periodizado, progresando con énfasis hacia 1-6 RM.
+
+◆ Series y volumen
+Alto volumen planificado: múltiples series y ejercicios por
+grupo, manipulados por mesociclo.
+
+◆ Velocidad de ejecución
+Moderada para fuerza; para potencia, cargas ligeras movidas a
+máxima velocidad: 0-60% de 1RM en tren inferior y 30-60% de
+1RM en tren superior, 3-5 series por ejercicio.
+
+◆ Descanso
+3-5 minutos entre series pesadas y de potencia.
+
+◆ Periodización
+Plan anual completo: macrociclo, mesociclos y microciclos,
+alternando fuerza, potencia y picos.
+
+◆ Progresión
+Además del 2-10% de carga, progresar manipulando volumen,
+intensidad, frecuencia y descansos; incluir acciones
+concéntricas, excéntricas e isométricas, trabajo bilateral y
+unilateral.
+""",
+}
+
+REGLAS_GENERALES_PROGRESION = (
+    "Reglas generales (todos los niveles): sube la carga 2-10% al "
+    "completar 1-2 reps más que el objetivo · grandes músculos antes "
+    "que pequeños y multiarticulares antes que unilaterales · "
+    "hipertrofia: 6-12 RM con 1-2 min de descanso y varias series · "
+    "resistencia muscular: 40-60% de 1RM, >15 reps, descanso <90 s · "
+    "potencia: cargas ligeras a máxima velocidad con 3-5 min de "
+    "descanso · intermedios y avanzados entrenan en forma periodizada."
+)
+
 
 class RutinasTab:
     def __init__(self, app):
@@ -64,6 +188,100 @@ class RutinasTab:
         import calculadora_1rm
 
         calculadora_1rm.abrir_dialogo_1rm(self.marco, self.app)
+
+    # ------------------------------------------------------------------
+    # Pestaña Progresión (ACSM 2009: principiantes / intermedios / avanzados)
+    # ------------------------------------------------------------------
+    def _crear_tab_progresion(self):
+        marco = ttk.Frame(self.notebook_rut, style="Gym.TFrame")
+        self.notebook_rut.add(marco, text="  Progresión  ")
+
+        # ----- ramas de árbol a la izquierda -----
+        marco_nivel = ttk.LabelFrame(
+            marco, text=" Nivel de entrenamiento ", padding=6,
+            style="Gym.TLabelframe",
+        )
+        marco_nivel.pack(side="left", fill="y", padx=(8, 4), pady=8)
+
+        arbol = ttk.Treeview(
+            marco_nivel, show="tree", selectmode="browse", height=6,
+            style="Gym.Treeview",
+        )
+        raiz = arbol.insert("", "end", iid="raiz", open=True,
+                            text="🏋 Modelos de progresión")
+        arbol.insert(raiz, "end", iid="principiantes",
+                     text="🟢 Principiantes")
+        arbol.insert(raiz, "end", iid="intermedios",
+                     text="🟡 Intermedios")
+        arbol.insert(raiz, "end", iid="avanzados", text="🔴 Avanzados")
+        arbol.pack(fill="both", expand=True)
+
+        tk.Label(
+            marco_nivel, text="Basado en el Position Stand del ACSM "
+            "(Med Sci Sports Exerc, 2009).", font=("Segoe UI", 8),
+            fg=GRIS_TEXTO, bg=GRIS_OSCURO, wraplength=200, justify="left",
+        ).pack(anchor="w", pady=(8, 0))
+
+        # ----- panel de contenido a la derecha -----
+        marco_detalle = ttk.LabelFrame(
+            marco, text=" Recomendaciones ", padding=6,
+            style="Gym.TLabelframe",
+        )
+        marco_detalle.pack(side="left", fill="both", expand=True,
+                           padx=(4, 8), pady=8)
+
+        panel = tk.Text(
+            marco_detalle, bg=GRIS_OSCURO, fg=BLANCO, relief="flat",
+            font=("Segoe UI", 10), wrap="word", padx=14, pady=10,
+            height=18,
+        )
+        panel.pack(side="left", fill="both", expand=True)
+        barra_sc = ttk.Scrollbar(marco_detalle, command=panel.yview)
+        barra_sc.pack(side="right", fill="y")
+        panel.configure(yscrollcommand=barra_sc.set)
+        panel.tag_configure("titulo", font=("Impact", 14), foreground=NEON)
+        panel.tag_configure("seccion", font=("Segoe UI", 10, "bold"),
+                            foreground=NARANJA)
+        panel.tag_configure("normal", font=("Segoe UI", 10), foreground=BLANCO,
+                            spacing3=4)
+        panel.tag_configure("nota", font=("Segoe UI", 9),
+                            foreground=GRIS_TEXTO)
+
+        # ----- reglas generales + cita al pie -----
+        pie = tk.Label(
+            marco, text=REGLAS_GENERALES_PROGRESION
+            + "\nAmerican College of Sports Medicine. Progression Models "
+            "in Resistance Training for Healthy Adults. Med Sci Sports "
+            "Exerc. 2009;41(3):687-708.",
+            font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+            wraplength=760, justify="left",
+        )
+        pie.pack(fill="x", padx=8, pady=(0, 8))
+
+        def mostrar_nivel(_evento=None):
+            sel = arbol.selection()
+            if not sel or sel[0] == "raiz":
+                contenido = CONTENIDO_INTRO_PROGRESION
+            else:
+                contenido = CONTENIDO_PROGRESION.get(sel[0], "")
+            panel.configure(state="normal")
+            panel.delete("1.0", "end")
+            panel.insert("1.0", contenido, "normal")
+            # resalta los renglones que empiezan con ◆ como secciones
+            linea = 1
+            for renglon in contenido.split("\n"):
+                if renglon.startswith("◆ "):
+                    panel.delete(f"{linea}.0", f"{linea}.end")
+                    panel.insert(f"{linea}.0", renglon[2:], "seccion")
+                elif renglon.startswith("TITULO: "):
+                    panel.delete(f"{linea}.0", f"{linea}.end")
+                    panel.insert(f"{linea}.0", renglon[8:], "titulo")
+                linea += 1
+            panel.configure(state="disabled")
+
+        arbol.bind("<<TreeviewSelect>>", mostrar_nivel)
+        arbol.selection_set("principiantes")
+        mostrar_nivel()
 
     def _cargar_grupos(self):
         """Grupos musculares disponibles en la base, con hombros primero."""
@@ -173,6 +391,7 @@ class RutinasTab:
         self._crear_tab_calentamiento()
         self._crear_tab_rutina()
         self._crear_tab_estiramiento()
+        self._crear_tab_progresion()
         self.notebook_rut.bind("<<NotebookTabChanged>>", self._al_cambiar_subpestana)
         self.cargar(getattr(self.app, "id_paciente_antro", None))
 
@@ -726,11 +945,15 @@ class RutinasTab:
             return 1
 
     def _al_cambiar_subpestana(self, event=None):
-        """En Estiramientos el título y el filtro de grupo son otros."""
-        if self._subpestana_actual() == 2:
+        """En Estiramientos y Progresión el título y el filtro cambian."""
+        sub = self._subpestana_actual()
+        if sub == 2:
             self.titulo.configure(text="ESTIRAMIENTOS")
             self.marco_grupo.pack_forget()
             self._cargar_est_paciente()
+        elif sub == 3:
+            self.titulo.configure(text="PROGRESIÓN · MODELO ACSM 2009")
+            self.marco_grupo.pack_forget()
         else:
             self.titulo.configure(text=f"RUTINAS · {GRUPOS_ETIQUETAS.get(self.grupo, self.grupo).upper()}")
             if not self.marco_grupo.winfo_ismapped():
