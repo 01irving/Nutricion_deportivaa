@@ -14,7 +14,7 @@ build/
 dist/
 build_log.txt
 build_cons_log.txt
-dist_cons/
+dist_cons*/
 app_run_tmp.log
 app_err_tmp.log
 prueba_menu_scroll.log
