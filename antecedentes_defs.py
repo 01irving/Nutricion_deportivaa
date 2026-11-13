@@ -37,6 +37,25 @@ SECCION_EVALUACION_TEXTO = [
     ("eval_historial_lesiones", "Historial de lesiones"),
 ]
 
+# Estilo de vida: ocupación, horario y preferencias de entrenamiento
+# (contexto para armar el plan de ejercicio).
+SECCION_ESTILO_TEXTO = [
+    ("estilo_ocupacion", "Ocupación (¿trabaja o estudia?)"),
+    ("estilo_horario", "Horario"),
+    ("estilo_ejercicios_gustan", "Ejercicios que le gustan"),
+    ("estilo_ejercicios_no_gustan", "Ejercicios que NO le gustan"),
+]
+
+SECCION_ESTILO_SELECCION = [
+    ("estilo_lugar_entrenamiento", "Lugar de entrenamiento"),
+]
+
+OPCIONES_ESTILO = {
+    "estilo_lugar_entrenamiento": [
+        "Casa", "Gimnasio", "Casa y gimnasio", "Ninguno todavía",
+    ],
+}
+
 OPCIONES_SELECCION = {
     "eval_condiciones_medicas": [
         "Ninguna", "Diabetes", "Hipertensión", "Enfermedad cardíaca",
@@ -64,6 +83,8 @@ ANTECEDENTES_CAMPOS = (
     + [clave for clave, _ in SECCION_NOPATOLOGICOS_TEXTO]
     + [clave for clave, _ in SECCION_EVALUACION_SELECCION]
     + [clave for clave, _ in SECCION_EVALUACION_TEXTO]
+    + [clave for clave, _ in SECCION_ESTILO_SELECCION]
+    + [clave for clave, _ in SECCION_ESTILO_TEXTO]
 )
 
 ETIQUETA_HABITOS = {

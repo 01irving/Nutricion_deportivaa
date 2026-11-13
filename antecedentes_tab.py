@@ -15,9 +15,12 @@ import voz
 from antecedentes_defs import (
     ETIQUETA_HABITOS,
     HABITOS_OPCIONES,
+    OPCIONES_ESTILO,
     OPCIONES_SELECCION,
     SECCION_EVALUACION_SELECCION,
     SECCION_EVALUACION_TEXTO,
+    SECCION_ESTILO_SELECCION,
+    SECCION_ESTILO_TEXTO,
     SECCION_NOPATOLOGICOS_HABITOS,
     SECCION_NOPATOLOGICOS_TEXTO,
     SECCION_PATOLOGICOS,
@@ -52,6 +55,7 @@ class AntecedentesTab:
         self.paciente_id = None
         self.textos = {}
         self.habitos = {}
+        self.desplegables = {}
         self.selecciones = {}
 
     # ------------------------------------------------------------------
@@ -78,6 +82,7 @@ class AntecedentesTab:
         self._crear_panel_patologicos(paned)
         self._crear_panel_nopatologicos(paned)
         self._crear_panel_evaluacion(paned)
+        self._crear_panel_estilo(paned)
 
     # ------------------------------------------------------------------
     def _crear_panel_patologicos(self, paned):
@@ -186,6 +191,46 @@ class AntecedentesTab:
         for clave, etiqueta in SECCION_EVALUACION_TEXTO:
             self._crear_area_texto(panel, clave, etiqueta, 5)
 
+    def _crear_panel_estilo(self, paned):
+        """Panel de estilo de vida: ocupación, horario, lugar de
+        entrenamiento y ejercicios que le gustan o no al paciente."""
+        panel = ttk.LabelFrame(
+            paned, text="ESTILO DE VIDA", padding=5
+        )
+        paned.add(panel, weight=1)
+        ttk.Label(
+            panel,
+            text="Contexto para armar el plan de entrenamiento",
+            style="Estado.TLabel", font=("Segoe UI", 8),
+        ).pack(anchor=tk.W, padx=4, pady=(0, 4))
+
+        # --- Desplegable: lugar de entrenamiento (editable) ---
+        for clave, etiqueta in SECCION_ESTILO_SELECCION:
+            ttk.Label(
+                panel, text=f"{etiqueta}:", style="Gym.TLabel"
+            ).pack(anchor=tk.W, padx=4, pady=(4, 2))
+            marco = ttk.Frame(panel, style="Gym.TFrame")
+            marco.pack(fill="x", padx=2)
+            var = tk.StringVar()
+            ttk.Combobox(
+                marco, textvariable=var,
+                values=OPCIONES_ESTILO[clave],
+                state="normal", style="Gym.TCombobox", width=24,
+            ).pack(fill="x", padx=4)
+            self.desplegables[clave] = var
+
+        # --- Campos de texto (con dictado por voz) ---
+        ALTOS_ESTILO = {
+            "estilo_ocupacion": 3,
+            "estilo_horario": 3,
+            "estilo_ejercicios_gustan": 4,
+            "estilo_ejercicios_no_gustan": 4,
+        }
+        for clave, etiqueta in SECCION_ESTILO_TEXTO:
+            self._crear_area_texto(
+                panel, clave, etiqueta, ALTOS_ESTILO.get(clave, 3)
+            )
+
     def _crear_area_texto(self, parent, clave, etiqueta, alto):
         marco = ttk.Frame(parent, style="Gym.TFrame")
         marco.pack(fill="both", expand=True, padx=2, pady=3)
@@ -238,6 +283,8 @@ class AntecedentesTab:
             datos[clave] = texto.get("1.0", tk.END).strip()
         for clave, var in self.habitos.items():
             datos[clave] = var.get().strip()
+        for clave, var in self.desplegables.items():
+            datos[clave] = var.get().strip()
         for clave, vars_op in self.selecciones.items():
             datos[clave] = ", ".join(
                 opcion for opcion, var in vars_op.items() if var.get()
@@ -251,6 +298,8 @@ class AntecedentesTab:
             if valor:
                 texto.insert("1.0", valor)
         for clave, var in self.habitos.items():
+            var.set(datos.get(clave) or "")
+        for clave, var in self.desplegables.items():
             var.set(datos.get(clave) or "")
         for clave, vars_op in self.selecciones.items():
             elegidas = [

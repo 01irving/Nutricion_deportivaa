@@ -22,6 +22,8 @@ from reportlab.platypus import (
 from antecedentes_defs import (
     SECCION_EVALUACION_SELECCION,
     SECCION_EVALUACION_TEXTO,
+    SECCION_ESTILO_SELECCION,
+    SECCION_ESTILO_TEXTO,
     SECCION_NOPATOLOGICOS_HABITOS,
     SECCION_NOPATOLOGICOS_TEXTO,
     SECCION_PATOLOGICOS,
@@ -227,6 +229,13 @@ def generar_pdf_antecedentes(ruta, paciente, antecedentes, momento_impresion=Non
     for clave, etiqueta in SECCION_EVALUACION_SELECCION:
         elementos.extend(_bloque_campo(estilos, etiqueta, datos.get(clave)))
     for clave, etiqueta in SECCION_EVALUACION_TEXTO:
+        elementos.extend(_bloque_campo(estilos, etiqueta, datos.get(clave)))
+
+    # --- Estilo de vida: ocupación, horario y entrenamiento ---
+    elementos.append(Paragraph("ESTILO DE VIDA", estilos["seccion"]))
+    for clave, etiqueta in SECCION_ESTILO_SELECCION:
+        elementos.extend(_bloque_campo(estilos, etiqueta, datos.get(clave)))
+    for clave, etiqueta in SECCION_ESTILO_TEXTO:
         elementos.extend(_bloque_campo(estilos, etiqueta, datos.get(clave)))
 
     # --- Pie ---
