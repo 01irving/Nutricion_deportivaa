@@ -73,13 +73,33 @@ def _excluir(nombre):
 
 
 def _copiar(origen, destino):
-    """Copia sobre-escribiendo; algunos assets están en solo lectura."""
+    """Copia sobre-escribiendo; algunos assets están en solo lectura.
+    El destino queda escribible para que futuras compilaciones puedan
+    borrar y reescribir la carpeta sin errores."""
     if os.path.exists(destino):
         os.chmod(destino, stat.S_IWRITE)
+        os.remove(destino)
     shutil.copy2(origen, destino)
+    try:
+        os.chmod(destino, stat.S_IWRITE)
+    except OSError:
+        pass
+
+
+def _limpiar_solo_lectura(ruta):
+    """Quita el atributo de solo lectura de toda la carpeta: PyInstaller
+    borra dist al recompilar y falla si encuentra archivos de solo lectura."""
+    for raiz, _dirs, archivos in os.walk(ruta):
+        for a in archivos:
+            try:
+                os.chmod(os.path.join(raiz, a), stat.S_IWRITE)
+            except OSError:
+                pass
 
 
 def compilar():
+    if os.path.isdir(ORIGEN):
+        _limpiar_solo_lectura(ORIGEN)
     print("Compilando con PyInstaller (tarda ~4-5 minutos)...")
     r = subprocess.run([
         PYTHON, "-m", "PyInstaller",
