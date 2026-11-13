@@ -184,7 +184,7 @@ class RutinasTab:
         self.ejercicio_seleccionado = None
 
     def _abrir_1rm(self):
-        """Calculadora de 1RM de press de banca (ramas de árbol)."""
+        """Calculadora de 1RM por ejercicio (ramas de árbol)."""
         import calculadora_1rm
 
         calculadora_1rm.abrir_dialogo_1rm(self.marco, self.app)
@@ -360,7 +360,7 @@ class RutinasTab:
         self.grupo_combo.set(self.grupo.capitalize())
         self.grupo_combo.bind("<<ComboboxSelected>>", self._al_cambiar_grupo)
 
-        # Calculadora 1RM (press de banca, ramas de árbol) a la derecha
+        # Calculadora 1RM (por ejercicio, ramas de árbol) a la derecha
         tk.Button(
             fila_titulo,
             text="🏋 1RM",
