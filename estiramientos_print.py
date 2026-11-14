@@ -6,6 +6,7 @@ resumen de la selección y el detalle de cada estiramiento con su
 ilustración, forma de ejecución, músculos estirados, variantes,
 observaciones y advertencias.
 """
+import io
 import os
 from datetime import datetime
 
@@ -115,23 +116,31 @@ def ruta_temporal_pdf(nombre_paciente):
     return _ruta_temporal_pdf("Estiramientos", nombre_paciente)
 
 
-def _imagen_flowable(nombre_imagen):
-    """Ilustración del ejercicio ajustada a la caja de la página."""
-    if not nombre_imagen:
+def _imagen_flowable(ejercicio):
+    """Ilustración del estiramiento (blob de la BD o archivo de disco)
+    ajustada a la caja de la página; None si no hay imagen disponible."""
+    if not ejercicio:
         return None
-    ruta = os.path.join(RUTA_IMAGENES, f"{nombre_imagen}.png")
-    if not os.path.exists(ruta):
+    fuente = None
+    blob = ejercicio.get("imagen_blob")
+    if blob:
+        fuente = io.BytesIO(blob)
+    else:
+        nombre = ejercicio.get("imagen") or ""
+        if nombre:
+            ruta = os.path.join(RUTA_IMAGENES, f"{nombre}.png")
+            if os.path.exists(ruta):
+                fuente = ruta
+    if fuente is None:
         return None
     try:
-        ancho_px, alto_px = ImageReader(ruta).getSize()
+        ancho_px, alto_px = ImageReader(fuente).getSize()
     except Exception:
         return None
     if not ancho_px or not alto_px:
         return None
     escala = min(MAX_ANCHO_IMAGEN / ancho_px, MAX_ALTO_IMAGEN / alto_px)
-    ancho = ancho_px * escala
-    alto = alto_px * escala
-    imagen = RLImage(ruta, width=ancho, height=alto)
+    imagen = RLImage(fuente, width=ancho_px * escala, height=alto_px * escala)
     imagen.hAlign = "CENTER"
     return imagen
 
@@ -235,9 +244,7 @@ def _bloque_detalle(estilos, reg, ejercicio):
     if meta:
         bloque.append(Paragraph(" | ".join(meta), estilos["normal"]))
 
-    imagen = _imagen_flowable(
-        ejercicio.get("imagen") if ejercicio else None
-    )
+    imagen = _imagen_flowable(ejercicio)
     if imagen is not None:
         bloque.append(imagen)
 

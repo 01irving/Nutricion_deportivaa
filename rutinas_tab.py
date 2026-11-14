@@ -13,6 +13,7 @@ except Exception:  # pragma: no cover - entorno sin Pillow
 
 import calentamiento_print
 import database
+import estiramientos_print
 import rutina_print
 from estiramientos_tab import DURACIONES, MOMENTOS
 from rutas import base_dir
@@ -1331,6 +1332,20 @@ class RutinasTab:
             activebackground=NARANJA, activeforeground=BLANCO, relief="flat",
             padx=8, pady=2, cursor="hand2",
         ).pack(fill="x")
+        tk.Button(
+            acciones,
+            text="IMPRIMIR ESTIRAMIENTOS",
+            command=self._imprimir_est,
+            font=("Impact", 9),
+            fg=NEGRO,
+            bg=NEON,
+            activebackground=NARANJA,
+            activeforeground=BLANCO,
+            relief="flat",
+            padx=8,
+            pady=3,
+            cursor="hand2",
+        ).pack(fill="x", pady=(6, 0))
         self.est_lbl_total = ttk.Label(acciones, text="0 estiramientos", style="Estado.TLabel")
         self.est_lbl_total.pack(anchor="w", pady=(8, 0))
 
@@ -1577,6 +1592,54 @@ class RutinasTab:
         self.est_lbl_total.configure(
             text=f"{total} estiramiento" + ("" if total == 1 else "s")
         )
+
+    def _imprimir_est(self):
+        """Genera el PDF de los estiramientos seleccionados (resumen +
+        detalle con ilustración y descripción) y lo abre para impresión."""
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            messagebox.showwarning(
+                "Estiramientos", "Selecciona un paciente antes de imprimir."
+            )
+            return
+        seleccion = getattr(self, "est_seleccion", None)
+        if not seleccion:
+            messagebox.showwarning(
+                "Estiramientos",
+                "No hay estiramientos seleccionados para imprimir.",
+            )
+            return
+
+        # la selección ya trae el catálogo unido (descripcion, imagen,
+        # imagen_blob); se indexa por id para el detalle del reporte
+        catalogo = {}
+        for reg in seleccion:
+            catalogo[reg.get("id_estiramiento")] = reg
+
+        paciente = database.obtener_paciente(paciente_id) or {}
+        nombre = paciente.get("nombre") or f"paciente_{paciente_id}"
+        ruta = estiramientos_print.ruta_temporal_pdf(nombre)
+        try:
+            estiramientos_print.generar_pdf_estiramientos(
+                ruta, paciente, seleccion, estiramientos_por_id=catalogo
+            )
+        except Exception as error:
+            messagebox.showerror(
+                "Imprimir", f"No se pudo generar el reporte:\n{error}"
+            )
+            return
+
+        try:
+            estiramientos_print.abrir_para_imprimir(ruta)
+        except Exception as error:
+            messagebox.showerror(
+                "Imprimir",
+                f"Se generó el PDF en:\n{ruta}\n\n"
+                f"No se pudo abrir automáticamente: {error}",
+            )
+            return
+
+        self._mensaje("Estiramientos: reporte generado.")
 
     # ------------------------------------------------------------------
     # Rutina del paciente (alta, listado y borrado)
