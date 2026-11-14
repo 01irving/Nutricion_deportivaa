@@ -2,6 +2,7 @@ import io
 import json
 import os
 import unicodedata
+from datetime import datetime
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -1096,6 +1097,16 @@ class RutinasTab:
             acciones, text="0 ejercicios", style="Estado.TLabel"
         )
         self.lbl_rutina_total.pack(anchor="w", pady=(8, 0))
+        # la rutina se guarda sola en la BD con cada cambio; este letrero
+        # lo hace visible ("Guardada en la BD ✓ HH:MM" tras cada escritura)
+        self.lbl_rutina_guardada = ttk.Label(
+            acciones,
+            text="",
+            style="Estado.TLabel",
+            font=("Segoe UI", 8),
+            foreground=GRIS_TEXTO,
+        )
+        self.lbl_rutina_guardada.pack(anchor="w")
 
         # Primero reservan su espacio la tabla y el registro; el panel de
         # seleccion/previsualizacion se queda con el resto
@@ -1769,6 +1780,7 @@ class RutinasTab:
 
         self.reg_entradas["Peso (kg)"].delete(0, "end")
         self._cargar_rutina()
+        self._marcar_rutina_guardada()
         self._mensaje(f"Añadido: {datos['nombre']}")
 
     def _quitar_ejercicio(self):
@@ -1791,6 +1803,7 @@ class RutinasTab:
                 )
                 return
             self._cargar_rutina()
+            self._marcar_rutina_guardada()
             self._mensaje(f"{self.dia_actual}: día de descanso quitado.")
             return
         try:
@@ -1801,6 +1814,7 @@ class RutinasTab:
             )
             return
         self._cargar_rutina()
+        self._marcar_rutina_guardada()
         self._mensaje("Ejercicio quitado de la rutina.")
 
     def _vaciar_rutina(self):
@@ -1820,6 +1834,7 @@ class RutinasTab:
             )
             return
         self._cargar_rutina()
+        self._marcar_rutina_guardada()
         self._mensaje("Rutina vaciada.")
 
     def _abrir_menu_imprimir(self):
@@ -1899,6 +1914,13 @@ class RutinasTab:
                 self.rutina = []
         self._render_rutina()
 
+    def _marcar_rutina_guardada(self):
+        """Enciende el letrero de guardado tras una escritura exitosa."""
+        hora = datetime.now().strftime("%H:%M")
+        self.lbl_rutina_guardada.configure(
+            text=f"Guardada en la BD ✓ {hora}", foreground=NEON,
+        )
+
     def _render_rutina(self):
         if not hasattr(self, "tree_rutina"):
             return
@@ -1950,6 +1972,13 @@ class RutinasTab:
             text=f"{total_dia} ejercicio" + ("" if total_dia == 1 else "s")
             + f" · semana: {total_semana}"
         )
+        # estado neutro del letrero: lo que se ve viene de la BD; los
+        # escritos lo encienden en neón con la hora (_marcar_rutina_guardada)
+        if hasattr(self, "lbl_rutina_guardada"):
+            self.lbl_rutina_guardada.configure(
+                text="Guardada en la BD ✓" if semana else "Rutina vacía",
+                foreground=GRIS_TEXTO,
+            )
 
     # ------------------------------------------------------------------
     # Rutina semanal: día en edición y días de descanso
@@ -2009,6 +2038,7 @@ class RutinasTab:
             )
             return
         self._cargar_rutina()
+        self._marcar_rutina_guardada()
         self._mensaje(f"{dia}: marcado como día de descanso.")
 
     def cargar(self, paciente_id):
