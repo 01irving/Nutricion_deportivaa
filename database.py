@@ -448,6 +448,43 @@ def init_db():
                 "ALTER TABLE rutinas_paciente ADD COLUMN descanso INTEGER DEFAULT 0"
             )
 
+        # rutinas guardadas con nombre (biblioteca del entrenador, común a
+        # todos los pacientes): semanal=0 rutina simple (lista de ejercicios
+        # con prescripción), semanal=1 rutina semanal (la semana completa,
+        # con dia/notas como en rutinas_paciente)
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rutinas_guardadas (
+                id_rutina_guardada INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT UNIQUE,
+                semanal INTEGER DEFAULT 0,
+                creado_en TEXT DEFAULT (datetime('now', 'localtime'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rutinas_guardadas_ejercicios (
+                id_detalle INTEGER PRIMARY KEY AUTOINCREMENT,
+                rutina_guardada_id INTEGER
+                    REFERENCES rutinas_guardadas(id_rutina_guardada),
+                dia TEXT,
+                orden INTEGER,
+                descanso INTEGER DEFAULT 0,
+                grupo TEXT,
+                num TEXT,
+                nombre TEXT,
+                equipo TEXT,
+                series TEXT,
+                repeticiones TEXT,
+                descanso_rep TEXT,
+                descanso_series TEXT,
+                peso TEXT,
+                notas TEXT
+            )
+            """
+        )
+
         try:
             from suplementos_data import cargar_catalogo_suplementos
 
@@ -1291,6 +1328,153 @@ def delete_rutinas_paciente(paciente_id):
     conn = get_connection()
     try:
         conn.execute("DELETE FROM rutinas_paciente WHERE paciente_id = ?", (paciente_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# ----------------------------------------------------------------------
+# Rutinas guardadas con nombre (biblioteca del entrenador). semanal=0
+# guarda una rutina simple (lista de ejercicios con su prescripción,
+# sin días); semanal=1 guarda la semana completa (dia/orden/descanso/
+# notas de sesión, igual que rutinas_paciente). El guardado es upsert
+# por nombre: guardar de nuevo el mismo nombre reemplaza su contenido.
+# ----------------------------------------------------------------------
+
+ORDEN_DIAS_SQL = (
+    "CASE dia WHEN 'Lunes' THEN 1 WHEN 'Martes' THEN 2"
+    " WHEN 'Miércoles' THEN 3 WHEN 'Jueves' THEN 4 WHEN 'Viernes' THEN 5"
+    " WHEN 'Sábado' THEN 6 WHEN 'Domingo' THEN 7 ELSE 8 END"
+)
+
+
+def guardar_rutina_guardada(nombre, semanal, ejercicios):
+    """Guarda una rutina con nombre (upsert por nombre). ejercicios es una
+    lista de dicts con las columnas de rutinas_guardadas_ejercicios. En
+    semanales el orden se numera por día (cada día 1..n) si no viene."""
+    nombre = (nombre or "").strip()
+    conn = get_connection()
+    try:
+        fila = conn.execute(
+            "SELECT id_rutina_guardada FROM rutinas_guardadas WHERE nombre = ?",
+            (nombre,),
+        ).fetchone()
+        if fila:
+            id_guardada = fila[0]
+            conn.execute(
+                "DELETE FROM rutinas_guardadas_ejercicios WHERE rutina_guardada_id = ?",
+                (id_guardada,),
+            )
+            conn.execute(
+                "UPDATE rutinas_guardadas SET semanal = ? WHERE id_rutina_guardada = ?",
+                (1 if semanal else 0, id_guardada),
+            )
+        else:
+            cur = conn.execute(
+                "INSERT INTO rutinas_guardadas (nombre, semanal) VALUES (?, ?)",
+                (nombre, 1 if semanal else 0),
+            )
+            id_guardada = cur.lastrowid
+        contador_por_dia = {}
+        for posicion, datos in enumerate(ejercicios, start=1):
+            dia = datos.get("dia") if semanal else None
+            if semanal and "orden" not in datos:
+                contador_por_dia[dia] = contador_por_dia.get(dia, 0) + 1
+            conn.execute(
+                "INSERT INTO rutinas_guardadas_ejercicios "
+                "(rutina_guardada_id, dia, orden, descanso, grupo, num, nombre, "
+                "equipo, series, repeticiones, descanso_rep, descanso_series, "
+                "peso, notas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    id_guardada,
+                    dia,
+                    datos.get("orden")
+                    if "orden" in datos
+                    else contador_por_dia.get(dia, posicion),
+                    1 if datos.get("descanso") else 0,
+                    datos.get("grupo"),
+                    datos.get("num"),
+                    datos.get("nombre"),
+                    datos.get("equipo"),
+                    datos.get("series"),
+                    datos.get("repeticiones"),
+                    datos.get("descanso_rep"),
+                    datos.get("descanso_series"),
+                    datos.get("peso"),
+                    datos.get("notas"),
+                ),
+            )
+        conn.commit()
+        return id_guardada
+    finally:
+        conn.close()
+
+
+def get_rutinas_guardadas(semanal=None):
+    """Cabeceras de las rutinas guardadas con conteos (nº de ejercicios y,
+    en semanales, nº de días con ejercicios). semanal filtra por tipo."""
+    conn = get_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        sql = (
+            "SELECT g.*, "
+            "(SELECT COUNT(*) FROM rutinas_guardadas_ejercicios e "
+            " WHERE e.rutina_guardada_id = g.id_rutina_guardada"
+            "   AND NOT e.descanso) AS ejercicios, "
+            "(SELECT COUNT(DISTINCT e.dia) FROM rutinas_guardadas_ejercicios e "
+            " WHERE e.rutina_guardada_id = g.id_rutina_guardada"
+            "   AND NOT e.descanso) AS dias "
+            "FROM rutinas_guardadas g"
+        )
+        parametros = []
+        if semanal is not None:
+            sql += " WHERE g.semanal = ?"
+            parametros.append(1 if semanal else 0)
+        sql += " ORDER BY g.nombre"
+        filas = conn.execute(sql, parametros).fetchall()
+    finally:
+        conn.close()
+    return [dict(f) for f in filas]
+
+
+def get_rutina_guardada(id_rutina_guardada):
+    """Una rutina guardada: cabecera + sus ejercicios. Los semanales se
+    ordenan por día de la semana (Lunes→Domingo, descansos incluidos) y
+    orden; las simples por orden de captura."""
+    conn = get_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        cabecera = conn.execute(
+            "SELECT * FROM rutinas_guardadas WHERE id_rutina_guardada = ?",
+            (id_rutina_guardada,),
+        ).fetchone()
+        if cabecera is None:
+            return None
+        ejercicios = conn.execute(
+            "SELECT * FROM rutinas_guardadas_ejercicios "
+            "WHERE rutina_guardada_id = ? "
+            "ORDER BY " + ORDEN_DIAS_SQL + ", orden, id_detalle",
+            (id_rutina_guardada,),
+        ).fetchall()
+    finally:
+        conn.close()
+    rutina = dict(cabecera)
+    rutina["ejercicios"] = [dict(f) for f in ejercicios]
+    return rutina
+
+
+def delete_rutina_guardada(id_rutina_guardada):
+    """Borra una rutina guardada y su detalle."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "DELETE FROM rutinas_guardadas_ejercicios WHERE rutina_guardada_id = ?",
+            (id_rutina_guardada,),
+        )
+        conn.execute(
+            "DELETE FROM rutinas_guardadas WHERE id_rutina_guardada = ?",
+            (id_rutina_guardada,),
+        )
         conn.commit()
     finally:
         conn.close()
