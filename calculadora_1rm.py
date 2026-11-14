@@ -881,3 +881,6 @@ def abrir_dialogo_1rm(parent, app=None):
     y = max(0, (dialogo.winfo_screenheight() - 70 - alto_previsto) // 2)
     dialogo.geometry(f"+{x}+{y}")
     dialogo.wait_window(dialogo)
+    # último cálculo (o None): la pestaña Rutinas lo usa como 1RM de
+    # referencia para llenar el peso por porcentaje
+    return resultado_ultimo["datos"]

@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import unicodedata
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -12,6 +13,7 @@ except Exception:  # pragma: no cover - entorno sin Pillow
 
 import calentamiento_print
 import database
+import rutina_print
 from estiramientos_tab import DURACIONES, MOMENTOS
 from rutas import base_dir
 
@@ -37,6 +39,21 @@ GRUPOS_PREFERIDOS = ("hombros", "brazos", "pectorales", "espalda", "piernas", "g
 GRUPOS_ETIQUETAS = {"gluteos": "Glúteos"}
 
 TAMANO_IMG_RESPALDO = (560, 380)
+
+# Porcentajes del 1RM ofrecidos para llenar el peso (discos de 2.5 kg)
+PORCENTAJES_1RM = tuple(range(50, 101, 5))
+
+
+def _discos_2_5(kg):
+    """Redondea al disco cargable más cercano (múltiplos de 2.5 kg)."""
+    return round(kg / 2.5) * 2.5
+
+
+def _normalizar(texto):
+    """Minúsculas y sin acentos, para emparejar nombres de ejercicios."""
+    texto = (texto or "").lower().strip()
+    texto = unicodedata.normalize("NFD", texto)
+    return "".join(c for c in texto if unicodedata.category(c) != "Mn")
 
 # ----------------------------------------------------------------------
 # Pestaña Progresión — Position Stand del ACSM: "Progression Models in
@@ -182,12 +199,135 @@ class RutinasTab:
         self._tam_panel = TAMANO_IMG_RESPALDO
         self._img_after = None
         self.ejercicio_seleccionado = None
+        # último 1RM calculado en el diálogo (cualquier método) y lista
+        # de referencias 1RM para llenar el peso por porcentaje
+        self.rm_sesion = None
+        self._rm_lista = []
 
     def _abrir_1rm(self):
         """Calculadora de 1RM por ejercicio (ramas de árbol)."""
         import calculadora_1rm
 
-        calculadora_1rm.abrir_dialogo_1rm(self.marco, self.app)
+        resultado = calculadora_1rm.abrir_dialogo_1rm(self.marco, self.app)
+        if resultado:
+            self.rm_sesion = resultado
+        self._recargar_referencias_1rm()
+        if resultado:
+            self._mensaje(
+                f"1RM activo: {resultado['ejercicio']} {resultado['resultado']} kg"
+            )
+
+    # ------------------------------------------------------------------
+    # Peso desde el 1RM: referencias de la sesión y las guardadas
+    # ------------------------------------------------------------------
+
+    def _recargar_referencias_1rm(self):
+        """Llena el combo "1RM de referencia": el último calculado en la
+        sesión y los guardados del paciente activo; preselecciona el del
+        ejercicio mostrado."""
+        if not hasattr(self, "combo_rm_ref"):
+            return
+        referencias = []
+        if self.rm_sesion:
+            referencias.append(
+                {
+                    "rm": self.rm_sesion.get("resultado") or 0,
+                    "ejercicio": self.rm_sesion.get("ejercicio") or "",
+                    "etiqueta": (
+                        f"Sesión · {self.rm_sesion['ejercicio']} — "
+                        f"{self.rm_sesion['resultado']:g} kg"
+                    ),
+                }
+            )
+        paciente_id = self._paciente_actual()
+        if paciente_id is not None:
+            try:
+                registros = database.get_uno_rm(paciente_id)
+            except Exception:
+                registros = []
+            for reg in registros:
+                if not reg.get("resultado"):
+                    continue
+                # la fecha se guarda AAAA-MM-DD y se muestra DD/MM/AAAA
+                fecha = str(reg.get("fecha") or "—")
+                try:
+                    if fecha != "—":
+                        fecha = f"{fecha[8:10]}/{fecha[5:7]}/{fecha[0:4]}"
+                except Exception:
+                    pass
+                referencias.append(
+                    {
+                        "rm": reg["resultado"],
+                        "ejercicio": reg.get("ejercicio") or "",
+                        "etiqueta": (
+                            f"{fecha} · {reg.get('ejercicio')} — "
+                            f"{reg['resultado']:g} kg"
+                        ),
+                    }
+                )
+        self._rm_lista = referencias
+        self.combo_rm_ref.configure(values=[r["etiqueta"] for r in referencias])
+
+        # preselección: el 1RM del ejercicio mostrado o la primera referencia
+        self.combo_rm_ref.set(self._buscar_ref_ejercicio() or (referencias[0]["etiqueta"] if referencias else ""))
+        self._llenar_pct_1rm()
+
+    def _buscar_ref_ejercicio(self):
+        """Etiqueta de la primera referencia 1RM cuyo ejercicio coincida
+        (ignorando mayúsculas y acentos) con el ejercicio mostrado."""
+        nombre = _normalizar((self.ejercicio_seleccionado or {}).get("nombre"))
+        if not nombre:
+            return None
+        for ref in self._rm_lista:
+            if _normalizar(ref.get("ejercicio")) == nombre:
+                return ref["etiqueta"]
+        return None
+
+    def _rm_actual(self):
+        """Referencia 1RM elegida en el combo (None si no hay ninguna)."""
+        texto = self.combo_rm_ref.get()
+        for ref in self._rm_lista:
+            if ref["etiqueta"] == texto:
+                return ref
+        return None
+
+    def _llenar_pct_1rm(self):
+        """Porcentajes del 1RM elegido con el peso ya calculado y
+        redondeado a discos de 2.5 kg."""
+        self.combo_rm_pct.set("")
+        ref = self._rm_actual()
+        if not ref or not ref.get("rm"):
+            self.combo_rm_pct.configure(values=[])
+            return
+        self.combo_rm_pct.configure(
+            values=[
+                f"{pct}% → {_discos_2_5(ref['rm'] * pct / 100.0):g} kg"
+                for pct in PORCENTAJES_1RM
+            ]
+        )
+
+    def _al_elegir_rm_ref(self, event=None):
+        self._llenar_pct_1rm()
+
+    def _al_elegir_pct_1rm(self, event=None):
+        """Pone en "Peso (kg)" el porcentaje elegido del 1RM de
+        referencia, redondeado al disco cargable más cercano."""
+        ref = self._rm_actual()
+        if not ref or not ref.get("rm"):
+            return
+        try:
+            pct = float(self.combo_rm_pct.get().split("%", 1)[0])
+        except ValueError:
+            return
+        exacto = ref["rm"] * pct / 100.0
+        carga = _discos_2_5(exacto)
+        entrada = self.reg_entradas["Peso (kg)"]
+        entrada.delete(0, "end")
+        entrada.insert(0, f"{carga:g}")
+        self._mensaje(
+            f"Peso: {pct:g}% de {ref['rm']:g} kg = {exacto:.1f} kg "
+            f"→ {carga:g} kg (discos de 2.5)"
+        )
 
     # ------------------------------------------------------------------
     # Pestaña Progresión (ACSM 2009: principiantes / intermedios / avanzados)
@@ -796,7 +936,7 @@ class RutinasTab:
             [
                 ("Series", 6, "3"),
                 ("Repeticiones", 8, "12"),
-                ("Descanso entre repeticiones (seg)", 10, ""),
+                ("Descanso entre ejercicios (seg)", 10, ""),
                 ("Descanso entre series (seg)", 10, ""),
                 ("Peso (kg)", 8, ""),
             ]
@@ -810,8 +950,30 @@ class RutinasTab:
                 e.insert(0, inicial)
             self.reg_entradas[texto] = e
 
+        # --- Peso desde el 1RM: referencia y porcentaje ---
+        fila_rm = ttk.Frame(campos, style="Gym.TFrame")
+        fila_rm.grid(row=1, column=0, columnspan=5, sticky="w", padx=6, pady=(6, 0))
+        tk.Label(
+            fila_rm, text="1RM de referencia:", font=("Segoe UI", 8),
+            fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+        ).pack(side="left")
+        self.combo_rm_ref = ttk.Combobox(
+            fila_rm, width=34, state="readonly", style="Gym.TCombobox"
+        )
+        self.combo_rm_ref.pack(side="left", padx=(4, 12))
+        self.combo_rm_ref.bind("<<ComboboxSelected>>", self._al_elegir_rm_ref)
+        tk.Label(
+            fila_rm, text="% del 1RM → peso:", font=("Segoe UI", 8),
+            fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+        ).pack(side="left")
+        self.combo_rm_pct = ttk.Combobox(
+            fila_rm, width=11, state="readonly", style="Gym.TCombobox"
+        )
+        self.combo_rm_pct.pack(side="left", padx=(4, 0))
+        self.combo_rm_pct.bind("<<ComboboxSelected>>", self._al_elegir_pct_1rm)
+
         boton_alta = ttk.Frame(campos, style="Gym.TFrame")
-        boton_alta.grid(row=0, column=5, padx=(14, 4), sticky="s")
+        boton_alta.grid(row=0, column=5, rowspan=2, padx=(14, 4), sticky="s")
         tk.Button(
             boton_alta,
             text="+ AÑADIR A LA RUTINA",
@@ -847,7 +1009,7 @@ class RutinasTab:
             ("equipo", "Equipo", 100, "w"),
             ("series", "Series", 52, "center"),
             ("reps", "Reps", 52, "center"),
-            ("desc_rep", "Desc. rep (s)", 100, "center"),
+            ("desc_rep", "Desc. ej. (s)", 100, "center"),
             ("desc_serie", "Desc. serie (s)", 104, "center"),
             ("peso", "Peso (kg)", 68, "center"),
         ):
@@ -893,6 +1055,20 @@ class RutinasTab:
             pady=2,
             cursor="hand2",
         ).pack(fill="x")
+        tk.Button(
+            acciones,
+            text="IMPRIMIR RUTINA",
+            command=self._imprimir_rutina,
+            font=("Impact", 9),
+            fg=NEGRO,
+            bg=NEON,
+            activebackground=NARANJA,
+            activeforeground=BLANCO,
+            relief="flat",
+            padx=8,
+            pady=3,
+            cursor="hand2",
+        ).pack(fill="x", pady=(6, 0))
         self.lbl_rutina_total = ttk.Label(
             acciones, text="0 ejercicios", style="Estado.TLabel"
         )
@@ -966,6 +1142,12 @@ class RutinasTab:
         ej = self.ejercicios[idx]
         self.ejercicio_seleccionado = ej
         self._mostrar_ejercicio(ej)
+        # si hay un 1RM guardado de este ejercicio, se selecciona solo
+        if getattr(self, "_rm_lista", None):
+            etiqueta = self._buscar_ref_ejercicio()
+            if etiqueta is not None and self.combo_rm_ref.get() != etiqueta:
+                self.combo_rm_ref.set(etiqueta)
+                self._llenar_pct_1rm()
 
     def _mostrar_ejercicio(self, ej):
         self.lbl_preview_titulo.configure(
@@ -1437,7 +1619,7 @@ class RutinasTab:
             "equipo": ej.get("equipo"),
             "series": series,
             "repeticiones": repeticiones,
-            "descanso_rep": self.reg_entradas["Descanso entre repeticiones (seg)"].get().strip(),
+            "descanso_rep": self.reg_entradas["Descanso entre ejercicios (seg)"].get().strip(),
             "descanso_series": self.reg_entradas["Descanso entre series (seg)"].get().strip(),
             "peso": self.reg_entradas["Peso (kg)"].get().strip(),
         }
@@ -1487,6 +1669,61 @@ class RutinasTab:
             return
         self._cargar_rutina()
         self._mensaje("Rutina vaciada.")
+
+    def _imprimir_rutina(self):
+        """Genera el PDF de la rutina (tabla resumen + detalle con
+        imagen y descripción) y lo abre para impresión."""
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            messagebox.showwarning(
+                "Rutinas", "Selecciona un paciente antes de imprimir."
+            )
+            return
+        rutina = getattr(self, "rutina", None)
+        if not rutina:
+            messagebox.showwarning(
+                "Rutinas", "No hay ejercicios en la rutina para imprimir."
+            )
+            return
+
+        # el plan enriquece cada fila con la descripción y la ilustración
+        # del catálogo para el detalle del reporte
+        plan = []
+        for fila in rutina:
+            fila = dict(fila)
+            try:
+                ficha = database.get_rutina_ejercicio(
+                    fila.get("grupo"), fila.get("num")
+                )
+            except Exception:
+                ficha = None
+            if ficha:
+                for campo in ("descripcion", "imagen_blob", "imagen_nombre"):
+                    fila[campo] = ficha.get(campo)
+            plan.append(fila)
+
+        paciente = database.obtener_paciente(paciente_id) or {}
+        nombre = paciente.get("nombre") or f"paciente_{paciente_id}"
+        ruta = rutina_print.ruta_temporal_pdf(nombre)
+        try:
+            rutina_print.generar_pdf_rutina(ruta, paciente, plan)
+        except Exception as error:
+            messagebox.showerror(
+                "Imprimir", f"No se pudo generar el reporte:\n{error}"
+            )
+            return
+
+        try:
+            rutina_print.abrir_para_imprimir(ruta)
+        except Exception as error:
+            messagebox.showerror(
+                "Imprimir",
+                f"Se generó el PDF en:\n{ruta}\n\n"
+                f"No se pudo abrir automáticamente: {error}",
+            )
+            return
+
+        self._mensaje("Rutina: reporte generado.")
 
     def _cargar_rutina(self):
         paciente_id = self._paciente_actual()
@@ -1546,6 +1783,7 @@ class RutinasTab:
         self._cargar_rutina()
         self._cargar_est_paciente()
         self._cargar_calentamiento_paciente()
+        self._recargar_referencias_1rm()
 
     def refrescar_estado(self):
         paciente_id = getattr(self.app, "id_paciente_antro", None)

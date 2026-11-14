@@ -1,0 +1,346 @@
+"""
+Generación del reporte imprimible de la rutina de ejercicio.
+
+Exporta a PDF con ReportLab: membrete institucional, datos del paciente,
+tabla resumen de la rutina (ejercicio, series, repeticiones, descansos y
+peso) y debajo el detalle de cada ejercicio con su ilustración y su
+descripción tal como están guardadas en el catálogo de la base de datos.
+"""
+import io
+import os
+from datetime import datetime
+
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus import (
+    Image as RLImage,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
+
+from impresion_utils import (
+    abrir_para_imprimir,
+    calcular_edad,
+    crear_membrete,
+    nombre_pdf,
+)
+from impresion_utils import ruta_temporal_pdf as _ruta_temporal_pdf
+from rutas import base_dir
+
+__all__ = [
+    "abrir_para_imprimir",
+    "calcular_edad",
+    "generar_pdf_rutina",
+    "nombre_pdf",
+    "ruta_temporal_pdf",
+]
+
+NEGRO = colors.HexColor("#121212")
+GRIS_OSCURO = colors.HexColor("#1E1E1E")
+GRIS = colors.HexColor("#2C2C2C")
+NARANJA = colors.HexColor("#FF6D00")
+GRIS_TEXTO = colors.HexColor("#B0B0B0")
+
+RUTA_IMAGENES = os.path.join(base_dir(), "assets", "rutinas")
+
+MAX_ANCHO_IMAGEN = 3.1 * inch
+MAX_ALTO_IMAGEN = 3.4 * inch
+
+
+def _escapar(texto):
+    """Escapa caracteres XML para ReportLab."""
+    if texto is None:
+        return ""
+    texto = str(texto)
+    return texto.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _multi(texto):
+    """Escapa el texto y conserva los saltos de línea como <br/>."""
+    return _escapar(texto).replace("\n", "<br/>")
+
+
+def _estilos():
+    base = getSampleStyleSheet()
+    return {
+        "titulo": ParagraphStyle(
+            "titulo", parent=base["Title"], fontName="Helvetica-Bold",
+            fontSize=18, leading=22, textColor=NEGRO, spaceAfter=2,
+        ),
+        "subtitulo": ParagraphStyle(
+            "subtitulo", parent=base["Normal"], fontName="Helvetica",
+            fontSize=10, leading=13, textColor=GRIS_TEXTO, spaceAfter=8,
+        ),
+        "seccion": ParagraphStyle(
+            "seccion", parent=base["Heading2"], fontName="Helvetica-Bold",
+            fontSize=12, leading=15, textColor=NARANJA,
+            spaceBefore=10, spaceAfter=4,
+        ),
+        "ejercicio": ParagraphStyle(
+            "ejercicio", parent=base["Heading3"], fontName="Helvetica-Bold",
+            fontSize=11.5, leading=15, textColor=NEGRO, spaceAfter=2,
+            keepWithNext=1,
+        ),
+        "normal": ParagraphStyle(
+            "normal", parent=base["Normal"], fontName="Helvetica",
+            fontSize=9, leading=12, textColor=NEGRO, alignment=TA_LEFT,
+        ),
+        "etiqueta": ParagraphStyle(
+            "etiqueta", parent=base["Normal"], fontName="Helvetica-Bold",
+            fontSize=9, leading=12, textColor=colors.HexColor("#444444"),
+        ),
+        "centro": ParagraphStyle(
+            "centro", parent=base["Normal"], fontName="Helvetica-Bold",
+            fontSize=8.5, leading=11, textColor=colors.white, alignment=TA_CENTER,
+        ),
+        "celda": ParagraphStyle(
+            "celda", parent=base["Normal"], fontName="Helvetica",
+            fontSize=8.5, leading=11, textColor=NEGRO, alignment=TA_LEFT,
+        ),
+        "pie": ParagraphStyle(
+            "pie", parent=base["Normal"], fontName="Helvetica-Oblique",
+            fontSize=8, leading=10, textColor=GRIS_TEXTO, alignment=TA_CENTER,
+        ),
+    }
+
+
+def ruta_temporal_pdf(nombre_paciente):
+    """Ruta del PDF temporal de rutina para un paciente."""
+    return _ruta_temporal_pdf("Rutina", nombre_paciente)
+
+
+def _imagen_flowable(ficha):
+    """Ilustración del ejercicio (blob de la BD o archivo) ajustada a la
+    caja de la página; None si no hay imagen disponible."""
+    fuente = None
+    blob = ficha.get("imagen_blob")
+    if blob:
+        fuente = io.BytesIO(blob)
+    else:
+        nombre = ficha.get("imagen_nombre") or ""
+        if nombre:
+            ruta = os.path.join(
+                RUTA_IMAGENES, ficha.get("grupo") or "", nombre
+            )
+            if os.path.exists(ruta):
+                fuente = ruta
+    if fuente is None:
+        return None
+    try:
+        ancho_px, alto_px = ImageReader(fuente).getSize()
+    except Exception:
+        return None
+    if not ancho_px or not alto_px:
+        return None
+    escala = min(MAX_ANCHO_IMAGEN / ancho_px, MAX_ALTO_IMAGEN / alto_px)
+    imagen = RLImage(
+        fuente, width=ancho_px * escala, height=alto_px * escala
+    )
+    imagen.hAlign = "CENTER"
+    return imagen
+
+
+def _tabla_datos(estilos, paciente, momento):
+    fecha_nac = paciente.get("fecha_nacimiento") or paciente.get("dob") or ""
+    edad = calcular_edad(fecha_nac)
+    datos = [
+        ("Nombre", paciente.get("nombre") or "-"),
+        ("Edad", f"{edad} años" if edad is not None else "-"),
+        ("Dirección", paciente.get("direccion") or "-"),
+        ("Teléfono", paciente.get("telefono") or "-"),
+        ("Fecha de impresión", momento.strftime("%d/%m/%Y %H:%M")),
+    ]
+    tabla = Table(
+        [
+            [
+                Paragraph(f"{etiqueta}:", estilos["etiqueta"]),
+                Paragraph(_escapar(valor), estilos["normal"]),
+            ]
+            for etiqueta, valor in datos
+        ],
+        colWidths=[1.6 * inch, 4.6 * inch],
+        hAlign="LEFT",
+    )
+    tabla.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, -1), GRIS),
+                ("TEXTCOLOR", (0, 0), (0, -1), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.4, GRIS),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+    return tabla
+
+
+def _tabla_resumen(estilos, plan):
+    """Tabla de la rutina: ejercicio, series, repeticiones, descansos y
+    peso de cada ejercicio en el orden del paciente."""
+    resumen = [
+        [
+            Paragraph("#", estilos["centro"]),
+            Paragraph("Ejercicio", estilos["centro"]),
+            Paragraph("Series", estilos["centro"]),
+            Paragraph("Reps", estilos["centro"]),
+            Paragraph("Descanso entre ejercicios (s)", estilos["centro"]),
+            Paragraph("Descanso entre series (s)", estilos["centro"]),
+            Paragraph("Peso", estilos["centro"]),
+        ]
+    ]
+    for posicion, fila in enumerate(plan, start=1):
+        resumen.append(
+            [
+                Paragraph(str(posicion), estilos["celda"]),
+                Paragraph(_escapar(fila.get("nombre", "")), estilos["celda"]),
+                Paragraph(_escapar(fila.get("series") or "-"), estilos["celda"]),
+                Paragraph(_escapar(fila.get("repeticiones") or "-"), estilos["celda"]),
+                Paragraph(_escapar(fila.get("descanso_rep") or "-"), estilos["celda"]),
+                Paragraph(_escapar(fila.get("descanso_series") or "-"), estilos["celda"]),
+                Paragraph(_escapar(fila.get("peso") or "-"), estilos["celda"]),
+            ]
+        )
+    tabla = Table(
+        resumen,
+        colWidths=[
+            0.3 * inch, 2.1 * inch, 0.55 * inch, 0.55 * inch,
+            1.1 * inch, 1.1 * inch, 1.1 * inch,
+        ],
+        repeatRows=1,
+        hAlign="LEFT",
+    )
+    tabla.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), GRIS_OSCURO),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.4, GRIS),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1),
+                 [colors.white, colors.HexColor("#F2F2F2")]),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    return tabla
+
+
+def _bloque_detalle(estilos, fila, posicion):
+    """Flowables del detalle de un ejercicio (texto + ilustración)."""
+    bloque = []
+    bloque.append(
+        Paragraph(f"{posicion}. {_escapar(fila.get('nombre', ''))}", estilos["ejercicio"])
+    )
+
+    meta = []
+    if fila.get("equipo"):
+        meta.append(f"Equipo: {_escapar(fila['equipo'])}")
+    partes = []
+    if fila.get("series"):
+        partes.append(f"{_escapar(fila['series'])} series")
+    if fila.get("repeticiones"):
+        partes.append(f"{_escapar(fila['repeticiones'])} repeticiones")
+    if partes:
+        meta.append("Prescripción: " + " × ".join(partes))
+    if fila.get("peso"):
+        meta.append(f"Peso: {_escapar(fila['peso'])}")
+    if fila.get("descanso_series"):
+        meta.append(f"Descanso entre series: {_escapar(fila['descanso_series'])} s")
+    if fila.get("descanso_rep"):
+        meta.append(
+            f"Descanso entre ejercicios: {_escapar(fila['descanso_rep'])} s"
+        )
+    if meta:
+        bloque.append(Paragraph(" | ".join(meta), estilos["normal"]))
+
+    imagen = _imagen_flowable(fila)
+    if imagen is not None:
+        bloque.append(imagen)
+
+    if fila.get("descripcion"):
+        bloque.append(Paragraph(_multi(fila["descripcion"]), estilos["normal"]))
+
+    return bloque
+
+
+def generar_pdf_rutina(ruta, paciente, plan, momento_impresion=None):
+    """
+    Genera el PDF del reporte de la rutina de ejercicio.
+
+    paciente: dict con nombre, fecha_nacimiento/dob, direccion, telefono.
+    plan: filas de rutinas_paciente en orden, cada una enriquecida con
+          descripcion, imagen_blob e imagen_nombre del catálogo.
+    """
+    estilos = _estilos()
+    momento = momento_impresion or datetime.now()
+
+    doc = SimpleDocTemplate(
+        ruta,
+        pagesize=letter,
+        rightMargin=0.6 * inch,
+        leftMargin=0.6 * inch,
+        topMargin=0.6 * inch,
+        bottomMargin=0.6 * inch,
+        title=f"Rutina — {paciente.get('nombre', '')}",
+        author="Nutrición Deportiva",
+    )
+
+    elementos = []
+
+    # --- Membrete institucional (logo + datos del profesional) ---
+    elementos.extend(crear_membrete())
+
+    # --- Encabezado ---
+    elementos.append(Paragraph("REPORTE DE RUTINA DE EJERCICIO", estilos["titulo"]))
+    elementos.append(
+        Paragraph(
+            "Nutrición Deportiva — Rutina de resistencia del paciente",
+            estilos["subtitulo"],
+        )
+    )
+
+    # --- Datos del paciente ---
+    elementos.append(_tabla_datos(estilos, paciente, momento))
+    elementos.append(Spacer(1, 0.12 * inch))
+
+    # --- Tabla resumen ---
+    elementos.append(Paragraph("RUTINA EN ORDEN", estilos["seccion"]))
+    if not plan:
+        elementos.append(
+            Paragraph("No hay ejercicios en la rutina.", estilos["normal"])
+        )
+    else:
+        elementos.append(_tabla_resumen(estilos, plan))
+
+    # --- Detalle por ejercicio: imagen y descripción ---
+    elementos.append(Paragraph("DETALLE Y FORMA DE REALIZACIÓN", estilos["seccion"]))
+    for posicion, fila in enumerate(plan, start=1):
+        elementos.extend(_bloque_detalle(estilos, fila, posicion))
+        elementos.append(Spacer(1, 0.14 * inch))
+
+    # --- Pie ---
+    elementos.append(Spacer(1, 0.2 * inch))
+    elementos.append(
+        Paragraph(
+            "Este reporte es informativo y no sustituye la valoración de un "
+            "profesional de la salud. Realiza los ejercicios con la técnica "
+            "descrita, de forma progresiva y ante cualquier molestia detén "
+            "la actividad y consulta a tu profesional.",
+            estilos["pie"],
+        )
+    )
+
+    doc.build(elementos)
+    return ruta

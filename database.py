@@ -1094,6 +1094,20 @@ def get_rutinas_ejercicios(grupo="hombros"):
     return [dict(f) for f in filas]
 
 
+def get_rutina_ejercicio(grupo, num):
+    """Ficha del catálogo (imagen y descripción) de un ejercicio."""
+    conn = get_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        fila = conn.execute(
+            "SELECT * FROM rutinas_ejercicios WHERE grupo = ? AND num = ?",
+            (grupo, str(num)),
+        ).fetchone()
+    finally:
+        conn.close()
+    return dict(fila) if fila else None
+
+
 def contar_rutinas_ejercicios(grupo="hombros"):
     conn = get_connection()
     try:
