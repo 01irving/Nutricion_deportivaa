@@ -447,6 +447,12 @@ def init_db():
             conn.execute(
                 "ALTER TABLE rutinas_paciente ADD COLUMN descanso INTEGER DEFAULT 0"
             )
+        # nombre de la rutina semanal aplicada (p. ej. "Split 4 días..."):
+        # es el nivel raíz del árbol de la rutina del paciente
+        if "nombre_semana" not in columnas_rutinas:
+            conn.execute(
+                "ALTER TABLE rutinas_paciente ADD COLUMN nombre_semana TEXT DEFAULT ''"
+            )
 
         # rutinas guardadas con nombre (biblioteca del entrenador, común a
         # todos los pacientes): semanal=0 rutina simple (lista de ejercicios
@@ -1282,6 +1288,21 @@ def quitar_descanso(paciente_id, dia):
             "DELETE FROM rutinas_paciente "
             "WHERE paciente_id = ? AND dia = ? AND descanso = 1",
             (paciente_id, dia),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def marcar_semana_aplicada(paciente_id, nombre_semana):
+    """Etiqueta todas las filas de la rutina del paciente con el nombre
+    de la rutina semanal aplicada: es el nivel raíz del árbol de la
+    semana que se muestra en la sub-pestaña Rutina."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE rutinas_paciente SET nombre_semana = ? WHERE paciente_id = ?",
+            (nombre_semana or "", paciente_id),
         )
         conn.commit()
     finally:

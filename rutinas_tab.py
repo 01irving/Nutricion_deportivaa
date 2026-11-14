@@ -611,6 +611,9 @@ class RutinasTab:
                             "notas": sesion,
                         }
                     )
+            # el nombre de la semanal queda como raíz del árbol de la
+            # semana en la sub-pestaña Rutina
+            database.marcar_semana_aplicada(paciente_id, plantilla["nombre"])
         except Exception as error:
             messagebox.showerror(
                 "Rutinas", f"No se pudo aplicar la plantilla:\n{error}"
@@ -1772,37 +1775,29 @@ class RutinasTab:
         marco = ttk.Frame(self.notebook_rut, style="Gym.TFrame")
         self.notebook_rut.add(marco, text="  Rutina  ")
 
-        contenedor_principal = ttk.Frame(marco, style="Gym.TFrame")
-        contenedor_principal.pack(fill="both", expand=True, padx=10, pady=(2, 6))
-
-        superior = ttk.Frame(contenedor_principal, style="Gym.TFrame")
-
-        panel_sel = ttk.LabelFrame(superior, text="Seleccionar ejercicio", padding=6)
-        self.panel_sel = panel_sel
-        panel_sel.pack(side="left", fill="y", padx=(0, 6))
-
-        # Plantillas de rutina semanal (patrón del combo "Menú:" de Menús):
-        # elegir una abre el cuadro con la semana, las sesiones y aplicar
+        # barra superior: rutina semanal (las fijas del estudio y las
+        # guardadas con estrella) y guardado de la semana del paciente
+        fila_semanal = ttk.Frame(marco, style="Gym.TFrame")
+        fila_semanal.pack(side="top", fill="x", padx=10, pady=(4, 0))
         tk.Label(
-            panel_sel,
+            fila_semanal,
             text="Rutina semanal:",
             font=("Segoe UI", 8),
             fg=GRIS_TEXTO,
             bg=GRIS_OSCURO,
-        ).pack(anchor="w", pady=(0, 2))
+        ).pack(side="left")
         self.combo_plantilla = ttk.Combobox(
-            panel_sel,
+            fila_semanal,
             values=[p["nombre"] for p in PLANTILLAS_SEMANA],
             state="readonly",
+            width=50,
             style="Gym.TCombobox",
         )
         self.combo_plantilla.set(PLACEHOLDER_PLANTILLA)
-        self.combo_plantilla.pack(fill="x")
+        self.combo_plantilla.pack(side="left", padx=(6, 10))
         self.combo_plantilla.bind("<<ComboboxSelected>>", self._al_elegir_plantilla)
-        # guarda la semana cargada del paciente como rutina semanal con
-        # nombre (aparece en el combo con estrella, junto a las fijas)
         tk.Button(
-            panel_sel,
+            fila_semanal,
             text="💾 GUARDAR SEMANA",
             command=self._guardar_semana_actual,
             font=("Segoe UI", 8, "bold"),
@@ -1811,11 +1806,20 @@ class RutinasTab:
             activebackground=NARANJA,
             activeforeground=BLANCO,
             relief="flat",
-            padx=8,
+            padx=10,
             pady=3,
             cursor="hand2",
-        ).pack(fill="x", pady=(5, 0))
+        ).pack(side="left")
         self._refrescar_combo_plantilla()
+
+        contenedor_principal = ttk.Frame(marco, style="Gym.TFrame")
+        contenedor_principal.pack(fill="both", expand=True, padx=10, pady=(2, 6))
+
+        superior = ttk.Frame(contenedor_principal, style="Gym.TFrame")
+
+        panel_sel = ttk.LabelFrame(superior, text="Seleccionar ejercicio", padding=6)
+        self.panel_sel = panel_sel
+        panel_sel.pack(side="left", fill="y", padx=(0, 6))
 
         self.combo_ej = ttk.Combobox(
             panel_sel, values=[], width=46, state="readonly", style="Gym.TCombobox"
@@ -1905,24 +1909,29 @@ class RutinasTab:
             contenedor_principal, text="Rutina del paciente", padding=6
         )
 
-        cols = ("num", "nombre", "equipo", "series", "reps", "desc_rep", "desc_serie", "peso")
+        cols = ("nombre", "equipo", "series", "reps", "desc_rep", "desc_serie", "peso")
         self.tree_rutina = ttk.Treeview(
             marco_rutina_pac,
             columns=cols,
-            show="headings",
-            height=4,
+            show="tree headings",
+            height=10,
             selectmode="browse",
             style="Gym.Treeview",
         )
+        # columna #0: jerarquia semana -> dia/sesion -> ejercicios
+        self.tree_rutina.heading("#0", text="Semana / Día", anchor="w")
+        self.tree_rutina.column(
+            "#0", width=250, minwidth=250, anchor="w", stretch=False
+        )
+        self.tree_rutina.tag_configure("activa", foreground=NEON)
         for col, texto, ancho, alineacion in (
-            ("num", "#", 34, "center"),
-            ("nombre", "Ejercicio", 200, "w"),
-            ("equipo", "Equipo", 100, "w"),
-            ("series", "Series", 52, "center"),
-            ("reps", "Reps", 52, "center"),
-            ("desc_rep", "Desc. ej. (s)", 100, "center"),
-            ("desc_serie", "Desc. serie (s)", 104, "center"),
-            ("peso", "Peso (kg)", 68, "center"),
+            ("nombre", "Ejercicio", 170, "w"),
+            ("equipo", "Equipo", 90, "w"),
+            ("series", "Series", 48, "center"),
+            ("reps", "Reps", 48, "center"),
+            ("desc_rep", "Desc. ej. (s)", 88, "center"),
+            ("desc_serie", "Desc. serie (s)", 92, "center"),
+            ("peso", "Peso (kg)", 64, "center"),
         ):
             self.tree_rutina.heading(col, text=texto, anchor=alineacion)
             self.tree_rutina.column(
@@ -2135,7 +2144,7 @@ class RutinasTab:
         al selector (cambiando de grupo si hace falta) y la
         previsualizacion muestra su titulo, descripcion e imagen."""
         seleccion = self.tree_rutina.selection()
-        if not seleccion or seleccion[0] == "descanso":
+        if not seleccion or not seleccion[0].isdigit():
             return
         fila = next(
             (r for r in getattr(self, "rutina", [])
@@ -2685,24 +2694,39 @@ class RutinasTab:
                 "Rutinas", "Selecciona un ejercicio de la rutina del paciente."
             )
             return
-        if seleccion[0] == "descanso":
-            # la fila "— DÍA DE DESCANSO —" también se quita aquí
+        iid = seleccion[0]
+        if iid.startswith("dia:"):
+            # el nodo de un día de descanso también se quita aquí
+            dia = iid.split(":", 1)[1]
             paciente_id = self._paciente_actual()
-            try:
-                database.quitar_descanso(
-                    paciente_id, getattr(self, "dia_actual", DIAS_SEMANA[0])
+            filas = [
+                r for r in getattr(self, "rutina", [])
+                if (r.get("dia") or "Lunes") == dia
+            ]
+            if not any(r.get("descanso") for r in filas):
+                messagebox.showinfo(
+                    "Rutinas",
+                    f"«{dia}» no está de descanso: selecciona un ejercicio "
+                    "concreto para quitarlo.",
                 )
+                return
+            try:
+                database.quitar_descanso(paciente_id, dia)
             except Exception as error:
                 messagebox.showerror(
                     "Rutinas", f"No se pudo quitar el descanso:\n{error}"
                 )
                 return
+            self.dia_actual = dia
             self._cargar_rutina()
             self._marcar_rutina_guardada()
-            self._mensaje(f"{self.dia_actual}: día de descanso quitado.")
+            self._mensaje(f"{dia}: día de descanso quitado.")
+            return
+        if not iid.isdigit():
+            # nodo raíz de la semana: no se quita
             return
         try:
-            database.delete_rutina_paciente(int(seleccion[0]))
+            database.delete_rutina_paciente(int(iid))
         except Exception as error:
             messagebox.showerror(
                 "Rutinas", f"No se pudo quitar el ejercicio:\n{error}"
@@ -2714,11 +2738,11 @@ class RutinasTab:
 
     def _menu_rutina_contextual(self, event):
         """Clic derecho sobre la rutina (misma lógica que Menús):
-        selecciona la fila y ofrece editarla o quitarla (la fila de
-        descanso no se edita). El editar también queda al alcance del
-        doble clic sobre el ejercicio."""
+        selecciona la fila y ofrece editarla o quitarla; solo los
+        ejercicios tienen menú (días y raíz de la semana no se editan).
+        El editar también queda al alcance del doble clic."""
         fila = self.tree_rutina.identify_row(event.y)
-        if not fila or fila == "descanso":
+        if not fila or not fila.isdigit():
             return "break"
         self.tree_rutina.selection_set(fila)
         self.tree_rutina.focus(fila)
@@ -2735,7 +2759,7 @@ class RutinasTab:
         paciente activo: la plantilla semanal y las rutinas de los demás
         pacientes no se tocan."""
         seleccion = self.tree_rutina.selection()
-        if not seleccion or seleccion[0] == "descanso":
+        if not seleccion or not seleccion[0].isdigit():
             return
         paciente_id = self._paciente_actual()
         id_rutina = int(seleccion[0])
@@ -2941,39 +2965,66 @@ class RutinasTab:
         for item in self.tree_rutina.get_children():
             self.tree_rutina.delete(item)
         semana = getattr(self, "rutina", [])
-        dia = getattr(self, "dia_actual", DIAS_SEMANA[0])
-        filas = [r for r in semana if (r.get("dia") or "Lunes") == dia]
-        descanso = any(r.get("descanso") for r in filas)
+        dia_activo = getattr(self, "dia_actual", DIAS_SEMANA[0])
         self._resaltar_dia()
+        filas_activas = [
+            r for r in semana if (r.get("dia") or "Lunes") == dia_activo
+        ]
+        descanso_activo = any(r.get("descanso") for r in filas_activas)
         if hasattr(self, "btn_descanso"):
             self.btn_descanso.configure(
-                text="✓ QUITAR DESCANSO" if descanso else "MARCAR DÍA DE DESCANSO",
-                bg=NARANJA if descanso else GRIS,
-                fg=NEGRO if descanso else BLANCO,
+                text="✓ QUITAR DESCANSO" if descanso_activo else "MARCAR DÍA DE DESCANSO",
+                bg=NARANJA if descanso_activo else GRIS,
+                fg=NEGRO if descanso_activo else BLANCO,
             )
-        # sesión de la plantilla semanal guardada en las notas de las filas
-        sesion = next((r.get("notas") for r in filas if r.get("notas")), "")
+        # nivel raíz: la rutina semanal aplicada (guardada con las filas
+        # en nombre_semana); sin nombre queda "Semana del paciente"
+        nombre_semana = next(
+            (r.get("nombre_semana") for r in semana if r.get("nombre_semana")),
+            "",
+        )
         if hasattr(self, "marco_rutina_pac"):
             self.marco_rutina_pac.configure(
-                text=f"Rutina del paciente · {dia}"
-                + (f" · {sesion}" if sesion else "")
-                + (" · DESCANSO" if descanso else "")
+                text="Rutina del paciente · "
+                + (nombre_semana or "semana del paciente")
             )
-        if descanso:
-            self.tree_rutina.insert(
-                "", "end", iid="descanso",
-                values=("—", "— DÍA DE DESCANSO —", "-", "-", "-", "-", "-", "-"),
+        raiz = "semana"
+        self.tree_rutina.insert(
+            "", "end", iid=raiz, open=True,
+            text=nombre_semana or "Semana del paciente",
+            values=("", "", "", "", "", "", ""),
+        )
+        total_semana = 0
+        for dia in DIAS_SEMANA:
+            filas = [r for r in semana if (r.get("dia") or "Lunes") == dia]
+            descanso = any(r.get("descanso") for r in filas)
+            ejercicios = [r for r in filas if not r.get("descanso")]
+            total_semana += len(ejercicios)
+            sesion = next((r.get("notas") for r in filas if r.get("notas")), "")
+            if descanso:
+                texto_dia = f"{dia} · DESCANSO"
+            else:
+                texto_dia = (
+                    f"{dia} · {len(ejercicios)} ejercicio"
+                    + ("" if len(ejercicios) == 1 else "s")
+                )
+                if sesion:
+                    texto_dia = (
+                        f"{dia} · {sesion} · "
+                        f"{len(ejercicios)} ejercicio"
+                        + ("" if len(ejercicios) == 1 else "s")
+                    )
+            nodo = self.tree_rutina.insert(
+                raiz, "end", iid="dia:" + dia,
+                open=(dia == dia_activo),
+                text=texto_dia,
+                tags=("activa",) if dia == dia_activo else (),
             )
-        else:
-            posicion = 0
-            for registro in filas:
-                posicion += 1
+            for posicion, registro in enumerate(ejercicios, start=1):
                 self.tree_rutina.insert(
-                    "",
-                    "end",
-                    iid=str(registro["id_rutina"]),
+                    nodo, "end", iid=str(registro["id_rutina"]),
+                    text=f"{posicion}.",
                     values=(
-                        posicion,
                         registro["nombre"],
                         registro["equipo"] or "-",
                         registro["series"] or "-",
@@ -2983,12 +3034,15 @@ class RutinasTab:
                         registro["peso"] or "-",
                     ),
                 )
-        total_dia = len(filas) - (1 if descanso else 0)
-        total_semana = len([r for r in semana if not r.get("descanso")])
+        total_dia = len([r for r in filas_activas if not r.get("descanso")])
         self.lbl_rutina_total.configure(
             text=f"{total_dia} ejercicio" + ("" if total_dia == 1 else "s")
             + f" · semana: {total_semana}"
         )
+        # deja visible y seleccionado el día activo
+        if "dia:" + dia_activo in self.tree_rutina.get_children(raiz):
+            self.tree_rutina.see("dia:" + dia_activo)
+            self.tree_rutina.selection_set("dia:" + dia_activo)
         # estado neutro del letrero: lo que se ve viene de la BD; los
         # escritos lo encienden en neón con la hora (_marcar_rutina_guardada)
         if hasattr(self, "lbl_rutina_guardada"):
