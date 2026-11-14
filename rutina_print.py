@@ -1,10 +1,11 @@
 """
 Generación del reporte imprimible de la rutina de ejercicio.
 
-Exporta a PDF con ReportLab: membrete institucional, datos del paciente,
-plan semanal (día a día con sus descansos) y, dentro de cada día, la
-tabla de ejercicios y el detalle de cada uno con su ilustración y su
-descripción tal como están guardadas en el catálogo de la base de datos.
+Exporta a PDF con ReportLab: membrete institucional, datos del paciente
+y, según el modo elegido, el plan semanal (día a día con sus descansos)
+con la tabla de ejercicios de cada día y/o el detalle de cada uno con su
+ilustración y su descripción tal como están guardadas en el catálogo de
+la base de datos.  Modos: "todo", "tabla" y "descripcion".
 """
 import io
 import os
@@ -97,7 +98,7 @@ def _estilos():
         "seccion": ParagraphStyle(
             "seccion", parent=base["Heading2"], fontName="Helvetica-Bold",
             fontSize=12, leading=15, textColor=NARANJA,
-            spaceBefore=10, spaceAfter=4,
+            spaceBefore=10, spaceAfter=4, keepWithNext=1,
         ),
         "ejercicio": ParagraphStyle(
             "ejercicio", parent=base["Heading3"], fontName="Helvetica-Bold",
@@ -333,13 +334,24 @@ def _bloque_detalle(estilos, fila, posicion):
     return bloque
 
 
-def generar_pdf_rutina(ruta, paciente, plan, momento_impresion=None):
+SUBTITULOS_POR_MODO = {
+    "todo": "Nutrición Deportiva — Rutina semanal de resistencia del paciente",
+    "tabla": "Nutrición Deportiva — Plan semanal y tablas de la rutina del paciente",
+    "descripcion": "Nutrición Deportiva — Descripción e ilustración de los ejercicios del paciente",
+}
+
+
+def generar_pdf_rutina(ruta, paciente, plan, modo="todo", momento_impresion=None):
     """
     Genera el PDF del reporte de la rutina de ejercicio.
 
     paciente: dict con nombre, fecha_nacimiento/dob, direccion, telefono.
     plan: filas de rutinas_paciente en orden, cada una enriquecida con
           descripcion, imagen_blob e imagen_nombre del catálogo.
+    modo: "todo" (plan semanal + tablas por día + detalle con imagen y
+          descripción), "tabla" (solo el plan semanal y las tablas de
+          cada día, sin descripciones) o "descripcion" (solo el detalle
+          de cada ejercicio con su ilustración y su descripción).
     """
     estilos = _estilos()
     momento = momento_impresion or datetime.now()
@@ -364,7 +376,7 @@ def generar_pdf_rutina(ruta, paciente, plan, momento_impresion=None):
     elementos.append(Paragraph("REPORTE DE RUTINA DE EJERCICIO", estilos["titulo"]))
     elementos.append(
         Paragraph(
-            "Nutrición Deportiva — Rutina semanal de resistencia del paciente",
+            SUBTITULOS_POR_MODO.get(modo, SUBTITULOS_POR_MODO["todo"]),
             estilos["subtitulo"],
         )
     )
@@ -381,9 +393,10 @@ def generar_pdf_rutina(ruta, paciente, plan, momento_impresion=None):
             Paragraph("No hay ejercicios en la rutina.", estilos["normal"])
         )
     else:
-        elementos.append(Paragraph("PLAN SEMANAL", estilos["seccion"]))
-        elementos.append(_tabla_plan_semanal(estilos, grupos))
-        elementos.append(Spacer(1, 0.1 * inch))
+        if modo != "descripcion":
+            elementos.append(Paragraph("PLAN SEMANAL", estilos["seccion"]))
+            elementos.append(_tabla_plan_semanal(estilos, grupos))
+            elementos.append(Spacer(1, 0.1 * inch))
 
         for dia, filas in grupos:
             elementos.append(Paragraph(dia.upper(), estilos["seccion"]))
@@ -398,11 +411,13 @@ def generar_pdf_rutina(ruta, paciente, plan, momento_impresion=None):
                 elementos.append(Spacer(1, 0.1 * inch))
                 continue
             ejercicios = [f for f in filas if not f.get("descanso")]
-            elementos.append(_tabla_resumen(estilos, ejercicios))
-            elementos.append(Spacer(1, 0.08 * inch))
-            for posicion, fila in enumerate(ejercicios, start=1):
-                elementos.extend(_bloque_detalle(estilos, fila, posicion))
-                elementos.append(Spacer(1, 0.14 * inch))
+            if modo != "descripcion":
+                elementos.append(_tabla_resumen(estilos, ejercicios))
+                elementos.append(Spacer(1, 0.08 * inch))
+            if modo != "tabla":
+                for posicion, fila in enumerate(ejercicios, start=1):
+                    elementos.extend(_bloque_detalle(estilos, fila, posicion))
+                    elementos.append(Spacer(1, 0.14 * inch))
 
     # --- Pie ---
     elementos.append(Spacer(1, 0.2 * inch))

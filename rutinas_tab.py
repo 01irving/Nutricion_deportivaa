@@ -1064,10 +1064,10 @@ class RutinasTab:
             pady=2,
             cursor="hand2",
         ).pack(fill="x")
-        tk.Button(
+        self.btn_imprimir_rutina = tk.Button(
             acciones,
             text="IMPRIMIR RUTINA",
-            command=self._imprimir_rutina,
+            command=self._abrir_menu_imprimir,
             font=("Impact", 9),
             fg=NEGRO,
             bg=NEON,
@@ -1077,7 +1077,21 @@ class RutinasTab:
             padx=8,
             pady=3,
             cursor="hand2",
-        ).pack(fill="x", pady=(6, 0))
+        )
+        self.btn_imprimir_rutina.pack(fill="x", pady=(6, 0))
+        self.menu_imprimir = tk.Menu(self.tree_rutina, tearoff=0, font=("Segoe UI", 9))
+        self.menu_imprimir.add_command(
+            label="Tabla semanal", command=lambda: self._imprimir_rutina("tabla")
+        )
+        self.menu_imprimir.add_command(
+            label="Descripciones de ejercicios",
+            command=lambda: self._imprimir_rutina("descripcion"),
+        )
+        self.menu_imprimir.add_separator()
+        self.menu_imprimir.add_command(
+            label="Tabla + descripciones (todo)",
+            command=lambda: self._imprimir_rutina("todo"),
+        )
         self.lbl_rutina_total = ttk.Label(
             acciones, text="0 ejercicios", style="Estado.TLabel"
         )
@@ -1808,9 +1822,18 @@ class RutinasTab:
         self._cargar_rutina()
         self._mensaje("Rutina vaciada.")
 
-    def _imprimir_rutina(self):
-        """Genera el PDF de la rutina (tabla resumen + detalle con
-        imagen y descripción) y lo abre para impresión."""
+    def _abrir_menu_imprimir(self):
+        """Despliega las opciones de impresión debajo del botón."""
+        boton = self.btn_imprimir_rutina
+        self.menu_imprimir.tk_popup(
+            boton.winfo_rootx(),
+            boton.winfo_rooty() + boton.winfo_height(),
+        )
+
+    def _imprimir_rutina(self, modo="todo"):
+        """Genera el PDF de la rutina en el modo elegido ("tabla" = solo
+        plan semanal y tablas por día; "descripcion" = solo el detalle
+        con imagen y descripción; "todo" = ambos) y lo abre."""
         paciente_id = self._paciente_actual()
         if paciente_id is None:
             messagebox.showwarning(
@@ -1846,7 +1869,7 @@ class RutinasTab:
         nombre = paciente.get("nombre") or f"paciente_{paciente_id}"
         ruta = rutina_print.ruta_temporal_pdf(nombre)
         try:
-            rutina_print.generar_pdf_rutina(ruta, paciente, plan)
+            rutina_print.generar_pdf_rutina(ruta, paciente, plan, modo=modo)
         except Exception as error:
             messagebox.showerror(
                 "Imprimir", f"No se pudo generar el reporte:\n{error}"
