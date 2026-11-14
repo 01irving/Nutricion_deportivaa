@@ -1269,29 +1269,6 @@ class RutinasTab:
             ]
         )
 
-    def _al_elegir_rm_ref(self, event=None):
-        self._llenar_pct_1rm()
-
-    def _al_elegir_pct_1rm(self, event=None):
-        """Pone en "Peso (kg)" el porcentaje elegido del 1RM de
-        referencia, redondeado al disco cargable más cercano."""
-        ref = self._rm_actual()
-        if not ref or not ref.get("rm"):
-            return
-        try:
-            pct = float(self.combo_rm_pct.get().split("%", 1)[0])
-        except ValueError:
-            return
-        exacto = ref["rm"] * pct / 100.0
-        carga = _discos_2_5(exacto)
-        entrada = self.reg_entradas["Peso (kg)"]
-        entrada.delete(0, "end")
-        entrada.insert(0, f"{carga:g}")
-        self._mensaje(
-            f"Peso: {pct:g}% de {ref['rm']:g} kg = {exacto:.1f} kg "
-            f"→ {carga:g} kg (discos de 2.5)"
-        )
-
     # ------------------------------------------------------------------
     # Pestaña Progresión (ACSM 2009: principiantes / intermedios / avanzados)
     # ------------------------------------------------------------------
@@ -1921,73 +1898,6 @@ class RutinasTab:
         )
         self.lbl_preview_fuente.pack(fill="x")
 
-        # --- Series / repeticiones del ejercicio seleccionado ---
-        marco_registro = ttk.LabelFrame(
-            contenedor_principal,
-            text="Series / Repeticiones / Descanso / Peso del ejercicio seleccionado",
-            padding=6,
-        )
-
-        campos = ttk.Frame(marco_registro, style="Gym.TFrame")
-        campos.pack(fill="x")
-        self.reg_entradas = {}
-        for c, (texto, ancho, inicial) in enumerate(
-            [
-                ("Series", 6, "3"),
-                ("Repeticiones", 8, "12"),
-                ("Descanso entre ejercicios (seg)", 10, ""),
-                ("Descanso entre series (seg)", 10, ""),
-                ("Peso (kg)", 8, ""),
-            ]
-        ):
-            f = ttk.Frame(campos, style="Gym.TFrame")
-            f.grid(row=0, column=c, padx=6)
-            tk.Label(f, text=texto, font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO).pack(anchor="w")
-            e = ttk.Entry(f, width=ancho, style="Gym.TEntry")
-            e.pack()
-            if inicial:
-                e.insert(0, inicial)
-            self.reg_entradas[texto] = e
-
-        # --- Peso desde el 1RM: referencia y porcentaje ---
-        fila_rm = ttk.Frame(campos, style="Gym.TFrame")
-        fila_rm.grid(row=1, column=0, columnspan=5, sticky="w", padx=6, pady=(6, 0))
-        tk.Label(
-            fila_rm, text="1RM de referencia:", font=("Segoe UI", 8),
-            fg=GRIS_TEXTO, bg=GRIS_OSCURO,
-        ).pack(side="left")
-        self.combo_rm_ref = ttk.Combobox(
-            fila_rm, width=34, state="readonly", style="Gym.TCombobox"
-        )
-        self.combo_rm_ref.pack(side="left", padx=(4, 12))
-        self.combo_rm_ref.bind("<<ComboboxSelected>>", self._al_elegir_rm_ref)
-        tk.Label(
-            fila_rm, text="% del 1RM → peso:", font=("Segoe UI", 8),
-            fg=GRIS_TEXTO, bg=GRIS_OSCURO,
-        ).pack(side="left")
-        self.combo_rm_pct = ttk.Combobox(
-            fila_rm, width=11, state="readonly", style="Gym.TCombobox"
-        )
-        self.combo_rm_pct.pack(side="left", padx=(4, 0))
-        self.combo_rm_pct.bind("<<ComboboxSelected>>", self._al_elegir_pct_1rm)
-
-        boton_alta = ttk.Frame(campos, style="Gym.TFrame")
-        boton_alta.grid(row=0, column=5, rowspan=2, padx=(14, 4), sticky="s")
-        tk.Button(
-            boton_alta,
-            text="+ AÑADIR A LA RUTINA",
-            command=self._anadir_ejercicio,
-            font=("Impact", 10),
-            fg=NEGRO,
-            bg=NEON,
-            activebackground=NARANJA,
-            activeforeground=BLANCO,
-            relief="flat",
-            padx=12,
-            pady=3,
-            cursor="hand2",
-        ).pack()
-
         # --- Rutina acumulada del paciente ---
         marco_rutina_pac = ttk.LabelFrame(
             contenedor_principal, text="Rutina del paciente", padding=6
@@ -2110,7 +2020,7 @@ class RutinasTab:
         )
         self.lbl_rutina_guardada.pack(anchor="w")
 
-        # Primero reservan su espacio la tabla y el registro; el panel de
+        # La rutina del paciente reserva primero su espacio; el panel de
         # seleccion/previsualizacion se queda con el resto
         # biblioteca de rutinas guardadas: tabla a lo ancho por ENCIMA de
         # la rutina del paciente (esa se queda al fondo con sus ejercicios)
@@ -2123,7 +2033,6 @@ class RutinasTab:
         self._crear_seccion_rutinas_guardadas(self.marco_guardadas)
         marco_rutina_pac.pack(side="bottom", fill="both", pady=(6, 0))
         self.marco_guardadas.pack(side="bottom", fill="x", pady=(6, 0))
-        marco_registro.pack(side="bottom", fill="x", pady=(6, 0))
 
         # --- Barra de días de la rutina semanal (patrón de Menús) ---
         barra_dias = ttk.Frame(contenedor_principal, style="Gym.TFrame")
@@ -2217,12 +2126,6 @@ class RutinasTab:
         ej = self.ejercicios[idx]
         self.ejercicio_seleccionado = ej
         self._mostrar_ejercicio(ej)
-        # si hay un 1RM guardado de este ejercicio, se selecciona solo
-        if getattr(self, "_rm_lista", None):
-            etiqueta = self._buscar_ref_ejercicio()
-            if etiqueta is not None and self.combo_rm_ref.get() != etiqueta:
-                self.combo_rm_ref.set(etiqueta)
-                self._llenar_pct_1rm()
 
     def _mostrar_ejercicio(self, ej):
         self.lbl_preview_titulo.configure(
@@ -2727,73 +2630,6 @@ class RutinasTab:
         if self.paciente_id is not None:
             return self.paciente_id
         return getattr(self.app, "id_paciente_antro", None)
-
-    def _anadir_ejercicio(self):
-        paciente_id = self._paciente_actual()
-        if paciente_id is None:
-            messagebox.showwarning(
-                "Rutinas", "Selecciona un paciente antes de añadir ejercicios."
-            )
-            return
-        ej = self.ejercicio_seleccionado
-        if not ej:
-            messagebox.showwarning("Rutinas", "Selecciona un ejercicio de la lista.")
-            return
-
-        series = self.reg_entradas["Series"].get().strip()
-        repeticiones = self.reg_entradas["Repeticiones"].get().strip()
-        if not series and not repeticiones:
-            messagebox.showwarning(
-                "Rutinas", "Indica al menos las series o las repeticiones."
-            )
-            return
-
-        # añadir a un día de descanso lo convierte en día de entrenamiento
-        dia = getattr(self, "dia_actual", DIAS_SEMANA[0])
-        filas_dia = [
-            r for r in getattr(self, "rutina", [])
-            if (r.get("dia") or "Lunes") == dia
-        ]
-        if any(r.get("descanso") for r in filas_dia) and not messagebox.askyesno(
-            "Rutinas",
-            f"{dia} está marcado como día de descanso.\n"
-            f"¿Quitar el descanso y añadir el ejercicio?",
-        ):
-            return
-        if any(r.get("descanso") for r in filas_dia):
-            try:
-                database.quitar_descanso(paciente_id, dia)
-            except Exception as error:
-                messagebox.showerror(
-                    "Rutinas", f"No se pudo quitar el descanso:\n{error}"
-                )
-                return
-
-        datos = {
-            "paciente_id": paciente_id,
-            "dia": dia,
-            "grupo": ej.get("grupo") or self.grupo,
-            "num": ej.get("num"),
-            "nombre": ej.get("nombre"),
-            "equipo": ej.get("equipo"),
-            "series": series,
-            "repeticiones": repeticiones,
-            "descanso_rep": self.reg_entradas["Descanso entre ejercicios (seg)"].get().strip(),
-            "descanso_series": self.reg_entradas["Descanso entre series (seg)"].get().strip(),
-            "peso": self.reg_entradas["Peso (kg)"].get().strip(),
-        }
-        try:
-            database.insert_rutina_paciente(datos)
-        except Exception as error:
-            messagebox.showerror(
-                "Rutinas", f"No se pudo añadir el ejercicio:\n{error}"
-            )
-            return
-
-        self.reg_entradas["Peso (kg)"].delete(0, "end")
-        self._cargar_rutina()
-        self._marcar_rutina_guardada()
-        self._mensaje(f"Añadido: {datos['nombre']}")
 
     def _quitar_ejercicio(self):
         seleccion = self.tree_rutina.selection()
