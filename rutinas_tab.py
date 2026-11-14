@@ -1430,6 +1430,19 @@ class RutinasTab:
             label="Tabla + descripciones (todo)",
             command=lambda: self._imprimir_rutina("todo"),
         )
+        # clic derecho sobre la rutina: editar / quitar el ejercicio;
+        # doble clic edita, igual que en Menús
+        self.tree_rutina.bind("<Button-3>", self._menu_rutina_contextual)
+        self.tree_rutina.bind("<Double-1>", self._editar_ejercicio_rutina)
+        self.menu_rutina_ctx = tk.Menu(self.tree_rutina, tearoff=0, font=("Segoe UI", 9))
+        self.menu_rutina_ctx.add_command(
+            label="✏ Editar ejercicio", command=self._editar_ejercicio_rutina
+        )
+        self.menu_rutina_ctx.add_separator()
+        self.menu_rutina_ctx.add_command(
+            label="🗑 Quitar de la rutina", command=self._quitar_ejercicio
+        )
+        self.menu_rutina_ctx.add_command(label="Cancelar")
         self.lbl_rutina_total = ttk.Label(
             acciones, text="0 ejercicios", style="Estado.TLabel"
         )
@@ -2153,6 +2166,125 @@ class RutinasTab:
         self._cargar_rutina()
         self._marcar_rutina_guardada()
         self._mensaje("Ejercicio quitado de la rutina.")
+
+    def _menu_rutina_contextual(self, event):
+        """Clic derecho sobre la rutina (misma lógica que Menús):
+        selecciona la fila y ofrece editarla o quitarla (la fila de
+        descanso no se edita). El editar también queda al alcance del
+        doble clic sobre el ejercicio."""
+        fila = self.tree_rutina.identify_row(event.y)
+        if not fila or fila == "descanso":
+            return "break"
+        self.tree_rutina.selection_set(fila)
+        self.tree_rutina.focus(fila)
+        try:
+            self.menu_rutina_ctx.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.menu_rutina_ctx.grab_release()
+        return "break"
+
+    def _editar_ejercicio_rutina(self, _event=None):
+        """Cuadro para editar la prescripción de un ejercicio de la rutina
+        (doble clic o clic derecho > Editar, como el edit de equivalentes
+        en Menús). Al guardar, el cambio queda solo en la rutina del
+        paciente activo: la plantilla semanal y las rutinas de los demás
+        pacientes no se tocan."""
+        seleccion = self.tree_rutina.selection()
+        if not seleccion or seleccion[0] == "descanso":
+            return
+        paciente_id = self._paciente_actual()
+        id_rutina = int(seleccion[0])
+        registro = next(
+            (
+                r for r in getattr(self, "rutina", [])
+                if r.get("id_rutina") == id_rutina
+            ),
+            None,
+        )
+        if registro is None or paciente_id is None:
+            return
+
+        dialogo = tk.Toplevel(self.marco)
+        dialogo.title("Editar ejercicio")
+        dialogo.configure(bg=GRIS_OSCURO)
+        dialogo.transient(self.marco)
+        dialogo.grab_set()
+
+        tk.Label(
+            dialogo,
+            text=(registro.get("nombre") or "").upper(),
+            font=("Impact", 12),
+            fg=NEON,
+            bg=GRIS_OSCURO,
+        ).pack(anchor="w", padx=12, pady=(10, 0))
+        tk.Label(
+            dialogo,
+            text=f"{getattr(self, 'dia_actual', '')} · {registro.get('equipo') or '-'}",
+            font=("Segoe UI", 8),
+            fg=GRIS_TEXTO,
+            bg=GRIS_OSCURO,
+        ).pack(anchor="w", padx=12, pady=(0, 8))
+
+        campos = (
+            ("Series", "series"),
+            ("Repeticiones", "repeticiones"),
+            ("Descanso entre ejercicios (seg)", "descanso_rep"),
+            ("Descanso entre series (seg)", "descanso_series"),
+            ("Peso (kg)", "peso"),
+        )
+        entradas = {}
+        for texto, clave in campos:
+            f = tk.Frame(dialogo, bg=GRIS_OSCURO)
+            f.pack(fill="x", padx=12, pady=2)
+            tk.Label(
+                f, text=texto, font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO
+            ).pack(anchor="w")
+            e = ttk.Entry(f, width=14, style="Gym.TEntry")
+            e.pack(anchor="w")
+            e.insert(0, registro.get(clave) or "")
+            entradas[clave] = e
+
+        def guardar():
+            datos = {clave: entradas[clave].get().strip() for _, clave in campos}
+            if not datos["series"] and not datos["repeticiones"]:
+                messagebox.showwarning(
+                    "Rutinas", "Indica al menos las series o las repeticiones."
+                )
+                return
+            try:
+                database.actualizar_rutina_paciente(id_rutina, paciente_id, datos)
+            except Exception as error:
+                messagebox.showerror(
+                    "Rutinas", f"No se pudo guardar el cambio:\n{error}"
+                )
+                return
+            self._cargar_rutina()
+            self._marcar_rutina_guardada()
+            self._mensaje(f"Actualizado: {registro.get('nombre')}")
+            dialogo.destroy()
+
+        botones = tk.Frame(dialogo, bg=GRIS_OSCURO)
+        botones.pack(fill="x", padx=12, pady=(10, 12))
+        tk.Button(
+            botones,
+            text="GUARDAR",
+            command=guardar,
+            font=("Impact", 10),
+            fg=NEGRO, bg=NEON,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=14, pady=4, cursor="hand2",
+        ).pack(side="left")
+        tk.Button(
+            botones,
+            text="CANCELAR",
+            command=dialogo.destroy,
+            font=("Impact", 10),
+            fg=BLANCO, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=14, pady=4, cursor="hand2",
+        ).pack(side="right")
+
+        dialogo.wait_window()
 
     def _vaciar_rutina(self):
         paciente_id = self._paciente_actual()

@@ -1260,6 +1260,33 @@ def delete_rutina_paciente(id_rutina):
         conn.close()
 
 
+def actualizar_rutina_paciente(id_rutina, paciente_id, datos):
+    """Actualiza la prescripción de un ejercicio de la rutina (series,
+    repeticiones, descansos y peso) conservando su día y su orden. El
+    doble filtro (id_rutina + paciente_id) garantiza que la edición solo
+    toque la rutina propia del paciente activo y jamás la de otros."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE rutinas_paciente SET series = :series, "
+            "repeticiones = :repeticiones, descanso_rep = :descanso_rep, "
+            "descanso_series = :descanso_series, peso = :peso "
+            "WHERE id_rutina = :id_rutina AND paciente_id = :paciente_id",
+            {
+                "id_rutina": id_rutina,
+                "paciente_id": paciente_id,
+                "series": datos.get("series"),
+                "repeticiones": datos.get("repeticiones"),
+                "descanso_rep": datos.get("descanso_rep"),
+                "descanso_series": datos.get("descanso_series"),
+                "peso": datos.get("peso"),
+            },
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def delete_rutinas_paciente(paciente_id):
     conn = get_connection()
     try:
