@@ -25,6 +25,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 
 from version import VERSION
 
@@ -75,15 +76,39 @@ def _excluir(nombre):
 def _copiar(origen, destino):
     """Copia sobre-escribiendo; algunos assets están en solo lectura.
     El destino queda escribible para que futuras compilaciones puedan
-    borrar y reescribir la carpeta sin errores."""
-    if os.path.exists(destino):
-        os.chmod(destino, stat.S_IWRITE)
-        os.remove(destino)
-    shutil.copy2(origen, destino)
+    borrar y reescribir la carpeta sin errores.
+
+    El antivirus de Windows retiene unos segundos los binarios recién
+    escritos (WinError 5 al borrar o abrirlos): se copia primero a un
+    nombre nuevo y se reemplaza con reintentos; si el destino sigue
+    bloqueado, se renombra a un lado y se reintenta el reemplazo."""
     try:
         os.chmod(destino, stat.S_IWRITE)
     except OSError:
         pass
+    temporal = destino + ".nuevo"
+    shutil.copy2(origen, temporal)
+    os.chmod(temporal, stat.S_IWRITE)
+    ultimo_error = None
+    for intento in range(6):
+        try:
+            os.replace(temporal, destino)
+            return
+        except PermissionError as error:
+            ultimo_error = error
+            if intento == 2 and os.path.exists(destino):
+                # el destino sigue retenido: se renombra a un lado para
+                # dejar pasar el reemplazo y luego se borra el residuo
+                try:
+                    os.rename(destino, destino + ".bloqueado")
+                except OSError:
+                    pass
+            time.sleep(2.5)
+    try:
+        os.remove(temporal)
+    except OSError:
+        pass
+    raise ultimo_error
 
 
 def _limpiar_solo_lectura(ruta):
@@ -155,6 +180,15 @@ def actualizar_instalada():
     bd = os.path.join(DESTINO, "Nutrición_deportiva.db")
     print(f"Instalada actualizada a v{VERSION}: {total} archivos copiados.")
     print(f"BD de uso diario intacta ({'existe' if os.path.isfile(bd) else '¡NO EXISTE!'}).")
+    # barrido de residuos de copias bloqueadas por el antivirus
+    for raiz, _dirs, archivos in os.walk(DESTINO):
+        for a in archivos:
+            if a.endswith((".bloqueado", ".nuevo")):
+                try:
+                    os.chmod(os.path.join(raiz, a), stat.S_IWRITE)
+                    os.remove(os.path.join(raiz, a))
+                except OSError:
+                    pass
 
 
 def main():
