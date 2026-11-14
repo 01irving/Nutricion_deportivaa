@@ -1826,6 +1826,22 @@ class RutinasTab:
         )
         self.combo_ej.pack(pady=(8, 0))
         self.combo_ej.bind("<<ComboboxSelected>>", self._al_seleccionar_combo)
+        # agrega el ejercicio seleccionado a la rutina/sesion elegida en
+        # el arbol (o al dia activo), con prescripcion inicial 3x12
+        tk.Button(
+            panel_sel,
+            text="＋ AGREGAR A LA RUTINA",
+            command=self._agregar_ejercicio_seleccionado,
+            font=("Impact", 10),
+            fg=NEGRO,
+            bg=NEON,
+            activebackground=NARANJA,
+            activeforeground=BLANCO,
+            relief="flat",
+            padx=12,
+            pady=3,
+            cursor="hand2",
+        ).pack(fill="x", pady=(8, 0))
 
         self.lbl_catalogo = tk.Label(
             panel_sel,
@@ -2173,8 +2189,8 @@ class RutinasTab:
             )
 
     def _indice_ejercicio_combo(self, fila, num):
-        """Indice del ejercicio de la fila en el combo actual (por num y,
-        si el catalogo se renumeró, por nombre)."""
+        """Índice del ejercicio de la fila en el combo actual (por num y,
+        si el catálogo se renumeró, por nombre)."""
         for indice, ej in enumerate(self.ejercicios):
             if num and str(ej.get("num") or "") == num:
                 return indice
@@ -2182,6 +2198,86 @@ class RutinasTab:
             if fila.get("nombre") and ej.get("nombre") == fila.get("nombre"):
                 return indice
         return None
+
+    def _dia_destino_rutina(self):
+        """Día de la rutina que recibirá el ejercicio añadido: el nodo
+        elegido en el árbol (día/sesión o ejercicio) o, si no hay ninguno,
+        el día activo."""
+        seleccion = self.tree_rutina.selection()
+        if seleccion:
+            iid = seleccion[0]
+            if iid.startswith("dia:"):
+                return iid.split(":", 1)[1]
+            if iid.isdigit():
+                fila = next(
+                    (r for r in getattr(self, "rutina", [])
+                     if str(r["id_rutina"]) == iid),
+                    None,
+                )
+                if fila:
+                    return fila.get("dia") or DIAS_SEMANA[0]
+        return getattr(self, "dia_actual", DIAS_SEMANA[0])
+
+    def _agregar_ejercicio_seleccionado(self):
+        """Añade el ejercicio del combo a la rutina seleccionada en el
+        árbol (su día/sesión conserva la nota) o al día activo; la
+        prescripción arranca 3×12 y se ajusta editando la fila. Si el día
+        estaba de descanso, pregunta antes de quitar la marca."""
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            messagebox.showwarning(
+                "Rutinas", "Selecciona un paciente antes de añadir ejercicios."
+            )
+            return
+        ej = getattr(self, "ejercicio_seleccionado", None)
+        if not ej:
+            messagebox.showwarning(
+                "Rutinas", "Selecciona un ejercicio de la lista."
+            )
+            return
+        dia = self._dia_destino_rutina()
+        filas_dia = [
+            r for r in getattr(self, "rutina", [])
+            if (r.get("dia") or "Lunes") == dia
+        ]
+        notas = next((r.get("notas") for r in filas_dia if r.get("notas")), "")
+        if any(r.get("descanso") for r in filas_dia) and not messagebox.askyesno(
+            "Rutinas",
+            f"{dia} está marcado como día de descanso.\n"
+            "¿Quitar el descanso y añadir el ejercicio?",
+        ):
+            return
+        if any(r.get("descanso") for r in filas_dia):
+            try:
+                database.quitar_descanso(paciente_id, dia)
+            except Exception as error:
+                messagebox.showerror(
+                    "Rutinas", f"No se pudo quitar el descanso:\n{error}"
+                )
+                return
+        try:
+            database.insert_rutina_paciente(
+                {
+                    "paciente_id": paciente_id,
+                    "dia": dia,
+                    "grupo": ej.get("grupo") or self.grupo,
+                    "num": ej.get("num"),
+                    "nombre": ej.get("nombre"),
+                    "equipo": ej.get("equipo"),
+                    "series": "3",
+                    "repeticiones": "12",
+                    "notas": notas,
+                }
+            )
+        except Exception as error:
+            messagebox.showerror(
+                "Rutinas", f"No se pudo añadir el ejercicio:\n{error}"
+            )
+            return
+        self.dia_actual = dia
+        self._cargar_rutina()
+        self._marcar_rutina_guardada()
+        self._mensaje(f"Añadido a {dia}: {ej.get('nombre')}")
 
     def _mostrar_ejercicio(self, ej):
         self.lbl_preview_titulo.configure(
