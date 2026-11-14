@@ -687,177 +687,62 @@ class RutinasTab:
             )
             return
         self._refrescar_combo_plantilla()
+        self._pintar_rutinas_guardadas()
         self._mensaje(
             f"Rutina semanal guardada: «{nombre}» "
             f"({len(con_ejercicios)} ejercicios)."
         )
 
-    def _abrir_rutinas_guardadas(self):
-        """Ventana con la biblioteca de rutinas guardadas: crear una
-        rutina nueva agregando ejercicios, editar una simple, aplicarla
-        al día activo del paciente, abrir una semanal con el cuadro de
-        plantillas o eliminarlas."""
-        ventana = tk.Toplevel(self.marco)
-        ventana.title("Rutinas guardadas")
-        ventana.configure(bg=GRIS_OSCURO)
-        ventana.transient(self.marco)
-        ventana.geometry("700x430")
-        ventana.grab_set()
-
-        tk.Label(
-            ventana,
-            text="RUTINAS GUARDADAS",
-            font=("Impact", 13),
-            fg=NEON,
-            bg=GRIS_OSCURO,
-        ).pack(anchor="w", padx=12, pady=(10, 2))
-
-        marco_lista = tk.Frame(ventana, bg=GRIS_OSCURO)
-        marco_lista.pack(fill="both", expand=True, padx=12)
+    def _crear_seccion_rutinas_guardadas(self, marco):
+        """Tabla de la biblioteca de rutinas guardadas incrustada en la
+        sub-pestaña, debajo de la rutina del paciente: lista las simples
+        y las semanales con sus botones (antes abría una ventana)."""
+        marco_lista = tk.Frame(marco, bg=GRIS_OSCURO)
+        marco_lista.pack(fill="both", expand=True)
         columnas = ("nombre", "tipo", "detalle", "creado_en")
-        tree = ttk.Treeview(
-            marco_lista, columns=columnas, show="headings", style="Gym.Treeview",
+        self.tree_guardadas = ttk.Treeview(
+            marco_lista, columns=columnas, show="headings", height=4,
+            style="Gym.Treeview",
         )
         for col, texto, ancho, alineacion in (
-            ("nombre", "Nombre", 240, "w"),
+            ("nombre", "Nombre", 280, "w"),
             ("tipo", "Tipo", 80, "center"),
-            ("detalle", "Contenido", 190, "w"),
+            ("detalle", "Contenido", 220, "w"),
             ("creado_en", "Creada", 130, "center"),
         ):
-            tree.heading(col, text=texto, anchor=alineacion)
-            tree.column(col, width=ancho, minwidth=ancho, anchor=alineacion)
-        tree.pack(side="left", fill="both", expand=True)
-        barra = ttk.Scrollbar(marco_lista, orient="vertical", command=tree.yview)
-        tree.configure(yscrollcommand=barra.set)
+            self.tree_guardadas.heading(col, text=texto, anchor=alineacion)
+            self.tree_guardadas.column(
+                col, width=ancho, minwidth=ancho, anchor=alineacion
+            )
+        self.tree_guardadas.pack(side="left", fill="both", expand=True)
+        barra = ttk.Scrollbar(
+            marco_lista, orient="vertical", command=self.tree_guardadas.yview
+        )
+        self.tree_guardadas.configure(yscrollcommand=barra.set)
         barra.pack(side="right", fill="y")
+        # doble clic: editar una simple / abrir una semanal
+        self.tree_guardadas.bind(
+            "<Double-1>", lambda _e: self._editar_rutina_guardada()
+        )
 
-        def pintar():
-            tree.delete(*tree.get_children())
-            try:
-                guardadas = database.get_rutinas_guardadas()
-            except Exception:
-                guardadas = []
-            for r in guardadas:
-                if r["semanal"]:
-                    tipo = "Semanal"
-                    detalle = (
-                        f"{r['dias']} día" + ("" if r["dias"] == 1 else "s")
-                        + f" con {r['ejercicios']} ejercicio"
-                        + ("" if r["ejercicios"] == 1 else "s")
-                    )
-                else:
-                    tipo = "Rutina"
-                    detalle = (
-                        f"{r['ejercicios']} ejercicio"
-                        + ("" if r["ejercicios"] == 1 else "s")
-                    )
-                tree.insert(
-                    "", "end", iid=str(r["id_rutina_guardada"]),
-                    values=(
-                        r["nombre"], tipo, detalle, r.get("creado_en") or "",
-                    ),
-                )
-
-        def seleccionada():
-            seleccion = tree.selection()
-            if not seleccion:
-                messagebox.showinfo(
-                    "Rutinas",
-                    "Selecciona una rutina de la lista.",
-                    parent=ventana,
-                )
-                return None
-            return database.get_rutina_guardada(int(seleccion[0]))
-
-        def nueva():
-            self._abrir_crear_rutina()
-            ventana.grab_set()
-            pintar()
-
-        def editar():
-            guardada = seleccionada()
-            if guardada is None:
-                return
-            if guardada["semanal"]:
-                messagebox.showinfo(
-                    "Rutinas",
-                    "Las rutinas semanales se ajustan guardando de nuevo la "
-                    "semana del paciente con el mismo nombre.",
-                    parent=ventana,
-                )
-                return
-            self._abrir_crear_rutina(existente=guardada)
-            ventana.grab_set()
-            pintar()
-
-        def aplicar_al_dia():
-            guardada = seleccionada()
-            if guardada is None:
-                return
-            if guardada["semanal"]:
-                messagebox.showinfo(
-                    "Rutinas",
-                    "«" + guardada["nombre"] + "» es semanal: usa Abrir semanal.",
-                    parent=ventana,
-                )
-                return
-            self._aplicar_rutina_guardada_al_dia(guardada)
-
-        def abrir_semanal():
-            guardada = seleccionada()
-            if guardada is None:
-                return
-            if not guardada["semanal"]:
-                messagebox.showinfo(
-                    "Rutinas",
-                    "«" + guardada["nombre"] + "» es una rutina simple: "
-                    "usa Aplicar al día.",
-                    parent=ventana,
-                )
-                return
-            ventana.grab_release()
-            self._abrir_plantilla_semana(self._plantilla_de_guardada(guardada))
-            ventana.grab_set()
-
-        def eliminar():
-            guardada = seleccionada()
-            if guardada is None:
-                return
-            if not messagebox.askyesno(
-                "Rutinas",
-                f"¿Eliminar «{guardada['nombre']}»? "
-                "(no toca la rutina de los pacientes)",
-                parent=ventana,
-            ):
-                return
-            database.delete_rutina_guardada(guardada["id_rutina_guardada"])
-            pintar()
-            self._refrescar_combo_plantilla()
-            self._mensaje(f"Rutina eliminada: «{guardada['nombre']}».")
-
-        tree.bind("<Double-1>", lambda _e: editar())
-        pintar()
-
-        botones = tk.Frame(ventana, bg=GRIS_OSCURO)
-        botones.pack(fill="x", padx=12, pady=(8, 12))
+        fila_botones = tk.Frame(marco, bg=GRIS_OSCURO)
+        fila_botones.pack(fill="x", pady=(6, 0))
         for texto, comando, estilo in (
-            ("NUEVA RUTINA", nueva, "principal"),
-            ("EDITAR", editar, "secundario"),
-            ("APLICAR AL DÍA", aplicar_al_dia, "principal"),
-            ("ABRIR SEMANAL", abrir_semanal, "principal"),
-            ("ELIMINAR", eliminar, "peligro"),
+            ("NUEVA RUTINA", self._nueva_rutina_guardada, "principal"),
+            ("EDITAR", self._editar_rutina_guardada, "secundario"),
+            ("APLICAR AL DÍA", self._aplicar_rutina_guardada, "principal"),
+            ("ABRIR SEMANAL", self._abrir_rutina_guardada_semanal, "principal"),
+            ("ELIMINAR", self._eliminar_rutina_guardada, "peligro"),
         ):
             tk.Button(
-                botones,
+                fila_botones,
                 text=texto,
                 command=comando,
                 font=("Segoe UI", 8, "bold"),
-                fg={
-                    "principal": NEGRO,
-                    "secundario": BLANCO,
-                    "peligro": NEON,
-                }[estilo],
-                bg={"principal": NEON, "secundario": GRIS, "peligro": GRIS}[estilo],
+                fg={"principal": NEGRO, "secundario": BLANCO,
+                    "peligro": NEON}[estilo],
+                bg={"principal": NEON, "secundario": GRIS,
+                    "peligro": GRIS}[estilo],
                 activebackground=NARANJA,
                 activeforeground=BLANCO,
                 relief="flat",
@@ -865,22 +750,113 @@ class RutinasTab:
                 pady=3,
                 cursor="hand2",
             ).pack(side="left", padx=(0, 6))
-        tk.Button(
-            botones,
-            text="CERRAR",
-            command=ventana.destroy,
-            font=("Segoe UI", 8, "bold"),
-            fg=BLANCO,
-            bg=GRIS,
-            activebackground=NARANJA,
-            activeforeground=BLANCO,
-            relief="flat",
-            padx=10,
-            pady=3,
-            cursor="hand2",
-        ).pack(side="right")
+        self._pintar_rutinas_guardadas()
 
-        ventana.wait_window()
+    def _pintar_rutinas_guardadas(self):
+        """Rellena la tabla de rutinas guardadas con la biblioteca."""
+        if not hasattr(self, "tree_guardadas"):
+            return
+        self.tree_guardadas.delete(*self.tree_guardadas.get_children())
+        try:
+            guardadas = database.get_rutinas_guardadas()
+        except Exception:
+            guardadas = []
+        for r in guardadas:
+            if r["semanal"]:
+                tipo = "Semanal"
+                detalle = (
+                    f"{r['dias']} día" + ("" if r["dias"] == 1 else "s")
+                    + f" con {r['ejercicios']} ejercicio"
+                    + ("" if r["ejercicios"] == 1 else "s")
+                )
+            else:
+                tipo = "Rutina"
+                detalle = (
+                    f"{r['ejercicios']} ejercicio"
+                    + ("" if r["ejercicios"] == 1 else "s")
+                )
+            self.tree_guardadas.insert(
+                "", "end", iid=str(r["id_rutina_guardada"]),
+                values=(
+                    r["nombre"], tipo, detalle, r.get("creado_en") or "",
+                ),
+            )
+
+    def _rutina_guardada_seleccionada(self):
+        """Devuelve la rutina guardada elegida en la tabla (o None)."""
+        seleccion = self.tree_guardadas.selection()
+        if not seleccion:
+            messagebox.showinfo(
+                "Rutinas", "Selecciona una rutina guardada de la lista."
+            )
+            return None
+        return database.get_rutina_guardada(int(seleccion[0]))
+
+    def _nueva_rutina_guardada(self):
+        """Abre el cuadro para armar una rutina nueva y refresca la tabla."""
+        self._abrir_crear_rutina()
+        self._pintar_rutinas_guardadas()
+
+    def _editar_rutina_guardada(self):
+        """Edita la rutina simple elegida; las semanales se ajustan
+        guardando de nuevo la semana del paciente con el mismo nombre."""
+        guardada = self._rutina_guardada_seleccionada()
+        if guardada is None:
+            return
+        if guardada["semanal"]:
+            messagebox.showinfo(
+                "Rutinas",
+                "Las rutinas semanales se ajustan guardando de nuevo la "
+                "semana del paciente con el mismo nombre.",
+            )
+            return
+        self._abrir_crear_rutina(existente=guardada)
+        self._pintar_rutinas_guardadas()
+
+    def _aplicar_rutina_guardada(self):
+        """Aplica la rutina simple elegida al día activo del paciente."""
+        guardada = self._rutina_guardada_seleccionada()
+        if guardada is None:
+            return
+        if guardada["semanal"]:
+            messagebox.showinfo(
+                "Rutinas",
+                "«" + guardada["nombre"] + "» es semanal: usa Abrir semanal.",
+            )
+            return
+        self._aplicar_rutina_guardada_al_dia(guardada)
+
+    def _abrir_rutina_guardada_semanal(self):
+        """Abre la rutina semanal elegida en el cuadro de plantillas
+        (previsualización y aplicación a la semana del paciente)."""
+        guardada = self._rutina_guardada_seleccionada()
+        if guardada is None:
+            return
+        if not guardada["semanal"]:
+            messagebox.showinfo(
+                "Rutinas",
+                "«" + guardada["nombre"] + "» es una rutina simple: "
+                "usa Aplicar al día.",
+            )
+            return
+        self._abrir_plantilla_semana(self._plantilla_de_guardada(guardada))
+
+    def _eliminar_rutina_guardada(self):
+        """Elimina de la biblioteca la rutina elegida (los pacientes no
+        se tocan)."""
+        guardada = self._rutina_guardada_seleccionada()
+        if guardada is None:
+            return
+        if not messagebox.askyesno(
+            "Rutinas",
+            f"¿Eliminar «{guardada['nombre']}»? "
+            "(no toca la rutina de los pacientes)",
+        ):
+            return
+        database.delete_rutina_guardada(guardada["id_rutina_guardada"])
+        self._pintar_rutinas_guardadas()
+        self._refrescar_combo_plantilla()
+        self._mensaje(f"Rutina eliminada: «{guardada['nombre']}».")
 
     def _aplicar_rutina_guardada_al_dia(self, guardada):
         """Añade al día activo del paciente los ejercicios de una rutina
@@ -2078,22 +2054,6 @@ class RutinasTab:
             pady=2,
             cursor="hand2",
         ).pack(fill="x")
-        # biblioteca del entrenador: rutinas simples y semanales guardadas
-        # con nombre (crear / editar / aplicar al día / abrir / eliminar)
-        tk.Button(
-            acciones,
-            text="RUTINAS GUARDADAS",
-            command=self._abrir_rutinas_guardadas,
-            font=("Segoe UI", 8, "bold"),
-            fg=NEON,
-            bg=GRIS,
-            activebackground=NARANJA,
-            activeforeground=BLANCO,
-            relief="flat",
-            padx=8,
-            pady=2,
-            cursor="hand2",
-        ).pack(fill="x", pady=(6, 0))
         self.btn_imprimir_rutina = tk.Button(
             acciones,
             text="IMPRIMIR RUTINA",
@@ -2152,6 +2112,16 @@ class RutinasTab:
 
         # Primero reservan su espacio la tabla y el registro; el panel de
         # seleccion/previsualizacion se queda con el resto
+        # biblioteca de rutinas guardadas: tabla a lo ancho, justo debajo
+        # de la rutina del paciente (antes abría una ventana emergente)
+        self.marco_guardadas = ttk.LabelFrame(
+            contenedor_principal,
+            text="Rutinas guardadas",
+            padding=4,
+            style="Gym.TLabelframe",
+        )
+        self._crear_seccion_rutinas_guardadas(self.marco_guardadas)
+        self.marco_guardadas.pack(side="bottom", fill="x", pady=(6, 0))
         marco_rutina_pac.pack(side="bottom", fill="both", pady=(6, 0))
         marco_registro.pack(side="bottom", fill="x", pady=(6, 0))
 
