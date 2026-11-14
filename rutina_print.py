@@ -214,8 +214,16 @@ def _tabla_plan_semanal(estilos, grupos):
         if any(f.get("descanso") for f in filas):
             contenido = "DÍA DE DESCANSO"
         else:
-            total = len([f for f in filas if not f.get("descanso")])
-            contenido = f"{total} ejercicio" + ("" if total == 1 else "s")
+            ejercicios = [f for f in filas if not f.get("descanso")]
+            total = len(ejercicios)
+            # sesión de la plantilla semanal guardada en las notas
+            sesion = next(
+                (f.get("notas") for f in ejercicios if f.get("notas")), ""
+            )
+            plural = "" if total == 1 else "s"
+            contenido = (
+                f"{sesion} · " if sesion else ""
+            ) + f"{total} ejercicio{plural}"
         resumen.append(
             [
                 Paragraph(_escapar(dia), estilos["celda"]),
