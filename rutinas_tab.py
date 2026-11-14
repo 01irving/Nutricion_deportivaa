@@ -1778,6 +1778,7 @@ class RutinasTab:
         superior = ttk.Frame(contenedor_principal, style="Gym.TFrame")
 
         panel_sel = ttk.LabelFrame(superior, text="Seleccionar ejercicio", padding=6)
+        self.panel_sel = panel_sel
         panel_sel.pack(side="left", fill="y", padx=(0, 6))
 
         # Plantillas de rutina semanal (patrón del combo "Menú:" de Menús):
@@ -1861,6 +1862,7 @@ class RutinasTab:
             text="Previsualización (imagen desde la base de datos)",
             padding=6,
         )
+        self.panel_der = panel_der
         panel_der.pack(side="right", fill="both", expand=True)
 
         self.lbl_preview_titulo = tk.Label(
@@ -1996,6 +1998,9 @@ class RutinasTab:
         # doble clic edita, igual que en Menús
         self.tree_rutina.bind("<Button-3>", self._menu_rutina_contextual)
         self.tree_rutina.bind("<Double-1>", self._editar_ejercicio_rutina)
+        # la tabla manda: clic en una fila muestra ese ejercicio en el
+        # selector y en la previsualizacion (que viven al fondo)
+        self.tree_rutina.bind("<<TreeviewSelect>>", self._al_seleccionar_fila_rutina)
         self.menu_rutina_ctx = tk.Menu(self.tree_rutina, tearoff=0, font=("Segoe UI", 9))
         self.menu_rutina_ctx.add_command(
             label="✏ Editar ejercicio", command=self._editar_ejercicio_rutina
@@ -2020,10 +2025,9 @@ class RutinasTab:
         )
         self.lbl_rutina_guardada.pack(anchor="w")
 
-        # La rutina del paciente reserva primero su espacio; el panel de
-        # seleccion/previsualizacion se queda con el resto
-        # biblioteca de rutinas guardadas: tabla a lo ancho por ENCIMA de
-        # la rutina del paciente (esa se queda al fondo con sus ejercicios)
+        # Rutinas guardadas arriba, rutina del paciente debajo y el
+        # selector de ejercicio con su previsualizacion al fondo, ligados
+        # a la tabla (clic en una fila actualiza combo y previsualizacion)
         self.marco_guardadas = ttk.LabelFrame(
             contenedor_principal,
             text="Rutinas guardadas",
@@ -2031,6 +2035,7 @@ class RutinasTab:
             style="Gym.TLabelframe",
         )
         self._crear_seccion_rutinas_guardadas(self.marco_guardadas)
+        superior.pack(side="bottom", fill="both", expand=True, pady=(6, 0))
         marco_rutina_pac.pack(side="bottom", fill="both", pady=(6, 0))
         self.marco_guardadas.pack(side="bottom", fill="x", pady=(6, 0))
 
@@ -2059,8 +2064,6 @@ class RutinasTab:
             relief="flat", padx=10, pady=3, cursor="hand2",
         )
         self.btn_descanso.pack(side="right", padx=(6, 0))
-
-        superior.pack(fill="both", expand=True)
 
         self.marco_rutina_pac = marco_rutina_pac
 
@@ -2126,6 +2129,50 @@ class RutinasTab:
         ej = self.ejercicios[idx]
         self.ejercicio_seleccionado = ej
         self._mostrar_ejercicio(ej)
+
+    def _al_seleccionar_fila_rutina(self, _event=None):
+        """Clic en una fila de la rutina del paciente: lleva el ejercicio
+        al selector (cambiando de grupo si hace falta) y la
+        previsualizacion muestra su titulo, descripcion e imagen."""
+        seleccion = self.tree_rutina.selection()
+        if not seleccion or seleccion[0] == "descanso":
+            return
+        fila = next(
+            (r for r in getattr(self, "rutina", [])
+             if str(r["id_rutina"]) == seleccion[0]),
+            None,
+        )
+        if not fila:
+            return
+        grupo = (fila.get("grupo") or "").strip()
+        num = str(fila.get("num") or "")
+        if grupo and grupo != self.grupo:
+            # el combo solo lista el grupo actual: cambia de grupo
+            self.grupo_combo.set(
+                GRUPOS_ETIQUETAS.get(grupo, grupo.capitalize())
+            )
+            self._al_cambiar_grupo()
+        indice = self._indice_ejercicio_combo(fila, num)
+        if indice is not None:
+            self.combo_ej.current(indice)
+            self._al_seleccionar_combo()
+        else:
+            # el catalogo cambio y ya no esta: muestra al menos el nombre
+            self.lbl_preview_titulo.configure(
+                text=f"{fila.get('nombre','')}  |  Equipo: "
+                f"{fila.get('equipo') or '-'}"
+            )
+
+    def _indice_ejercicio_combo(self, fila, num):
+        """Indice del ejercicio de la fila en el combo actual (por num y,
+        si el catalogo se renumeró, por nombre)."""
+        for indice, ej in enumerate(self.ejercicios):
+            if num and str(ej.get("num") or "") == num:
+                return indice
+        for indice, ej in enumerate(self.ejercicios):
+            if fila.get("nombre") and ej.get("nombre") == fila.get("nombre"):
+                return indice
+        return None
 
     def _mostrar_ejercicio(self, ej):
         self.lbl_preview_titulo.configure(
