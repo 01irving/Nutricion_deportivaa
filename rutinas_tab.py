@@ -2112,8 +2112,8 @@ class RutinasTab:
 
         # Primero reservan su espacio la tabla y el registro; el panel de
         # seleccion/previsualizacion se queda con el resto
-        # biblioteca de rutinas guardadas: tabla a lo ancho, justo debajo
-        # de la rutina del paciente (antes abría una ventana emergente)
+        # biblioteca de rutinas guardadas: tabla a lo ancho por ENCIMA de
+        # la rutina del paciente (esa se queda al fondo con sus ejercicios)
         self.marco_guardadas = ttk.LabelFrame(
             contenedor_principal,
             text="Rutinas guardadas",
@@ -2121,8 +2121,8 @@ class RutinasTab:
             style="Gym.TLabelframe",
         )
         self._crear_seccion_rutinas_guardadas(self.marco_guardadas)
-        self.marco_guardadas.pack(side="bottom", fill="x", pady=(6, 0))
         marco_rutina_pac.pack(side="bottom", fill="both", pady=(6, 0))
+        self.marco_guardadas.pack(side="bottom", fill="x", pady=(6, 0))
         marco_registro.pack(side="bottom", fill="x", pady=(6, 0))
 
         # --- Barra de días de la rutina semanal (patrón de Menús) ---
