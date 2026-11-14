@@ -2,8 +2,8 @@
 Generación del reporte imprimible de la rutina de ejercicio.
 
 Exporta a PDF con ReportLab: membrete institucional, datos del paciente,
-tabla resumen de la rutina (ejercicio, series, repeticiones, descansos y
-peso) y debajo el detalle de cada ejercicio con su ilustración y su
+plan semanal (día a día con sus descansos) y, dentro de cada día, la
+tabla de ejercicios y el detalle de cada uno con su ilustración y su
 descripción tal como están guardadas en el catálogo de la base de datos.
 """
 import io
@@ -52,6 +52,22 @@ RUTA_IMAGENES = os.path.join(base_dir(), "assets", "rutinas")
 
 MAX_ANCHO_IMAGEN = 3.1 * inch
 MAX_ALTO_IMAGEN = 3.4 * inch
+
+# Días de la semana de la rutina (mismo orden que la pestaña Menús)
+DIAS_SEMANA = (
+    "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo",
+)
+
+
+def _por_dia(plan):
+    """Agrupa las filas de la rutina por día en orden de semana; cada
+    grupo conserva el orden guardado."""
+    por_dia = {}
+    for fila in plan:
+        por_dia.setdefault(fila.get("dia") or "Lunes", []).append(fila)
+    dias = [d for d in DIAS_SEMANA if d in por_dia]
+    dias += [d for d in por_dia if d not in DIAS_SEMANA]
+    return [(d, por_dia[d]) for d in dias]
 
 
 def _escapar(texto):
@@ -184,6 +200,48 @@ def _tabla_datos(estilos, paciente, momento):
     return tabla
 
 
+def _tabla_plan_semanal(estilos, grupos):
+    """Vista de la semana: cada día con su número de ejercicios o su
+    marca de descanso."""
+    resumen = [
+        [
+            Paragraph("Día", estilos["centro"]),
+            Paragraph("Contenido", estilos["centro"]),
+        ]
+    ]
+    for dia, filas in grupos:
+        if any(f.get("descanso") for f in filas):
+            contenido = "DÍA DE DESCANSO"
+        else:
+            total = len([f for f in filas if not f.get("descanso")])
+            contenido = f"{total} ejercicio" + ("" if total == 1 else "s")
+        resumen.append(
+            [
+                Paragraph(_escapar(dia), estilos["celda"]),
+                Paragraph(contenido, estilos["celda"]),
+            ]
+        )
+    tabla = Table(
+        resumen, colWidths=[1.4 * inch, 4.8 * inch], repeatRows=1, hAlign="LEFT"
+    )
+    tabla.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), GRIS_OSCURO),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.4, GRIS),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1),
+                 [colors.white, colors.HexColor("#F2F2F2")]),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    return tabla
+
+
 def _tabla_resumen(estilos, plan):
     """Tabla de la rutina: ejercicio, series, repeticiones, descansos y
     peso de cada ejercicio en el orden del paciente."""
@@ -306,7 +364,7 @@ def generar_pdf_rutina(ruta, paciente, plan, momento_impresion=None):
     elementos.append(Paragraph("REPORTE DE RUTINA DE EJERCICIO", estilos["titulo"]))
     elementos.append(
         Paragraph(
-            "Nutrición Deportiva — Rutina de resistencia del paciente",
+            "Nutrición Deportiva — Rutina semanal de resistencia del paciente",
             estilos["subtitulo"],
         )
     )
@@ -315,20 +373,36 @@ def generar_pdf_rutina(ruta, paciente, plan, momento_impresion=None):
     elementos.append(_tabla_datos(estilos, paciente, momento))
     elementos.append(Spacer(1, 0.12 * inch))
 
-    # --- Tabla resumen ---
-    elementos.append(Paragraph("RUTINA EN ORDEN", estilos["seccion"]))
+    # --- Plan semanal y detalle por día ---
+    grupos = _por_dia(plan)
     if not plan:
+        elementos.append(Paragraph("RUTINA SEMANAL", estilos["seccion"]))
         elementos.append(
             Paragraph("No hay ejercicios en la rutina.", estilos["normal"])
         )
     else:
-        elementos.append(_tabla_resumen(estilos, plan))
+        elementos.append(Paragraph("PLAN SEMANAL", estilos["seccion"]))
+        elementos.append(_tabla_plan_semanal(estilos, grupos))
+        elementos.append(Spacer(1, 0.1 * inch))
 
-    # --- Detalle por ejercicio: imagen y descripción ---
-    elementos.append(Paragraph("DETALLE Y FORMA DE REALIZACIÓN", estilos["seccion"]))
-    for posicion, fila in enumerate(plan, start=1):
-        elementos.extend(_bloque_detalle(estilos, fila, posicion))
-        elementos.append(Spacer(1, 0.14 * inch))
+        for dia, filas in grupos:
+            elementos.append(Paragraph(dia.upper(), estilos["seccion"]))
+            if any(f.get("descanso") for f in filas):
+                elementos.append(
+                    Paragraph(
+                        "Día de descanso: recuperación, sueño e hidratación. "
+                        "Opcionalmente caminata ligera o movilidad articular.",
+                        estilos["normal"],
+                    )
+                )
+                elementos.append(Spacer(1, 0.1 * inch))
+                continue
+            ejercicios = [f for f in filas if not f.get("descanso")]
+            elementos.append(_tabla_resumen(estilos, ejercicios))
+            elementos.append(Spacer(1, 0.08 * inch))
+            for posicion, fila in enumerate(ejercicios, start=1):
+                elementos.extend(_bloque_detalle(estilos, fila, posicion))
+                elementos.append(Spacer(1, 0.14 * inch))
 
     # --- Pie ---
     elementos.append(Spacer(1, 0.2 * inch))

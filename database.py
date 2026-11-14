@@ -415,6 +415,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS rutinas_paciente (
                 id_rutina INTEGER PRIMARY KEY AUTOINCREMENT,
                 paciente_id INTEGER REFERENCES pacientes(id),
+                dia TEXT DEFAULT 'Lunes',
                 grupo TEXT,
                 num TEXT,
                 nombre TEXT,
@@ -425,11 +426,27 @@ def init_db():
                 descanso_series TEXT,
                 peso TEXT,
                 orden INTEGER,
+                descanso INTEGER DEFAULT 0,
                 notas TEXT,
                 creado_en TEXT DEFAULT (datetime('now', 'localtime'))
             )
             """
         )
+
+        # rutinas semanales: migra tablas anteriores sin las columnas
+        # dia (Lunes..Domingo) y descanso (fila de día de descanso)
+        columnas_rutinas = [
+            r[1]
+            for r in conn.execute("PRAGMA table_info(rutinas_paciente)").fetchall()
+        ]
+        if "dia" not in columnas_rutinas:
+            conn.execute(
+                "ALTER TABLE rutinas_paciente ADD COLUMN dia TEXT DEFAULT 'Lunes'"
+            )
+        if "descanso" not in columnas_rutinas:
+            conn.execute(
+                "ALTER TABLE rutinas_paciente ADD COLUMN descanso INTEGER DEFAULT 0"
+            )
 
         try:
             from suplementos_data import cargar_catalogo_suplementos
@@ -1139,7 +1156,12 @@ def get_rutinas_paciente(paciente_id, grupo=None):
         if grupo:
             sql += " AND grupo = ?"
             parametros.append(grupo)
-        sql += " ORDER BY orden, id_rutina"
+        sql += (
+            " ORDER BY CASE dia WHEN 'Lunes' THEN 1 WHEN 'Martes' THEN 2"
+            " WHEN 'Miércoles' THEN 3 WHEN 'Jueves' THEN 4 WHEN 'Viernes' THEN 5"
+            " WHEN 'Sábado' THEN 6 WHEN 'Domingo' THEN 7 ELSE 8 END,"
+            " orden, id_rutina"
+        )
         filas = conn.execute(sql, parametros).fetchall()
     finally:
         conn.close()
@@ -1160,17 +1182,22 @@ def contar_rutinas_paciente(paciente_id):
 def insert_rutina_paciente(datos):
     conn = get_connection()
     try:
+        # el orden es por día: cada día numera sus ejercicios 1..n
         orden = conn.execute(
-            "SELECT COALESCE(MAX(orden), 0) + 1 FROM rutinas_paciente WHERE paciente_id = ?",
-            (datos["paciente_id"],),
+            "SELECT COALESCE(MAX(orden), 0) + 1 FROM rutinas_paciente "
+            "WHERE paciente_id = ? AND dia = ?",
+            (datos["paciente_id"], datos.get("dia") or "Lunes"),
         ).fetchone()[0]
         cur = conn.execute(
-            "INSERT INTO rutinas_paciente (paciente_id, grupo, num, nombre, equipo, "
-            "series, repeticiones, descanso_rep, descanso_series, peso, orden, notas) "
-            "VALUES (:paciente_id, :grupo, :num, :nombre, :equipo, :series, "
-            ":repeticiones, :descanso_rep, :descanso_series, :peso, :orden, :notas)",
+            "INSERT INTO rutinas_paciente (paciente_id, dia, grupo, num, nombre, "
+            "equipo, series, repeticiones, descanso_rep, descanso_series, peso, "
+            "orden, descanso, notas) "
+            "VALUES (:paciente_id, :dia, :grupo, :num, :nombre, :equipo, :series, "
+            ":repeticiones, :descanso_rep, :descanso_series, :peso, :orden, "
+            ":descanso, :notas)",
             {
                 "paciente_id": datos["paciente_id"],
+                "dia": datos.get("dia") or "Lunes",
                 "grupo": datos.get("grupo"),
                 "num": datos.get("num"),
                 "nombre": datos.get("nombre"),
@@ -1181,11 +1208,45 @@ def insert_rutina_paciente(datos):
                 "descanso_series": datos.get("descanso_series"),
                 "peso": datos.get("peso"),
                 "orden": orden,
+                "descanso": 1 if datos.get("descanso") else 0,
                 "notas": datos.get("notas"),
             },
         )
         conn.commit()
         return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def marcar_descanso(paciente_id, dia):
+    """Deja el día como descanso: borra sus ejercicios e inserta la fila
+    única de descanso."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "DELETE FROM rutinas_paciente WHERE paciente_id = ? AND dia = ?",
+            (paciente_id, dia),
+        )
+        conn.execute(
+            "INSERT INTO rutinas_paciente (paciente_id, dia, nombre, descanso, orden, notas) "
+            "VALUES (?, ?, 'Descanso', 1, 1, '')",
+            (paciente_id, dia),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def quitar_descanso(paciente_id, dia):
+    """Elimina la marca de descanso del día (si existe)."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "DELETE FROM rutinas_paciente "
+            "WHERE paciente_id = ? AND dia = ? AND descanso = 1",
+            (paciente_id, dia),
+        )
+        conn.commit()
     finally:
         conn.close()
 

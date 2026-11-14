@@ -44,6 +44,11 @@ TAMANO_IMG_RESPALDO = (560, 380)
 # Porcentajes del 1RM ofrecidos para llenar el peso (discos de 2.5 kg)
 PORCENTAJES_1RM = tuple(range(50, 101, 5))
 
+# Días de la rutina semanal (mismo orden que la pestaña Menús)
+DIAS_SEMANA = (
+    "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo",
+)
+
 
 def _discos_2_5(kg):
     """Redondea al disco cargable más cercano (múltiplos de 2.5 kg)."""
@@ -204,6 +209,9 @@ class RutinasTab:
         # de referencias 1RM para llenar el peso por porcentaje
         self.rm_sesion = None
         self._rm_lista = []
+        # día de la semana que se está editando de la rutina semanal
+        self.dia_actual = DIAS_SEMANA[0]
+        self.dia_buttons = {}
 
     def _abrir_1rm(self):
         """Calculadora de 1RM por ejercicio (ramas de árbol)."""
@@ -1079,7 +1087,36 @@ class RutinasTab:
         # seleccion/previsualizacion se queda con el resto
         marco_rutina_pac.pack(side="bottom", fill="both", pady=(6, 0))
         marco_registro.pack(side="bottom", fill="x", pady=(6, 0))
+
+        # --- Barra de días de la rutina semanal (patrón de Menús) ---
+        barra_dias = ttk.Frame(contenedor_principal, style="Gym.TFrame")
+        barra_dias.pack(side="bottom", fill="x", pady=(6, 0))
+        tk.Label(
+            barra_dias, text="Día:", font=("Segoe UI", 8),
+            fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+        ).pack(side="left", padx=(6, 6))
+        for dia in DIAS_SEMANA:
+            btn = tk.Button(
+                barra_dias, text=dia,
+                command=lambda d=dia: self._cambiar_dia(d),
+                font=("Segoe UI", 8, "bold"), fg=BLANCO, bg=GRIS,
+                activebackground=NARANJA, activeforeground=BLANCO,
+                relief="flat", padx=8, pady=3, cursor="hand2",
+            )
+            btn.pack(side="left", padx=2)
+            self.dia_buttons[dia] = btn
+        self.btn_descanso = tk.Button(
+            barra_dias, text="MARCAR DÍA DE DESCANSO",
+            command=self._alternar_descanso,
+            font=("Impact", 9), fg=BLANCO, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=10, pady=3, cursor="hand2",
+        )
+        self.btn_descanso.pack(side="right", padx=(6, 0))
+
         superior.pack(fill="both", expand=True)
+
+        self.marco_rutina_pac = marco_rutina_pac
 
         self._poblar_combo_ejercicios()
 
@@ -1674,8 +1711,30 @@ class RutinasTab:
             )
             return
 
+        # añadir a un día de descanso lo convierte en día de entrenamiento
+        dia = getattr(self, "dia_actual", DIAS_SEMANA[0])
+        filas_dia = [
+            r for r in getattr(self, "rutina", [])
+            if (r.get("dia") or "Lunes") == dia
+        ]
+        if any(r.get("descanso") for r in filas_dia) and not messagebox.askyesno(
+            "Rutinas",
+            f"{dia} está marcado como día de descanso.\n"
+            f"¿Quitar el descanso y añadir el ejercicio?",
+        ):
+            return
+        if any(r.get("descanso") for r in filas_dia):
+            try:
+                database.quitar_descanso(paciente_id, dia)
+            except Exception as error:
+                messagebox.showerror(
+                    "Rutinas", f"No se pudo quitar el descanso:\n{error}"
+                )
+                return
+
         datos = {
             "paciente_id": paciente_id,
+            "dia": dia,
             "grupo": ej.get("grupo") or self.grupo,
             "num": ej.get("num"),
             "nombre": ej.get("nombre"),
@@ -1705,6 +1764,21 @@ class RutinasTab:
                 "Rutinas", "Selecciona un ejercicio de la rutina del paciente."
             )
             return
+        if seleccion[0] == "descanso":
+            # la fila "— DÍA DE DESCANSO —" también se quita aquí
+            paciente_id = self._paciente_actual()
+            try:
+                database.quitar_descanso(
+                    paciente_id, getattr(self, "dia_actual", DIAS_SEMANA[0])
+                )
+            except Exception as error:
+                messagebox.showerror(
+                    "Rutinas", f"No se pudo quitar el descanso:\n{error}"
+                )
+                return
+            self._cargar_rutina()
+            self._mensaje(f"{self.dia_actual}: día de descanso quitado.")
+            return
         try:
             database.delete_rutina_paciente(int(seleccion[0]))
         except Exception as error:
@@ -1720,7 +1794,8 @@ class RutinasTab:
         if paciente_id is None or not getattr(self, "rutina", []):
             return
         if not messagebox.askyesno(
-            "Rutinas", "¿Vaciar toda la rutina de este paciente?"
+            "Rutinas",
+            "¿Vaciar toda la rutina de este paciente (todos los días de la semana)?",
         ):
             return
         try:
@@ -1750,19 +1825,21 @@ class RutinasTab:
             return
 
         # el plan enriquece cada fila con la descripción y la ilustración
-        # del catálogo para el detalle del reporte
+        # del catálogo para el detalle del reporte (las filas de descanso
+        # no están en el catálogo)
         plan = []
         for fila in rutina:
             fila = dict(fila)
-            try:
-                ficha = database.get_rutina_ejercicio(
-                    fila.get("grupo"), fila.get("num")
-                )
-            except Exception:
-                ficha = None
-            if ficha:
-                for campo in ("descripcion", "imagen_blob", "imagen_nombre"):
-                    fila[campo] = ficha.get(campo)
+            if not fila.get("descanso"):
+                try:
+                    ficha = database.get_rutina_ejercicio(
+                        fila.get("grupo"), fila.get("num")
+                    )
+                except Exception:
+                    ficha = None
+                if ficha:
+                    for campo in ("descripcion", "imagen_blob", "imagen_nombre"):
+                        fila[campo] = ficha.get(campo)
             plan.append(fila)
 
         paciente = database.obtener_paciente(paciente_id) or {}
@@ -1804,26 +1881,112 @@ class RutinasTab:
             return
         for item in self.tree_rutina.get_children():
             self.tree_rutina.delete(item)
-        for posicion, registro in enumerate(getattr(self, "rutina", []), start=1):
-            self.tree_rutina.insert(
-                "",
-                "end",
-                iid=str(registro["id_rutina"]),
-                values=(
-                    posicion,
-                    registro["nombre"],
-                    registro["equipo"] or "-",
-                    registro["series"] or "-",
-                    registro["repeticiones"] or "-",
-                    registro["descanso_rep"] or "-",
-                    registro["descanso_series"] or "-",
-                    registro["peso"] or "-",
-                ),
+        semana = getattr(self, "rutina", [])
+        dia = getattr(self, "dia_actual", DIAS_SEMANA[0])
+        filas = [r for r in semana if (r.get("dia") or "Lunes") == dia]
+        descanso = any(r.get("descanso") for r in filas)
+        self._resaltar_dia()
+        if hasattr(self, "btn_descanso"):
+            self.btn_descanso.configure(
+                text="✓ QUITAR DESCANSO" if descanso else "MARCAR DÍA DE DESCANSO",
+                bg=NARANJA if descanso else GRIS,
+                fg=NEGRO if descanso else BLANCO,
             )
-        total = len(getattr(self, "rutina", []))
+        if hasattr(self, "marco_rutina_pac"):
+            self.marco_rutina_pac.configure(
+                text=f"Rutina del paciente · {dia}"
+                + (" · DESCANSO" if descanso else "")
+            )
+        if descanso:
+            self.tree_rutina.insert(
+                "", "end", iid="descanso",
+                values=("—", "— DÍA DE DESCANSO —", "-", "-", "-", "-", "-", "-"),
+            )
+        else:
+            posicion = 0
+            for registro in filas:
+                posicion += 1
+                self.tree_rutina.insert(
+                    "",
+                    "end",
+                    iid=str(registro["id_rutina"]),
+                    values=(
+                        posicion,
+                        registro["nombre"],
+                        registro["equipo"] or "-",
+                        registro["series"] or "-",
+                        registro["repeticiones"] or "-",
+                        registro["descanso_rep"] or "-",
+                        registro["descanso_series"] or "-",
+                        registro["peso"] or "-",
+                    ),
+                )
+        total_dia = len(filas) - (1 if descanso else 0)
+        total_semana = len([r for r in semana if not r.get("descanso")])
         self.lbl_rutina_total.configure(
-            text=f"{total} ejercicio" + ("" if total == 1 else "s")
+            text=f"{total_dia} ejercicio" + ("" if total_dia == 1 else "s")
+            + f" · semana: {total_semana}"
         )
+
+    # ------------------------------------------------------------------
+    # Rutina semanal: día en edición y días de descanso
+    # ------------------------------------------------------------------
+
+    def _cambiar_dia(self, dia):
+        if dia == self.dia_actual:
+            return
+        self.dia_actual = dia
+        self._render_rutina()
+
+    def _resaltar_dia(self):
+        for dia, btn in getattr(self, "dia_buttons", {}).items():
+            seleccionado = dia == self.dia_actual
+            btn.configure(
+                bg=NEON if seleccionado else GRIS,
+                fg=NEGRO if seleccionado else BLANCO,
+            )
+
+    def _alternar_descanso(self):
+        """Marca el día actual como descanso (borrando sus ejercicios,
+        con confirmación) o quita la marca si ya era descanso."""
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            messagebox.showwarning(
+                "Rutinas", "Selecciona un paciente antes de marcar descansos."
+            )
+            return
+        dia = self.dia_actual
+        filas = [
+            r for r in getattr(self, "rutina", [])
+            if (r.get("dia") or "Lunes") == dia
+        ]
+        if any(r.get("descanso") for r in filas):
+            try:
+                database.quitar_descanso(paciente_id, dia)
+            except Exception as error:
+                messagebox.showerror(
+                    "Rutinas", f"No se pudo quitar el descanso:\n{error}"
+                )
+                return
+            self._cargar_rutina()
+            self._mensaje(f"{dia}: día de descanso quitado.")
+            return
+        ejercicios = [r for r in filas if not r.get("descanso")]
+        if ejercicios and not messagebox.askyesno(
+            "Rutinas",
+            f"{dia} tiene {len(ejercicios)} ejercicio(s).\n"
+            f"¿Borrarlos y marcar el día como descanso?",
+        ):
+            return
+        try:
+            database.marcar_descanso(paciente_id, dia)
+        except Exception as error:
+            messagebox.showerror(
+                "Rutinas", f"No se pudo marcar el descanso:\n{error}"
+            )
+            return
+        self._cargar_rutina()
+        self._mensaje(f"{dia}: marcado como día de descanso.")
 
     def cargar(self, paciente_id):
         self.paciente_id = paciente_id
