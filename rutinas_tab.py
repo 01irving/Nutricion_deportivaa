@@ -615,9 +615,12 @@ class RutinasTab:
     # ------------------------------------------------------------------
     # Construcción de la sub-pestaña «Semana»
     # ------------------------------------------------------------------
-    def _crear_tab_semana(self):
-        marco = ttk.Frame(self.notebook_rut, style="Gym.TFrame")
-        self.notebook_rut.add(marco, text="  Semana  ")
+    def _crear_panel_semana(self):
+        """Tablas de la rutina semanal, integradas en la sub-pestaña
+        Rutina: el botón «ABRIR RUTINA SEMANAL» las muestra sobre la
+        vista diaria y las vuelve a ocultar (sin pestaña aparte ni
+        cuadros de diálogo).""",
+        marco = ttk.Frame(self.marco_rut, style="Gym.TFrame")
         self.marco_sem = marco
 
         # estado del editor semanal (se llena al cargar una rutina)
@@ -833,6 +836,41 @@ class RutinasTab:
         self._sem_refrescar_selector()
         self._sem_pintar_semana()
         self._sem_pintar_ejercicios()
+
+    def _alternar_panel_semana(self):
+        """Muestra u oculta las tablas de la rutina semanal dentro de
+        la sub-pestaña Rutina: al abrirse reemplazan la vista diaria
+        para dar espacio a las tablas y al cerrarse se restaura."""
+        if getattr(self, "_sem_visible", False):
+            self._sem_cerrar_panel()
+            self._mensaje("Vista diaria restaurada.")
+            return
+        self.contenedor_rut.pack_forget()
+        self.marco_sem.pack(fill="both", expand=True)
+        self._sem_visible = True
+        self.btn_ver_semana.configure(
+            text="✕ CERRAR SEMANA", fg=BLANCO, bg=NARANJA,
+        )
+        self._sem_refrescar_selector()
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+        self._mensaje(
+            "Rutina semanal en tablas: elige una rutina (doble clic), "
+            "edita en celdas y guarda o aplica."
+        )
+
+    def _sem_cerrar_panel(self):
+        """Oculta las tablas semanales y restaura la vista diaria."""
+        if getattr(self, "_sem_visible", False):
+            self.marco_sem.pack_forget()
+            self.contenedor_rut.pack(
+                fill="both", expand=True, padx=10, pady=(2, 6)
+            )
+            self._sem_visible = False
+        if hasattr(self, "btn_ver_semana"):
+            self.btn_ver_semana.configure(
+                text="📅 ABRIR RUTINA SEMANAL", fg=NEON, bg=GRIS,
+            )
 
     # ------------------------------------------------------------------
     # Tabla selector y carga de la rutina semanal
@@ -1408,6 +1446,8 @@ class RutinasTab:
         self._cargar_rutina()
         self._marcar_rutina_guardada()
         self._mensaje(f"Rutina semanal aplicada: «{nombre}».")
+        # cierra las tablas semanales y muestra la semana aplicada
+        self._sem_cerrar_panel()
         try:
             self.notebook_rut.select(1)   # sub-pestaña Rutina
         except Exception:
@@ -1723,9 +1763,9 @@ class RutinasTab:
 
         self._crear_tab_calentamiento()
         self._crear_tab_rutina()
+        self._crear_panel_semana()
         self._crear_tab_estiramiento()
         self._crear_tab_progresion()
-        self._crear_tab_semana()
         self.notebook_rut.bind("<<NotebookTabChanged>>", self._al_cambiar_subpestana)
         self.cargar(getattr(self.app, "id_paciente_antro", None))
 
@@ -2023,13 +2063,39 @@ class RutinasTab:
         self._mensaje("Calentamiento: reporte generado.")
 
     def _crear_tab_rutina(self):
-        marco = ttk.Frame(self.notebook_rut, style="Gym.TFrame")
+        self.marco_rut = ttk.Frame(self.notebook_rut, style="Gym.TFrame")
+        marco = self.marco_rut
         self.notebook_rut.add(marco, text="  Rutina  ")
 
-        # la rutina semanal se elige, edita, guarda y aplica en la
-        # sub-pestaña «Semana» (tablas integradas, sin cuadros).
+        # botón que muestra/oculta las tablas de la rutina semanal
+        # dentro de esta sub-pestaña (sin cuadros de diálogo)
+        fila_sem = ttk.Frame(marco, style="Gym.TFrame")
+        fila_sem.pack(side="top", fill="x", padx=10, pady=(4, 0))
+        tk.Label(
+            fila_sem,
+            text="Rutina semanal:",
+            font=("Segoe UI", 8),
+            fg=GRIS_TEXTO,
+            bg=GRIS_OSCURO,
+        ).pack(side="left")
+        self.btn_ver_semana = tk.Button(
+            fila_sem,
+            text="📅 ABRIR RUTINA SEMANAL",
+            command=self._alternar_panel_semana,
+            font=("Segoe UI", 8, "bold"),
+            fg=NEON,
+            bg=GRIS,
+            activebackground=NARANJA,
+            activeforeground=BLANCO,
+            relief="flat",
+            padx=10,
+            pady=3,
+            cursor="hand2",
+        )
+        self.btn_ver_semana.pack(side="left", padx=(6, 0))
 
-        contenedor_principal = ttk.Frame(marco, style="Gym.TFrame")
+        self.contenedor_rut = ttk.Frame(marco, style="Gym.TFrame")
+        contenedor_principal = self.contenedor_rut
         contenedor_principal.pack(fill="both", expand=True, padx=10, pady=(2, 6))
 
         superior = ttk.Frame(contenedor_principal, style="Gym.TFrame")
@@ -2392,9 +2458,7 @@ class RutinasTab:
         elif sub == 3:
             self.titulo.configure(text="PROGRESIÓN · MODELO ACSM 2009")
             self.marco_grupo.pack_forget()
-        elif sub == 4:
-            self.titulo.configure(text="RUTINA SEMANAL · TABLAS")
-            self.marco_grupo.pack_forget()
+
         else:
             self.titulo.configure(text=f"RUTINAS · {GRUPOS_ETIQUETAS.get(self.grupo, self.grupo).upper()}")
             if not self.marco_grupo.winfo_ismapped():
