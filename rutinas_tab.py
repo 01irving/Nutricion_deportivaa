@@ -3369,9 +3369,11 @@ class RutinasTab:
                         f"{len(ejercicios)} ejercicio"
                         + ("" if len(ejercicios) == 1 else "s")
                     )
+            # la semana se abre entera de una sola vez: todos los días
+            # con sus ejercicios a la vista al entrar en la subpestaña
             nodo = self.tree_rutina.insert(
                 raiz, "end", iid="dia:" + dia,
-                open=(dia == dia_activo),
+                open=True,
                 text=texto_dia,
                 tags=("activa",) if dia == dia_activo else (),
             )
