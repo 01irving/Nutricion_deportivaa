@@ -720,8 +720,9 @@ class RutinasTab:
         # ---------- tabla de la semana (7 días, Lunes primero) -----------
         marco_semana = ttk.LabelFrame(
             derecho,
-            text="Semana — doble clic en Sesión: despliega descanso, "
-                 "sesiones y rutinas disponibles, o escribe el nombre",
+            text="Semana — doble clic en Sesión: despliega opciones o "
+                 "escribe el nombre; doble clic en Ejercicios: cuántos "
+                 "campos generar",
             padding=4,
         )
         marco_semana.pack(fill="x")
@@ -740,7 +741,9 @@ class RutinasTab:
                 col, width=ancho, minwidth=ancho, anchor=alineacion
             )
         self.tree_sem_semana.pack(side="left", fill="x", expand=True)
-        self.tree_sem_semana.bind("<Double-1>", self._sem_editar_sesion)
+        self.tree_sem_semana.bind(
+            "<Double-1>", self._sem_editar_semana_celda
+)
         self.tree_sem_semana.bind(
             "<<TreeviewSelect>>", self._sem_elegir_dia
         )
@@ -748,9 +751,9 @@ class RutinasTab:
         # ---------- tabla editable de ejercicios del día ------------------
         marco_ej = ttk.LabelFrame(
             derecho,
-            text="Ejercicios del día — doble clic en # añade un ejercicio "
-                 "nuevo del catálogo; en el resto se edita ejercicio, "
-                 "series, repeticiones, descansos y peso",
+            text="Ejercicios del día — doble clic en # añade; en Ejercicio "
+                 "elige grupo (p. ej. Hombros) y luego el ejercicio; "
+                 "series, repeticiones, descansos y peso se editan directo",
             padding=4,
         )
         marco_ej.pack(fill="both", expand=True, pady=(6, 0))
@@ -893,6 +896,7 @@ class RutinasTab:
 
     def _sem_cerrar_panel(self):
         """Oculta las tablas semanales y restaura la vista diaria."""
+        self._sem_cerrar_editor()
         if getattr(self, "_sem_visible", False):
             self.marco_sem.pack_forget()
             self.contenedor_rut.pack(
@@ -1191,6 +1195,91 @@ class RutinasTab:
                 mapa[etiqueta] = ("semanal", r["id_rutina_guardada"], ses)
         return valores, mapa
 
+    def _sem_editar_semana_celda(self, event=None):
+        """Doble clic en la tabla Semana: en Sesión despliega las
+        opciones o renombra; en Ejercicios escribe cuántos campos de
+        ejercicio tendrá el día y la tabla genera las filas."""
+        tree = self.tree_sem_semana
+        sel = tree.selection()
+        if not sel or sel[0] not in self._sem_datos:
+            return
+        if event is not None:
+            col = tree.identify_column(event.x)
+        else:
+            col = "#2"
+        if not col or not col.startswith("#"):
+            return
+        indice = int(col[1:]) - 1
+        columnas = tree["columns"]
+        if not 0 <= indice < len(columnas):
+            return
+        if columnas[indice] == "sesion":
+            self._sem_editar_sesion()
+        elif columnas[indice] == "total":
+            self._sem_editar_total()
+
+    def _sem_editar_total(self, _event=None):
+        """Doble clic en la columna Ejercicios: escribe cuántos
+        ejercicios tendrá el día (0-30) y la tabla genera las filas
+        vacías para rellenar (o recorta las que sobren)."""
+        tree = self.tree_sem_semana
+        sel = tree.selection()
+        if not sel or sel[0] not in self._sem_datos:
+            return
+        dia = sel[0]
+        caja = tree.bbox(dia, "total")
+        if not caja:
+            return
+        self._sem_cerrar_editor()
+        editor = tk.Entry(tree, justify="center")
+        editor.insert(0, str(len(self._sem_datos[dia]["ejercicios"])))
+        editor.place(x=caja[0], y=caja[1], w=caja[2], h=caja[3])
+        self._sem_editor = editor
+
+        def commit(_event=None):
+            try:
+                texto = editor.get().strip()
+            except Exception:
+                return
+            self._sem_cerrar_editor()
+            try:
+                total = max(0, min(30, int(texto)))
+            except ValueError:
+                return
+            self._sem_fijar_total(dia, total)
+
+        editor.bind("<Return>", commit)
+        editor.bind("<FocusOut>", commit)
+        editor.bind("<Escape>", lambda _e: self._sem_cerrar_editor())
+        editor.focus_set()
+
+    def _sem_fijar_total(self, dia, total):
+        """Deja el día con exactamente `total` filas: recorta las que
+        sobren o añade campos '(elige grupo y ejercicio)' para
+        rellenar con el editor de dos niveles."""
+        info = self._sem_datos[dia]
+        if total > 0 and not info["sesion"]:
+            info["sesion"] = f"Sesión {dia}"
+        actuales = info["ejercicios"]
+        if total < len(actuales):
+            info["ejercicios"] = actuales[:total]
+        else:
+            while len(info["ejercicios"]) < total:
+                info["ejercicios"].append(
+                    self._sem_ficha_con_prescripcion(
+                        {
+                            "grupo": None,
+                            "num": None,
+                            "nombre": "(elige grupo y ejercicio)",
+                            "equipo": "",
+                        }
+                    )
+                )
+        self._sem_dia = dia
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+        self._mensaje(f"{dia}: {total} campos de ejercicio para rellenar.")
+
     def _sem_editar_sesion(self, _event=None):
         """Doble clic en la columna Sesión: despliega las opciones
         disponibles para el día — descanso, las sesiones ya presentes
@@ -1347,23 +1436,22 @@ class RutinasTab:
         valor = tree.item(sel[0], "values")[indice]
         self._sem_cerrar_editor()
         if col_nombre in ("num", "ejercicio"):
-            # doble clic en # o en Ejercicio: despliega el catálogo
-            # para AÑADIR un ejercicio nuevo (#) o REEMPLAZAR el de
-            # la fila (Ejercicio)
-            self._sem_cargar_catalogo()
-            editor = ttk.Combobox(
-                tree, values=list(self._sem_opciones), state="readonly",
-            )
-            editor.set(
-                "+ Añadir ejercicio del catálogo…" if col_nombre == "num"
-                else valor
-            )
-            editor.place(x=caja[0], y=caja[1], w=max(caja[2], 280), h=caja[3])
-        else:
-            editor = tk.Entry(tree, justify="center")
-            if valor != "—":
-                editor.insert(0, valor)
-            editor.place(x=caja[0], y=caja[1], w=caja[2], h=caja[3])
+            # doble clic en # o en Ejercicio: editor de dos niveles
+            # (Grupo ▼ y Ejercicio ▼ filtrado por grupo) para AÑADIR
+            # un ejercicio nuevo (#) o REEMPLAZAR el de la fila
+            if col_nombre == "num":
+                def al_elegir(elegido):
+                    self._sem_insertar_ejercicio(idx, elegido)
+            else:
+                def al_elegir(elegido):
+                    self._sem_aplicar_celda(idx, "ejercicio", elegido)
+                    self._sem_pintar_ejercicios()
+            self._sem_editor_ejercicio(tree, caja, valor, al_elegir)
+            return
+        editor = tk.Entry(tree, justify="center")
+        if valor != "—":
+            editor.insert(0, valor)
+        editor.place(x=caja[0], y=caja[1], w=caja[2], h=caja[3])
         self._sem_editor = editor
 
         def commit(_event=None):
@@ -1372,20 +1460,12 @@ class RutinasTab:
             except Exception:
                 return
             self._sem_cerrar_editor()
-            if col_nombre == "num":
-                # añade un ejercicio nuevo debajo de la fila elegida
-                if nuevo and not nuevo.startswith("+ Añadir"):
-                    self._sem_insertar_ejercicio(idx, nuevo)
-                return
             self._sem_aplicar_celda(idx, col_nombre, nuevo)
             self._sem_pintar_ejercicios()
 
         editor.bind("<Return>", commit)
         editor.bind("<FocusOut>", commit)
-        if col_nombre in ("num", "ejercicio"):
-            editor.bind("<<ComboboxSelected>>", commit)
-        else:
-            editor.bind("<Escape>", lambda _e: self._sem_cerrar_editor())
+        editor.bind("<Escape>", lambda _e: self._sem_cerrar_editor())
         editor.focus_set()
 
     def _sem_aplicar_celda(self, idx, col, nuevo):
@@ -1415,37 +1495,81 @@ class RutinasTab:
         else:
             ej[col] = nuevo
 
+    def _sem_editor_ejercicio(self, tree, caja, valor_actual, al_elegir):
+        """Editor en celda de dos niveles: Grupo ▼ (Hombros, Brazos…)
+        y Ejercicio ▼ con la lista filtrada por el grupo; al elegir el
+        ejercicio se ejecuta al_elegir(etiqueta) y se cierra."""
+        self._sem_cargar_catalogo()
+        grupos = []
+        for f in self._sem_catalogo:
+            if f["grupo"] not in grupos:
+                grupos.append(f["grupo"])
+        etiqueta_grupo = {
+            g: GRUPOS_ETIQUETAS.get(g, g.capitalize()) for g in grupos
+        }
+        marco = ttk.Frame(tree, style="Gym.TFrame")
+        combo_g = ttk.Combobox(
+            marco,
+            values=["Todos"] + [etiqueta_grupo[g] for g in grupos],
+            state="readonly", width=11,
+        )
+        combo_g.current(0)
+        combo_e = ttk.Combobox(
+            marco, values=list(self._sem_opciones), state="readonly",
+            width=44,
+        )
+        if valor_actual and valor_actual in self._sem_opciones:
+            combo_e.set(valor_actual)
+        combo_g.pack(side="left", padx=(0, 3))
+        combo_e.pack(side="left")
+        marco.place(
+            x=caja[0], y=caja[1], w=max(caja[2], 430), h=caja[3]
+        )
+        self._sem_editor = marco
+        bruto = {etiqueta_grupo[g]: g for g in grupos}
+
+        def filtrar(_event=None):
+            elegido = bruto.get(combo_g.get())
+            if elegido is None:
+                combo_e.configure(values=list(self._sem_opciones))
+            else:
+                combo_e.configure(values=[
+                    v for v in self._sem_opciones
+                    if f" — {elegido} #" in v
+                ])
+            combo_e.set("")
+
+        combo_g.bind("<<ComboboxSelected>>", filtrar)
+
+        def commit(_event=None):
+            elegido = combo_e.get().strip()
+            if not elegido or elegido not in self._sem_opciones:
+                self._sem_cerrar_editor()
+                return
+            self._sem_cerrar_editor()
+            al_elegir(elegido)
+
+        combo_e.bind("<<ComboboxSelected>>", commit)
+        combo_e.bind("<Return>", commit)
+        for combo in (combo_g, combo_e):
+            combo.bind("<Escape>", lambda _e: self._sem_cerrar_editor())
+        combo_e.focus_set()
+
     def _sem_anadir_primero(self, event=None):
         """Fila de invitación de un día sin ejercicios: despliega el
-        catálogo para añadir el primer ejercicio de la sesión; si el
-        día descansaba, la sesión se crea con el nombre del día."""
+        editor de dos niveles (grupo y ejercicio) para añadir el
+        primero de la sesión; si el día descansaba, la sesión se crea
+        con el nombre del día."""
         tree = self.tree_sem_ej
         caja = tree.bbox("nuevo", "ejercicio")
         if not caja:
             return
-        self._sem_cargar_catalogo()
         self._sem_cerrar_editor()
-        editor = ttk.Combobox(
-            tree, values=list(self._sem_opciones), state="readonly",
-        )
-        editor.set("+ Añadir el primer ejercicio del catálogo…")
-        editor.place(x=caja[0], y=caja[1], w=max(caja[2], 300), h=caja[3])
-        self._sem_editor = editor
 
-        def commit(_event=None):
-            try:
-                elegido = editor.get().strip()
-            except Exception:
-                return
-            self._sem_cerrar_editor()
-            if elegido and not elegido.startswith("+ Añadir"):
-                self._sem_insertar_ejercicio(-1, elegido)
+        def al_elegir(elegido):
+            self._sem_insertar_ejercicio(-1, elegido)
 
-        editor.bind("<Return>", commit)
-        editor.bind("<FocusOut>", commit)
-        editor.bind("<<ComboboxSelected>>", commit)
-        editor.bind("<Escape>", lambda _e: self._sem_cerrar_editor())
-        editor.focus_set()
+        self._sem_editor_ejercicio(tree, caja, "", al_elegir)
 
     def _sem_cargar_catalogo(self):
         """Catálogo completo de ejercicios para la celda Ejercicio:
