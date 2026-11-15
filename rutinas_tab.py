@@ -835,6 +835,13 @@ class RutinasTab:
             activebackground=NARANJA, activeforeground=BLANCO,
             relief="flat", padx=8, pady=2, cursor="hand2",
         ).pack(side="left")
+        tk.Button(
+            fila_guardada, text="💾 GUARDAR DÍA COMO NUEVA",
+            command=self._sem_guardar_dia_simple,
+            font=("Segoe UI", 8, "bold"), fg=NEGRO, bg=NEON,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=8, pady=2, cursor="hand2",
+        ).pack(side="left", padx=(8, 0))
 
         self._sem_refrescar_selector()
         self._sem_pintar_semana()
@@ -1482,6 +1489,47 @@ class RutinasTab:
         self._mensaje(
             f"Agregados {len(ejercicios)} ejercicios de "
             f"«{guardada['nombre']}» al día {self._sem_dia}."
+        )
+
+    def _sem_guardar_dia_simple(self):
+        """Guarda los ejercicios del día seleccionado como una rutina
+        simple NUEVA en la biblioteca (upsert por nombre): usa el
+        nombre del campo Nombre o, si está vacío, el de la sesión del
+        día; queda disponible en el desplegable ★ y en el combo."""
+        ejercicios = self._sem_datos[self._sem_dia]["ejercicios"]
+        if not ejercicios:
+            self._mensaje("El día no tiene ejercicios para guardar.")
+            return
+        nombre = self.entrada_sem_nombre.get().strip()
+        if not nombre:
+            nombre = (self._sem_datos[self._sem_dia]["sesion"]
+                      or f"Rutina {self._sem_dia}")
+        filas = []
+        for i, ej in enumerate(ejercicios, start=1):
+            filas.append(
+                {
+                    "dia": "", "orden": i, "descanso": 0,
+                    "grupo": ej.get("grupo"), "num": ej.get("num"),
+                    "nombre": ej.get("nombre"), "equipo": ej.get("equipo"),
+                    "series": ej.get("series") or "",
+                    "repeticiones": ej.get("repeticiones") or "",
+                    "descanso_rep": ej.get("descanso_rep") or "",
+                    "descanso_series": ej.get("descanso_series") or "",
+                    "peso": ej.get("peso") or "",
+                    "notas": "",
+                }
+            )
+        try:
+            database.guardar_rutina_guardada(nombre, 0, filas)
+        except Exception as error:
+            messagebox.showerror(
+                "Rutinas", f"No se pudo guardar la rutina:\n{error}"
+            )
+            return
+        self._sem_refrescar_selector()
+        self._mensaje(
+            f"Rutina nueva guardada: «{nombre}» "
+            f"({len(ejercicios)} ejercicios del {self._sem_dia})."
         )
 
     # ------------------------------------------------------------------
