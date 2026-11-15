@@ -837,6 +837,15 @@ class RutinasTab:
         self._sem_pintar_semana()
         self._sem_pintar_ejercicios()
 
+        # las tablas de la rutina semanal abren automáticamente, sin
+        # necesidad del botón (este queda solo para cerrar/abrir)
+        self.contenedor_rut.pack_forget()
+        self.marco_sem.pack(fill="both", expand=True)
+        self._sem_visible = True
+        self.btn_ver_semana.configure(
+            text="✕ CERRAR SEMANA", fg=BLANCO, bg=NARANJA,
+        )
+
     def _alternar_panel_semana(self):
         """Muestra u oculta las tablas de la rutina semanal dentro de
         la sub-pestaña Rutina: al abrirse reemplazan la vista diaria
