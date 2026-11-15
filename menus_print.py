@@ -830,10 +830,222 @@ def generar_pdf_menus(ruta, paciente, tiempos, dias, momento_impresion=None,
     return ruta
 
 
+# ----------------------------------------------------------------------
+# MENUSEMANAL1 — tabla semanal estilo «menú de gimnasio»
+# ----------------------------------------------------------------------
+VERDE_M1 = colors.HexColor("#3E7C2F")        # encabezado de la tabla
+VERDE_M1_FILA = colors.HexColor("#EAF4E3")   # renglón alterno
+VERDE_M1_TITULO = colors.HexColor("#2F6123") # títulos de sección
+
+
+def generar_pdf_menusemanal1(ruta, paciente, tiempos, dias, nombre_menu=None,
+                             seleccion=None, notas=None,
+                             momento_impresion=None):
+    """Menú semanal en el formato «menusemanal1» (estilo documento de
+    gimnasio). La SELECCIÓN de desayunos a escoger y colaciones fijas se
+    imprime ANTES de la tabla semanal; la tabla cruza Lunes..Domingo ×
+    tiempos de comida con los platillos y sus ingredientes en medida
+    casera; cierra con «Valores aproximados» (promedio diario) y notas.
+
+    seleccion: lista de (titulo, texto) para el bloque de selección.
+    notas: notas adicionales del perfil del menú (lista de textos).
+    """
+    estilos = _estilos()
+    momento = momento_impresion or datetime.now()
+    fecha = momento.strftime("%d/%m/%Y %H:%M")
+    nombre = nombre_menu or paciente.get("nombre") or "menusemanal1"
+
+    est_titulo = ParagraphStyle(
+        "m1_titulo", fontName="Helvetica-Bold", fontSize=11.5, leading=14,
+        textColor=VERDE_M1_TITULO, spaceBefore=8, spaceAfter=3,
+        keepWithNext=1,
+    )
+    est_celda = ParagraphStyle(
+        "m1_celda", fontName="Helvetica", fontSize=6.6, leading=8.4,
+        textColor=NEGRO,
+    )
+    est_celda_b = ParagraphStyle(
+        "m1_celda_b", parent=est_celda, fontName="Helvetica-Bold",
+        fontSize=7, leading=8.6,
+    )
+    est_head = ParagraphStyle(
+        "m1_head", fontName="Helvetica-Bold", fontSize=8, leading=10,
+        textColor=colors.white, alignment=TA_CENTER,
+    )
+    est_sel_tit = ParagraphStyle(
+        "m1_sel_tit", fontName="Helvetica-Bold", fontSize=8.5, leading=11,
+        textColor=VERDE_M1_TITULO,
+    )
+    est_sel_txt = ParagraphStyle(
+        "m1_sel_txt", fontName="Helvetica", fontSize=8, leading=10.5,
+        textColor=NEGRO,
+    )
+
+    doc = SimpleDocTemplate(
+        ruta,
+        pagesize=letter,
+        rightMargin=0.55 * inch,
+        leftMargin=0.55 * inch,
+        topMargin=0.5 * inch,
+        bottomMargin=0.6 * inch,
+        title="menusemanal1 — Menú semanal",
+        author="Nutrición Deportiva",
+    )
+    elementos = []
+    elementos.extend(crear_membrete())
+    elementos.append(Spacer(1, 6))
+    elementos.append(_franja(nombre, estilos))
+    elementos.append(Spacer(1, 4))
+
+    fecha_nac = paciente.get("fecha_nacimiento") or paciente.get("dob") or ""
+    edad = calcular_edad(fecha_nac)
+    partes = []
+    if paciente.get("nombre"):
+        partes.append(f"Paciente: {paciente['nombre']}")
+    if edad is not None:
+        partes.append(f"Edad: {edad} años")
+    partes.append(f"Fecha de impresión: {fecha}")
+    elementos.append(Paragraph(" · ".join(partes), estilos["info"]))
+    elementos.append(Spacer(1, 6))
+
+    # --- SELECCIÓN ANTES DEL MENÚ SEMANAL ------------------------------
+    if seleccion:
+        elementos.append(Paragraph(
+            "SELECCIÓN ANTES DEL MENÚ SEMANAL", est_titulo))
+        filas = []
+        for titulo, texto in seleccion:
+            filas.append([
+                Paragraph(_escapar(titulo), est_sel_tit),
+                Paragraph(_escapar(texto), est_sel_txt),
+            ])
+        tabla_sel = Table(
+            filas, colWidths=[1.9 * inch, 5.35 * inch], hAlign="LEFT",
+        )
+        tabla_sel.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ROWBACKGROUNDS", (0, 0), (-1, -1),
+             [VERDE_M1_FILA, colors.white]),
+            ("LINEBELOW", (0, 0), (-1, -2), 0.4, VERDE_M1_FILA),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        elementos.append(tabla_sel)
+        elementos.append(Spacer(1, 4))
+
+    # --- TABLA SEMANAL (7 días × tiempos de comida) ---------------------
+    elementos.append(Paragraph(
+        "MENÚ SEMANAL — DÍAS × TIEMPOS DE COMIDA", est_titulo))
+    dias_orden = [
+        d for d, info in (dias or {}).items()
+        if (info or {}).get("platillos") or (info or {}).get("alimentos")
+    ]
+    if not dias_orden:
+        dias_orden = list((dias or {}).keys())
+
+    def _celda_m1(info, t_idx):
+        platillos = (info or {}).get("platillos") or {}
+        alimentos = (info or {}).get("alimentos") or {}
+        platillo = (platillos.get(t_idx) or platillos.get(str(t_idx)) or "")
+        registros = (alimentos.get(t_idx) or alimentos.get(str(t_idx)) or [])
+        fragmentos = []
+        for parte in [p.strip() for p in re.split(r"\s+\+\s+", platillo)
+                      if p.strip()]:
+            fragmentos.append(f"<b>{_escapar(parte)}</b>")
+        for reg in registros:
+            cantidad = reg.get("cantidad_txt") or ""
+            alimento = reg.get("alimento") or ""
+            if not cantidad and not alimento:
+                continue
+            fragmentos.append(f"• {_escapar(cantidad)} {_escapar(alimento)}")
+        texto = "<br/>".join(fragmentos) if fragmentos else "—"
+        return Paragraph(texto, est_celda)
+
+    ancho_tiempo = 0.72 * inch
+    ancho_dia = (7.4 * inch - ancho_tiempo) / max(1, len(dias_orden) or 1)
+    encabezado = [Paragraph("Tiempo", est_head)]
+    encabezado += [Paragraph(_escapar(d), est_head) for d in dias_orden]
+    filas = [encabezado]
+    for t_idx, nombre_tiempo in enumerate(tiempos or []):
+        fila = [Paragraph(_escapar(nombre_tiempo), est_celda_b)]
+        for d in dias_orden:
+            fila.append(_celda_m1((dias or {}).get(d), t_idx))
+        filas.append(fila)
+    tabla = Table(
+        filas,
+        colWidths=[ancho_tiempo] + [ancho_dia] * max(1, len(dias_orden)),
+        repeatRows=1, hAlign="LEFT",
+    )
+    estilo_tabla = [
+        ("BACKGROUND", (0, 0), (-1, 0), VERDE_M1),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("VALIGN", (0, 0), (0, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.4, VERDE_M1),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, VERDE_M1_FILA]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]
+    tabla.setStyle(TableStyle(estilo_tabla))
+    elementos.append(tabla)
+    elementos.append(Spacer(1, 6))
+
+    # --- VALORES APROXIMADOS (promedio diario) --------------------------
+    dias_con_datos = [
+        d for d in dias_orden
+        if any(((dias[d] or {}).get("alimentos") or {}).values())
+    ]
+    if dias_con_datos:
+        acum = {"energia_kcal": 0.0, "proteina_g": 0.0, "lipidos_g": 0.0,
+                "hc_g": 0.0}
+        for d in dias_con_datos:
+            todos = []
+            for lista in ((dias[d] or {}).get("alimentos") or {}).values():
+                todos.extend(lista or [])
+            por_dia = _totales_lista(todos)
+            for k in acum:
+                acum[k] += por_dia.get(k) or 0
+        n = len(dias_con_datos)
+        kcal = acum["energia_kcal"] / n
+        prot = acum["proteina_g"] / n
+        lip = acum["lipidos_g"] / n
+        hc = acum["hc_g"] / n
+
+        def _pct(gramos, factor):
+            return f"{gramos * factor / kcal * 100:.0f}%" if kcal else "—"
+
+        elementos.append(Paragraph("VALORES APROXIMADOS", est_titulo))
+        elementos.append(Paragraph(
+            f"Energía: <b>{kcal:.0f} kcal/día</b> · Proteínas: "
+            f"<b>{prot:.0f} g</b> ({_pct(prot, 4)}) · Lípidos: "
+            f"<b>{lip:.0f} g</b> ({_pct(lip, 9)}) · H de C: "
+            f"<b>{hc:.0f} g</b> ({_pct(hc, 4)})",
+            est_sel_txt,
+        ))
+        elementos.append(Spacer(1, 4))
+
+    # --- NOTAS -----------------------------------------------------------
+    elementos.append(Paragraph("NOTAS", est_titulo))
+    for nota in (notas or []):
+        elementos.append(Paragraph(f"• {_escapar(nota)}", estilos["nota"]))
+    elementos.append(Paragraph(
+        "• Importante hacer la última comida 1-1.5 h antes de hacer "
+        "ejercicio.",
+        estilos["nota"],
+    ))
+    elementos.append(Spacer(1, 8))
+    elementos.extend(_nota_pie(estilos, fecha))
+
+    doc.build(elementos, onFirstPage=_pie_pagina, onLaterPages=_pie_pagina)
+    return ruta
+
 __all__ = [
     "abrir_para_imprimir",
     "calcular_edad",
     "generar_pdf_menus",
+    "generar_pdf_menusemanal1",
     "nombre_pdf",
     "ruta_temporal_pdf",
 ]

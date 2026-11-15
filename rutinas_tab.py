@@ -1,10 +1,11 @@
 import io
 import json
 import os
+import sqlite3
 import unicodedata
 from datetime import datetime
 import tkinter as tk
-from tkinter import messagebox, simpledialog, ttk
+from tkinter import messagebox, ttk
 
 try:  # Tk nativo solo decodifica PNG/GIF; Pillow permite leer el JPEG guardado en la BD
     from PIL import Image, ImageTk
@@ -91,8 +92,261 @@ PLANTILLAS_SEMANA = (
             "Domingo": None,
         },
     },
+    {
+        # Pedersen et al. 2022, BMC Sports Science, Medicine and
+        # Rehabilitation 14:87 — Tabla 1, grupo FB (cuerpo completo):
+        # los mismos ejercicios del brazo SPLIT en 2 sesiones semanales
+        # (mínimo 48 h entre sesiones). 3 series con periodización
+        # lineal: 12-RM sem. 1-4, 10-RM sem. 5-8 y 8-RM sem. 9-12;
+        # ~1 min de descanso entre series.
+        "nombre": "Cuerpo completo 2 días · Mujeres no entrenadas (Pedersen 2022)",
+        "series": "3",
+        "repeticiones": "12-10-8",
+        "descanso_series": "60",
+        "sesiones": {
+            "Cuerpo completo": (
+                ("piernas", "06", ""),        # Leg press
+                ("espalda", "14", ""),        # Stiff-legged deadlift
+                ("piernas", "09", ""),        # Leg extension
+                ("gluteos", "06", ""),        # Hip thrust
+                ("espalda", "03", ""),        # Lat pulldown
+                ("pectorales", "02", ""),     # Bench press
+                ("espalda", "06", ""),        # Cable seated row
+                ("brazos", "13", "superserie"),   # Triceps press en cable
+                ("brazos", "05", "superserie"),   # Biceps curl en cable
+            ),
+        },
+        "semana": {
+            "Lunes": "Cuerpo completo",
+            "Martes": None,
+            "Miércoles": None,
+            "Jueves": "Cuerpo completo",
+            "Viernes": None,
+            "Sábado": None,
+            "Domingo": None,
+        },
+    },
+    {
+        # Zaroni et al. 2019, J Strength Cond Res — grupo TOTAL: cuerpo
+        # completo 5 días consecutivos (lunes a viernes), un ejercicio
+        # por grupo muscular por sesión (15 series/sesión; 15 series
+        # semanales por músculo). 3 series × 10-12 RM al fallo, 60 s
+        # entre series y 120 s entre ejercicios. Fue el grupo con mayor
+        # ganancia de espesor muscular (flexores del codo y vasto
+        # lateral) frente a la rutina dividida 1 día/semana.
+        "nombre": "Total-body 5 días · Alta frecuencia (Zaroni 2019)",
+        "series": "3",
+        "repeticiones": "10-12",
+        "descanso_series": "60",
+        "sesiones": {
+            "Cuerpo completo A": (
+                ("pectorales", "10", ""),     # Incline dumbbell press
+                ("brazos", "07", ""),         # Biceps curl (barra)
+                ("piernas", "04", ""),        # Parallel back-squat
+                ("espalda", "03", ""),        # Lat pull-down
+                ("brazos", "13", ""),         # Cable triceps
+            ),
+            "Cuerpo completo B": (
+                ("pectorales", "01", ""),     # Incline bench press
+                ("brazos", "03", ""),         # Dumbbell incline curl
+                ("piernas", "06", ""),        # Leg press
+                ("espalda", "03", ""),        # Machine lat pull-down
+                ("brazos", "17", ""),         # Nosebreaker (skullcrusher)
+            ),
+            "Cuerpo completo C": (
+                ("pectorales", "02", ""),     # Bench press
+                ("brazos", "08", ""),         # Dumbbell preacher curl
+                ("piernas", "05", ""),        # Barbell split squat
+                ("espalda", "05", ""),        # Neutral-grip lat pull-down
+                ("brazos", "15", ""),         # Cable overhead triceps ext.
+            ),
+            "Cuerpo completo D": (
+                ("pectorales", "05", ""),     # Incline bench press machine
+                ("brazos", "09", ""),         # Barbell preacher curl
+                ("piernas", "07", ""),        # Hack squat
+                ("espalda", "06", ""),        # Machine close-grip seated row
+                ("brazos", "14", ""),         # Cable triceps press-down
+            ),
+            "Cuerpo completo E": (
+                ("pectorales", "05", ""),     # Bench press machine
+                ("brazos", "04", ""),         # Dumbbell hammer curl
+                ("espalda", "16", ""),        # Deadlift
+                ("espalda", "07", ""),        # Machine wide-grip seated row
+                ("brazos", "20", ""),         # Cable triceps kickback
+            ),
+        },
+        "semana": {
+            "Lunes": "Cuerpo completo A",
+            "Martes": "Cuerpo completo B",
+            "Miércoles": "Cuerpo completo C",
+            "Jueves": "Cuerpo completo D",
+            "Viernes": "Cuerpo completo E",
+            "Sábado": None,
+            "Domingo": None,
+        },
+    },
+    {
+        # Hamarsland et al. 2022, Frontiers in Physiology 12:789403 —
+        # grupo HF (4 sesiones): cuerpo completo pesado con volumen
+        # semanal igualado al grupo de 2 sesiones (32 series). Cada
+        # sesión son 8 series repartidas en 5 ejercicios; cada ejercicio
+        # lleva 2 series en su sesión base y 1 en la otra (el orden se
+        # rota semanalmente). Bloques de 3 semanas: 12-RM (sem. 1-3),
+        # 10-RM (sem. 4-6) y 8-RM (sem. 7-9), 70% 1RM la primera sesión
+        # y 4 min de descanso entre series.
+        "nombre": "Cuerpo completo pesado 4 días · 2 vs 4 sesiones (Hamarsland 2022)",
+        "series": "1-2",
+        "repeticiones": "12-10-8",
+        "descanso_series": "240",
+        "sesiones": {
+            "Cuerpo completo A": (
+                ("piernas", "04", ""),        # Squat (2 series)
+                ("piernas", "07", ""),        # Hack squat (1 serie)
+                ("pectorales", "02", ""),     # Bench press (2 series)
+                ("pectorales", "05", ""),     # Chest press máquina (1 serie)
+                ("espalda", "03", ""),        # Lat pulldown (2 series)
+            ),
+            "Cuerpo completo B": (
+                ("piernas", "07", ""),        # Hack squat (2 series)
+                ("piernas", "04", ""),        # Squat (1 serie)
+                ("pectorales", "05", ""),     # Chest press máquina (2 series)
+                ("pectorales", "02", ""),     # Bench press (1 serie)
+                ("espalda", "06", ""),        # Seated row (2 series)
+            ),
+        },
+        "semana": {
+            "Lunes": "Cuerpo completo A",
+            "Martes": "Cuerpo completo B",
+            "Miércoles": None,
+            "Jueves": "Cuerpo completo A",
+            "Viernes": "Cuerpo completo B",
+            "Sábado": None,
+            "Domingo": None,
+        },
+    },
+    {
+        # Pedersen et al. 2024, European Journal of Sport Science —
+        # grupo HIGH: piernas 4 días/semana, UN ejercicio por sesión
+        # (sentadilla, peso muerto, sentadilla dividida y sentadilla
+        # búlgara), sin más de 2 días consecutivos. Progresión de 12-RM
+        # con 4 series y 2 min de descanso (sem. 1-4) a 6-RM con 5
+        # series y 3 min de descanso (sem. 5-8). Ganó más fuerza máxima
+        # (1-RM sentadilla) que el mismo volumen en una sola sesión.
+        "nombre": "Piernas 4 días · Alta frecuencia (Pedersen 2024)",
+        "series": "4-5",
+        "repeticiones": "12RM a 6RM",
+        "descanso_series": "120-180",
+        "sesiones": {
+            "Sentadilla trasera": (
+                ("piernas", "04", ""),        # Back squat
+            ),
+            "Peso muerto": (
+                ("espalda", "16", ""),        # Deadlift
+            ),
+            "Sentadilla dividida": (
+                ("piernas", "05", ""),        # Split squat
+            ),
+            "Sentadilla búlgara": (
+                ("piernas", "01", ""),        # Bulgarian squat (zancada)
+            ),
+        },
+        "semana": {
+            "Lunes": "Sentadilla trasera",
+            "Martes": "Peso muerto",
+            "Miércoles": None,
+            "Jueves": "Sentadilla dividida",
+            "Viernes": "Sentadilla búlgara",
+            "Sábado": None,
+            "Domingo": None,
+        },
+    },
+    {
+        # Prieto-González et al. 2020, Arch Med Deporte 37(2):78-83 —
+        # grupo FBW (principiantes): cuerpo completo 2 días (lunes y
+        # miércoles) con la misma carga semanal que la rutina dividida
+        # (tren superior lunes / tren inferior miércoles). 3 series por
+        # ejercicio; intensidad creciente cada 2 semanas: 62% (12 reps)
+        # → 72% (8 reps) → 78% (6-8 reps); descanso de 1 a 2 min. Ambas
+        # estructuras mejoraron fuerza y composición corporal sin
+        # diferencias entre ellas.
+        "nombre": "Cuerpo completo 2 días · Principiantes (Prieto-González 2020)",
+        "series": "3",
+        "repeticiones": "12-6",
+        "descanso_series": "60-120",
+        "sesiones": {
+            "Cuerpo completo A": (
+                ("pectorales", "02", ""),     # Bench press
+                ("hombros", "01", ""),        # Behind the neck jerk
+                ("espalda", "06", ""),        # Seated cable row
+                ("pectorales", "09", ""),     # Dumbbell fly
+                ("hombros", "05", ""),        # Reverse fly
+                ("hombros", "06", ""),        # Dumbbell side lateral raise
+                ("brazos", "13", ""),         # Triceps extension con polea
+                ("brazos", "20", ""),         # Triceps kickback
+                ("brazos", "01", ""),         # Dumbbell curl
+                ("brazos", "08", ""),         # Scott bench biceps curl
+            ),
+            "Cuerpo completo B": (
+                ("piernas", "06", ""),        # Leg press
+                ("piernas", "09", ""),        # Quadriceps extension máquina
+                ("piernas", "12", ""),        # Seated leg curl
+                ("piernas", "10", ""),        # Lying leg curl
+                ("abdominales", "08", ""),    # Ab crunch en máquina
+                ("gluteos", "06", ""),        # Pelvic lift
+                ("espalda", "19", ""),        # Back extension en máquina
+                ("espalda", "18", ""),        # Back extension banco romano
+                ("piernas", "20", ""),        # Seated calf raise máquina
+                ("piernas", "17", ""),        # Standing calf raise máquina
+            ),
+        },
+        "semana": {
+            "Lunes": "Cuerpo completo A",
+            "Martes": None,
+            "Miércoles": "Cuerpo completo B",
+            "Jueves": None,
+            "Viernes": None,
+            "Sábado": None,
+            "Domingo": None,
+        },
+    },
+    {
+        # Carneiro et al. 2024, European Journal of Sport Science
+        # 24(6):846-854 — grupo full-body (5 días, lunes a viernes):
+        # 15 series por sesión (75 semanales, volumen igualado con el
+        # grupo dividido); 8-12 RM al 70-80% del 1RM y 90 s de descanso.
+        # Dos series para press de banca, remo, femoral, gemelos y
+        # lumbar; una serie para press de piernas, sentadilla, curl con
+        # barra, tríceps y elevaciones laterales. Perdió más grasa total
+        # y regional (DXA) que la rutina dividida.
+        "nombre": "Cuerpo completo 5 días · Pérdida de grasa (Carneiro 2024)",
+        "series": "1-2",
+        "repeticiones": "8-12",
+        "descanso_series": "90",
+        "sesiones": {
+            "Cuerpo completo": (
+                ("pectorales", "02", ""),     # Bench press (2 series)
+                ("espalda", "06", ""),        # Seated row (2 series)
+                ("piernas", "10", ""),        # Hamstring curl (2 series)
+                ("piernas", "17", ""),        # Calf standing (2 series)
+                ("espalda", "18", ""),        # Lumbar flexores/extensores
+                ("piernas", "06", ""),        # Leg press (1 serie)
+                ("piernas", "04", ""),        # Back squat (1 serie)
+                ("brazos", "07", ""),         # Barbell curl (1 serie)
+                ("brazos", "13", ""),         # Elbow extensors (1 serie)
+                ("hombros", "06", ""),        # Lateral raises (1 serie)
+            ),
+        },
+        "semana": {
+            "Lunes": "Cuerpo completo",
+            "Martes": "Cuerpo completo",
+            "Miércoles": "Cuerpo completo",
+            "Jueves": "Cuerpo completo",
+            "Viernes": "Cuerpo completo",
+            "Sábado": None,
+            "Domingo": None,
+        },
+    },
 )
-PLACEHOLDER_PLANTILLA = "— Elegir y abrir —"
 
 
 def _discos_2_5(kg):
@@ -272,29 +526,13 @@ class RutinasTab:
             )
 
     # ------------------------------------------------------------------
-    # Rutinas semanales predefinidas (plantilla → cuadro → aplicar)
+    # Rutinas semanales en TABLAS (sub-pestaña «Semana»): la rutina
+    # semanal se elige en una tabla, se carga por días empezando en
+    # Lunes y cada ejercicio se edita en su propia fila (ejercicio,
+    # series, repeticiones, descansos y peso). Sin cuadros de diálogo:
+    # nueva, cargar (estudio/guardada/paciente), modificar, guardar,
+    # aplicar y eliminar ocurren aquí mismo.
     # ------------------------------------------------------------------
-
-    def _al_elegir_plantilla(self, event=None):
-        """Abrir el cuadro de la plantilla semanal elegida: una de las
-        fijas del estudio o una rutina semanal guardada con nombre
-        (marcada con estrella); al cerrarlo el combo vuelve al texto de
-        invitación."""
-        elegida = self.combo_plantilla.get()
-        if elegida.startswith("★ "):
-            guardada = next(
-                (r for r in self._semanales_guardadas()
-                 if r["nombre"] == elegida[2:]),
-                None,
-            )
-            if guardada is not None:
-                self._abrir_plantilla_semana(self._plantilla_de_guardada(guardada))
-        else:
-            idx = self.combo_plantilla.current()
-            if not 0 <= idx < len(PLANTILLAS_SEMANA):
-                return
-            self._abrir_plantilla_semana(PLANTILLAS_SEMANA[idx])
-        self.combo_plantilla.set(PLACEHOLDER_PLANTILLA)
 
     def _semanales_guardadas(self):
         """Rutinas semanales guardadas por el usuario (lista vacía si la
@@ -303,17 +541,6 @@ class RutinasTab:
             return database.get_rutinas_guardadas(semanal=1)
         except Exception:
             return []
-
-    def _refrescar_combo_plantilla(self):
-        """Combo Rutina semanal: las plantillas fijas del estudio más las
-        rutinas semanales guardadas con nombre (prefijo estrella)."""
-        if not hasattr(self, "combo_plantilla"):
-            return
-        valores = [p["nombre"] for p in PLANTILLAS_SEMANA] + [
-            "★ " + r["nombre"] for r in self._semanales_guardadas()
-        ]
-        self.combo_plantilla.configure(values=valores)
-        self.combo_plantilla.set(PLACEHOLDER_PLANTILLA)
 
     def _plantilla_de_guardada(self, guardada):
         """Convierte una rutina semanal guardada en la estructura que
@@ -342,7 +569,7 @@ class RutinasTab:
 
     def _fichas_plantilla(self, plantilla):
         """Fichas del catálogo por sesión de la plantilla (copia editable
-        para el cuadro) y lista de entradas sin ficha en el catálogo."""
+        para la tabla) y lista de entradas sin ficha en el catálogo."""
         sesiones = {}
         faltan = []
         for sesion, ejercicios in plantilla["sesiones"].items():
@@ -361,978 +588,855 @@ class RutinasTab:
             sesiones[sesion] = filas
         return sesiones, faltan
 
-    def _editar_semana_paciente(self):
-        """Cuadro de edición semanal de la rutina del paciente: la misma
-        ventana de las plantillas pero cargada con su semana actual (las
-        sesiones salen de las notas de cada día, patrón de
-        _plantilla_de_guardada). Permite reasignar sesiones y descansos
-        día a día, quitar ejercicios de una sesión y APLICAR reemplaza
-        su semana."""
-        paciente_id = self._paciente_actual()
-        if paciente_id is None:
-            messagebox.showwarning(
-                "Rutinas",
-                "Selecciona un paciente antes de editar su semana.",
-            )
-            return
-        rutina = getattr(self, "rutina", [])
-        con_ejercicios = [r for r in rutina if not r.get("descanso")]
-        if not con_ejercicios:
-            messagebox.showwarning(
-                "Rutinas",
-                "La rutina está vacía: añade ejercicios antes de editar "
-                "la semana.",
-            )
-            return
-        semana = {dia: None for dia in DIAS_SEMANA}
-        sesiones = {}
-        for e in con_ejercicios:
-            sesion = (e.get("notas") or "").strip() or (e.get("dia") or "")
-            semana[e.get("dia") or "Lunes"] = sesion
-            sesiones.setdefault(sesion, []).append(dict(e))
-        # una semana aplicada de una plantilla conserva su nombre; una
-        # armada a mano se anuncia como "Semana del paciente"
-        nombre_semana = next(
-            (r.get("nombre_semana") for r in rutina if r.get("nombre_semana")),
-            "Semana del paciente",
+    def _sem_ficha_con_prescripcion(self, ficha, plantilla=None):
+        """Copia editable de una ficha con su prescripción: la que ya
+        trae, o los valores de la plantilla del estudio, o un 3×12 por
+        defecto listo para editar en la tabla."""
+        ficha = dict(ficha)
+        ficha.setdefault("grupo", None)
+        ficha.setdefault("num", None)
+        ficha.setdefault("series", (plantilla or {}).get("series") or "3")
+        ficha.setdefault(
+            "repeticiones", (plantilla or {}).get("repeticiones") or "12"
         )
-        self._abrir_plantilla_semana(
-            {
-                "nombre": nombre_semana,
-                "guardada": True,
-                "edicion": True,
-                "semana": semana,
-                "sesiones": {s: tuple(fs) for s, fs in sesiones.items()},
-                "series": "",
-                "repeticiones": "",
-                "descanso_series": "",
-            }
+        ficha.setdefault("descanso_rep", "")
+        ficha.setdefault(
+            "descanso_series",
+            (plantilla or {}).get("descanso_series") or "60",
         )
+        ficha.setdefault("peso", "")
+        return ficha
 
-    def _abrir_plantilla_semana(self, plantilla):
-        """Cuadro de la rutina semanal: vista previa de la semana y de cada
-        sesión (con posibilidad de quitar ejercicios) y botón para aplicar
-        la semana completa a la rutina del paciente."""
-        paciente_id = self._paciente_actual()
-        if paciente_id is None:
-            messagebox.showwarning(
-                "Rutinas",
-                "Selecciona un paciente antes de cargar una rutina semanal.",
+    def _sem_semana_vacia(self):
+        return {
+            dia: {"sesion": None, "ejercicios": []} for dia in DIAS_SEMANA
+        }
+
+    # ------------------------------------------------------------------
+    # Construcción de la sub-pestaña «Semana»
+    # ------------------------------------------------------------------
+    def _crear_tab_semana(self):
+        marco = ttk.Frame(self.notebook_rut, style="Gym.TFrame")
+        self.notebook_rut.add(marco, text="  Semana  ")
+        self.marco_sem = marco
+
+        # estado del editor semanal (se llena al cargar una rutina)
+        self._sem_datos = self._sem_semana_vacia()
+        self._sem_dia = DIAS_SEMANA[0]
+        self._sem_origen = "nueva"
+        self._sem_guardada_id = None
+        self._sem_catalogo = []
+        self._sem_opciones = {}
+        self._sem_simples = []
+        self._sem_editor = None
+
+        cuerpo = ttk.Frame(marco, style="Gym.TFrame")
+        cuerpo.pack(fill="both", expand=True, padx=8, pady=(4, 2))
+
+        # ---------- izquierda: tabla para ELEGIR la rutina semanal ------
+        izquierdo = ttk.LabelFrame(
+            cuerpo,
+            text="Rutinas semanales disponibles (doble clic = cargar)",
+            padding=4,
+        )
+        izquierdo.pack(side="left", fill="y", padx=(0, 6))
+        cols_sel = ("nombre", "origen", "dias", "ejercicios")
+        self.tree_sem_selector = ttk.Treeview(
+            izquierdo, columns=cols_sel, show="headings", height=14,
+            selectmode="browse", style="Gym.Treeview",
+        )
+        for col, texto, ancho, alineacion in (
+            ("nombre", "Rutina", 185, "w"),
+            ("origen", "Origen", 66, "center"),
+            ("dias", "Días", 42, "center"),
+            ("ejercicios", "Ejerc.", 50, "center"),
+        ):
+            self.tree_sem_selector.heading(col, text=texto, anchor=alineacion)
+            self.tree_sem_selector.column(
+                col, width=ancho, minwidth=ancho, anchor=alineacion
             )
-            return
+        self.tree_sem_selector.pack(side="top", fill="both", expand=True)
+        barra_sel = ttk.Scrollbar(
+            izquierdo, orient="vertical",
+            command=self.tree_sem_selector.yview,
+        )
+        self.tree_sem_selector.configure(yscrollcommand=barra_sel.set)
+        self.tree_sem_selector.bind(
+            "<Double-1>", lambda _e: self._sem_cargar_seleccionada()
+        )
+        botones_sel = ttk.Frame(izquierdo, style="Gym.TFrame")
+        botones_sel.pack(side="bottom", fill="x", pady=(4, 0))
+        tk.Button(
+            botones_sel, text="⟳ REFRESCAR",
+            command=self._sem_refrescar_selector,
+            font=("Segoe UI", 8, "bold"), fg=NEON, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=8, pady=2, cursor="hand2",
+        ).pack(side="left")
+        tk.Button(
+            botones_sel, text="🗑 ELIMINAR GUARDADA",
+            command=self._sem_eliminar_guardada,
+            font=("Segoe UI", 8, "bold"), fg=BLANCO, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=8, pady=2, cursor="hand2",
+        ).pack(side="left", padx=(6, 0))
 
-        if plantilla.get("guardada"):
-            # rutina semanal guardada: las fichas ya traen nombre, equipo
-            # y prescripción; no hace falta resolverlas en el catálogo
-            sesiones = {
-                s: [dict(f) for f in fs]
-                for s, fs in plantilla["sesiones"].items()
-            }
-            faltan = []
-        else:
-            sesiones, faltan = self._fichas_plantilla(plantilla)
+        # ---------- derecha: nombre + acciones ---------------------------
+        derecho = ttk.Frame(cuerpo, style="Gym.TFrame")
+        derecho.pack(side="left", fill="both", expand=True)
 
-        dialogo = tk.Toplevel(self.marco)
-        dialogo.title(f"Rutina semanal · {plantilla['nombre']}")
-        dialogo.configure(bg=GRIS_OSCURO)
-        dialogo.transient(self.marco)
-        dialogo.grab_set()
-
+        fila_acciones = ttk.Frame(derecho, style="Gym.TFrame")
+        fila_acciones.pack(fill="x", pady=(0, 4))
         tk.Label(
-            dialogo,
-            text=plantilla["nombre"].upper(),
-            font=("Impact", 13),
-            fg=NEON,
-            bg=GRIS_OSCURO,
-        ).pack(anchor="w", padx=12, pady=(10, 4))
+            fila_acciones, text="Nombre:",
+            font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+        ).pack(side="left")
+        self.entrada_sem_nombre = tk.Entry(
+            fila_acciones, width=32, font=("Segoe UI", 9),
+            fg=BLANCO, bg=GRIS, relief="flat", insertbackground=NEON,
+        )
+        self.entrada_sem_nombre.pack(side="left", padx=(4, 10), ipady=2)
+        for texto, comando, destacado in (
+            ("NUEVA", self._sem_nueva, False),
+            ("⤓ SEMANA DEL PACIENTE", self._sem_cargar_paciente, False),
+            ("💾 GUARDAR", self._sem_guardar, False),
+            ("✔ APLICAR AL PACIENTE", self._sem_aplicar, True),
+        ):
+            tk.Button(
+                fila_acciones, text=texto, command=comando,
+                font=("Segoe UI", 8, "bold"),
+                fg=NEGRO if destacado else NEON,
+                bg=NEON if destacado else GRIS,
+                activebackground=NARANJA, activeforeground=BLANCO,
+                relief="flat", padx=10, pady=3, cursor="hand2",
+            ).pack(side="left", padx=(0, 5))
 
-        # --- vista previa de la semana ---
-        tk.Label(
-            dialogo, text="Semana:", font=("Segoe UI", 8),
-            fg=GRIS_TEXTO, bg=GRIS_OSCURO,
-        ).pack(anchor="w", padx=12)
-        marco_semana = tk.Frame(dialogo, bg=GRIS_OSCURO)
-        marco_semana.pack(fill="x", padx=12)
-        cols_semana = ("dia", "sesion", "total")
-        tree_semana = ttk.Treeview(
-            marco_semana, columns=cols_semana, show="headings", height=7,
-            selectmode="browse",
-            style="Gym.Treeview",
+        # ---------- tabla de la semana (7 días, Lunes primero) -----------
+        marco_semana = ttk.LabelFrame(
+            derecho,
+            text="Semana — doble clic en Sesión para renombrarla "
+                 "(vacío = día de descanso)",
+            padding=4,
+        )
+        marco_semana.pack(fill="x")
+        cols_sem = ("dia", "sesion", "total")
+        self.tree_sem_semana = ttk.Treeview(
+            marco_semana, columns=cols_sem, show="headings", height=7,
+            selectmode="browse", style="Gym.Treeview",
         )
         for col, texto, ancho, alineacion in (
             ("dia", "Día", 90, "w"),
-            ("sesion", "Sesión", 150, "w"),
+            ("sesion", "Sesión", 250, "w"),
             ("total", "Ejercicios", 90, "center"),
         ):
-            tree_semana.heading(col, text=texto, anchor=alineacion)
-            tree_semana.column(col, width=ancho, minwidth=ancho, anchor=alineacion)
-        tree_semana.pack(side="left", fill="x", expand=True)
-        barra_semana = ttk.Scrollbar(
-            marco_semana, orient="vertical", command=tree_semana.yview
+            self.tree_sem_semana.heading(col, text=texto, anchor=alineacion)
+            self.tree_sem_semana.column(
+                col, width=ancho, minwidth=ancho, anchor=alineacion
+            )
+        self.tree_sem_semana.pack(side="left", fill="x", expand=True)
+        self.tree_sem_semana.bind("<Double-1>", self._sem_editar_sesion)
+        self.tree_sem_semana.bind(
+            "<<TreeviewSelect>>", self._sem_elegir_dia
         )
-        tree_semana.configure(yscrollcommand=barra_semana.set)
-        barra_semana.pack(side="right", fill="y")
 
-        # copia editable de la semana: los cambios del cuadro no tocan
-        # la plantilla fija del estudio
-        semana = dict(plantilla["semana"])
-
-        def pintar_semana():
-            # repinta conservando la seleccion de dias (se reasigna sobre
-            # lo que ya esta marcado)
-            dias = tree_semana.selection()
-            for item in tree_semana.get_children():
-                tree_semana.delete(item)
-            for dia in DIAS_SEMANA:
-                sesion = semana.get(dia)
-                if sesion is None:
-                    tree_semana.insert(
-                        "", "end", iid=dia, values=(dia, "DESCANSO", "—")
-                    )
-                else:
-                    total = len(sesiones.get(sesion, []))
-                    tree_semana.insert(
-                        "", "end", iid=dia, values=(dia, sesion, total)
-                    )
-            if dias:
-                tree_semana.selection_set(dias)
-
-        # --- selector de sesión: las sesiones de la plantilla, las
-        # rutinas guardadas con nombre (★, se cargan como sesión) y el
-        # descanso; la elección se asigna al día seleccionado arriba ---
-        try:
-            guardadas_simples = database.get_rutinas_guardadas(semanal=0)
-        except Exception:
-            guardadas_simples = []
-        etiquetas_rutinas = {
-            "★ " + g["nombre"]: g["nombre"] for g in guardadas_simples
-        }
-        OPCION_DESCANSO = "— Día de descanso —"
-        fila_sesion = tk.Frame(dialogo, bg=GRIS_OSCURO)
-        fila_sesion.pack(fill="x", padx=12, pady=(10, 0))
-        tk.Label(
-            fila_sesion, text="Sesión:", font=("Segoe UI", 8),
-            fg=GRIS_TEXTO, bg=GRIS_OSCURO,
-        ).pack(side="left")
-        combo_sesion = ttk.Combobox(
-            fila_sesion, state="readonly", style="Gym.TCombobox", width=30,
-            values=list(sesiones) + list(etiquetas_rutinas) + [OPCION_DESCANSO],
+        # ---------- tabla editable de ejercicios del día ------------------
+        marco_ej = ttk.LabelFrame(
+            derecho,
+            text="Ejercicios del día — doble clic para editar ejercicio, "
+                 "series, repeticiones, descansos y peso",
+            padding=4,
         )
-        combo_sesion.current(0)
-        combo_sesion.pack(side="left", padx=(4, 12))
-
-        marco_sesion = tk.Frame(dialogo, bg=GRIS_OSCURO)
-        marco_sesion.pack(fill="both", expand=True, padx=12, pady=(4, 0))
-        cols_sesion = ("num", "nombre", "equipo", "presc")
-        tree_sesion = ttk.Treeview(
-            marco_sesion, columns=cols_sesion, show="headings", height=6,
-            style="Gym.Treeview",
+        marco_ej.pack(fill="both", expand=True, pady=(6, 0))
+        cols_ej = (
+            "num", "ejercicio", "series", "repeticiones", "descanso_rep",
+            "descanso_series", "peso", "equipo",
+        )
+        self.tree_sem_ej = ttk.Treeview(
+            marco_ej, columns=cols_ej, show="headings", height=9,
+            selectmode="browse", style="Gym.Treeview",
         )
         for col, texto, ancho, alineacion in (
             ("num", "#", 30, "center"),
-            ("nombre", "Ejercicio", 300, "w"),
-            ("equipo", "Equipo", 130, "w"),
-            ("presc", "Series × Reps", 100, "center"),
+            ("ejercicio", "Ejercicio", 250, "w"),
+            ("series", "Series", 52, "center"),
+            ("repeticiones", "Reps", 62, "center"),
+            ("descanso_rep", "Desc. reps", 70, "center"),
+            ("descanso_series", "Desc. series", 76, "center"),
+            ("peso", "Peso", 60, "center"),
+            ("equipo", "Equipo", 105, "w"),
         ):
-            tree_sesion.heading(col, text=texto, anchor=alineacion)
-            tree_sesion.column(col, width=ancho, minwidth=ancho, anchor=alineacion)
-        tree_sesion.pack(side="left", fill="both", expand=True)
-        barra_sesion = ttk.Scrollbar(
-            marco_sesion, orient="vertical", command=tree_sesion.yview
+            self.tree_sem_ej.heading(col, text=texto, anchor=alineacion)
+            self.tree_sem_ej.column(
+                col, width=ancho, minwidth=ancho, anchor=alineacion
+            )
+        self.tree_sem_ej.pack(side="top", fill="both", expand=True)
+        barra_ej = ttk.Scrollbar(
+            marco_ej, orient="vertical", command=self.tree_sem_ej.yview
         )
-        tree_sesion.configure(yscrollcommand=barra_sesion.set)
-        barra_sesion.pack(side="right", fill="y")
+        self.tree_sem_ej.configure(yscrollcommand=barra_ej.set)
+        self.tree_sem_ej.bind("<Double-1>", self._sem_editar_celda_evento)
 
-        def sesion_activa():
-            """Nombre de sesión real según lo elegido en el combo: una
-            sesión de la plantilla, una rutina guardada (se carga como
-            sesión propia con clave ★ la primera vez, sin mezclarse con
-            una sesión homónima de la plantilla) o None si eligió
-            descanso."""
-            etiqueta = combo_sesion.get()
-            if etiqueta in etiquetas_rutinas:
-                nombre = "★ " + etiquetas_rutinas[etiqueta]
-                if nombre not in sesiones:
-                    g = next(
-                        g for g in guardadas_simples
-                        if "★ " + g["nombre"] == etiqueta
-                    )
-                    guardada = database.get_rutina_guardada(
-                        g["id_rutina_guardada"]
-                    )
-                    sesiones[nombre] = [
-                        dict(e) for e in guardada["ejercicios"]
-                        if not e.get("descanso")
-                    ]
-                return nombre
-            if etiqueta == OPCION_DESCANSO:
-                return None
-            return etiqueta
-
-        def elegir_sesion(*_):
-            """Asigna al día seleccionado de la Semana lo elegido en el
-            combo (sesión, rutina guardada o descanso) y muestra sus
-            ejercicios abajo."""
-            dia_elegido = tree_semana.selection()
-            sesion = sesion_activa()
-            if not dia_elegido:
-                if sesion is None or combo_sesion.get() in etiquetas_rutinas:
-                    messagebox.showinfo(
-                        "Rutinas",
-                        "Selecciona un día en la Semana para asignarle la "
-                        "sesión o rutina.",
-                        parent=dialogo,
-                    )
-                pintar_sesion()
-                return
-            semana[dia_elegido[0]] = sesion
-            pintar_semana()
-            pintar_sesion()
-
-        def pintar_sesion(*_):
-            sesion = sesion_activa()
-            for item in tree_sesion.get_children():
-                tree_sesion.delete(item)
-            for posicion, ficha in enumerate(sesiones.get(sesion, []), start=1):
-                nombre = ficha.get("nombre") or ""
-                if ficha.get("marca") == "superserie":
-                    nombre += "  (superserie)"
-                # en las guardadas la prescripción va ejercicio a ejercicio
-                series = ficha.get("series") or plantilla.get("series") or "—"
-                reps = (
-                    ficha.get("repeticiones")
-                    or plantilla.get("repeticiones") or "—"
-                )
-                tree_sesion.insert(
-                    "", "end", iid=str(posicion - 1),
-                    values=(
-                        posicion,
-                        nombre,
-                        ficha.get("equipo") or "-",
-                        f"{series} × {reps}",
-                    ),
-                )
-
-        def quitar_de_sesion():
-            seleccion = tree_sesion.selection()
-            sesion = sesion_activa()
-            if not seleccion or sesion is None:
-                return
-            indice = int(seleccion[0])
-            if 0 <= indice < len(sesiones.get(sesion, [])):
-                sesiones[sesion].pop(indice)
-                pintar_sesion()
-                pintar_semana()
-
+        fila_ej = ttk.Frame(marco_ej, style="Gym.TFrame")
+        fila_ej.pack(side="bottom", fill="x", pady=(4, 0))
         tk.Button(
-            fila_sesion,
-            text="Quitar seleccionado",
-            command=quitar_de_sesion,
-            font=("Segoe UI", 8, "bold"),
-            fg=BLANCO, bg=GRIS,
+            fila_ej, text="＋ AÑADIR AL DÍA",
+            command=self._sem_agregar_ejercicio,
+            font=("Segoe UI", 8, "bold"), fg=NEGRO, bg=NEON,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=8, pady=2, cursor="hand2",
+        ).pack(side="left")
+        tk.Button(
+            fila_ej, text="✕ QUITAR",
+            command=self._sem_quitar_ejercicio,
+            font=("Segoe UI", 8, "bold"), fg=BLANCO, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=8, pady=2, cursor="hand2",
+        ).pack(side="left", padx=(6, 0))
+        tk.Button(
+            fila_ej, text="↑", command=lambda: self._sem_mover(-1),
+            font=("Segoe UI", 8, "bold"), fg=NEON, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=6, pady=2, cursor="hand2",
+        ).pack(side="left", padx=(6, 0))
+        tk.Button(
+            fila_ej, text="↓", command=lambda: self._sem_mover(1),
+            font=("Segoe UI", 8, "bold"), fg=NEON, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=6, pady=2, cursor="hand2",
+        ).pack(side="left", padx=(2, 0))
+        self.lbl_sem_dia = tk.Label(
+            fila_ej,
+            text="",
+            font=("Segoe UI", 8, "italic"), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+        )
+        self.lbl_sem_dia.pack(side="left", padx=(10, 0))
+
+        fila_guardada = ttk.Frame(marco_ej, style="Gym.TFrame")
+        fila_guardada.pack(side="bottom", fill="x", pady=(2, 0))
+        tk.Label(
+            fila_guardada, text="Rutina guardada simple:",
+            font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+        ).pack(side="left")
+        self.combo_sem_simple = ttk.Combobox(
+            fila_guardada, values=[], state="readonly", width=36,
+            style="Gym.TCombobox",
+        )
+        self.combo_sem_simple.pack(side="left", padx=(4, 6))
+        tk.Button(
+            fila_guardada, text="⤒ AGREGAR AL DÍA",
+            command=self._sem_agregar_guardada_al_dia,
+            font=("Segoe UI", 8, "bold"), fg=NEON, bg=GRIS,
             activebackground=NARANJA, activeforeground=BLANCO,
             relief="flat", padx=8, pady=2, cursor="hand2",
         ).pack(side="left")
 
-        def al_elegir_dia(*_):
-            """Clic en un día de la Semana: el combo queda en su sesión
-            actual (o descanso) y abajo se ven sus ejercicios."""
-            dia = tree_semana.selection()
-            if not dia:
-                return
-            sesion = semana.get(dia[0])
-            if sesion is None:
-                combo_sesion.set(OPCION_DESCANSO)
-            elif sesion in sesiones:
-                combo_sesion.set(sesion)
-            pintar_sesion()
+        self._sem_refrescar_selector()
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
 
-        tree_semana.bind("<<TreeviewSelect>>", al_elegir_dia)
-        combo_sesion.bind("<<ComboboxSelected>>", elegir_sesion)
-        pintar_semana()
-        pintar_sesion()
+    # ------------------------------------------------------------------
+    # Tabla selector y carga de la rutina semanal
+    # ------------------------------------------------------------------
+    def _sem_refrescar_selector(self):
+        """Tabla selector: plantillas fijas del estudio + rutinas
+        semanales guardadas. También llena el combo de rutinas simples."""
+        if not hasattr(self, "tree_sem_selector"):
+            return
+        self._sem_selector_map = {}
+        for iid in self.tree_sem_selector.get_children():
+            self.tree_sem_selector.delete(iid)
+        for idx, p in enumerate(PLANTILLAS_SEMANA):
+            dias = sum(1 for v in p["semana"].values() if v)
+            ejercicios = sum(len(e) for e in p["sesiones"].values())
+            iid = f"f{idx}"
+            self.tree_sem_selector.insert(
+                "", "end", iid=iid,
+                values=(p["nombre"], "Estudio", dias, ejercicios),
+            )
+            self._sem_selector_map[iid] = ("fija", idx)
+        for r in self._semanales_guardadas():
+            iid = f"g{r['id_rutina_guardada']}"
+            self.tree_sem_selector.insert(
+                "", "end", iid=iid,
+                values=(
+                    r["nombre"], "Guardada",
+                    r.get("dias") if r.get("dias") else "—",
+                    r.get("ejercicios") if r.get("ejercicios") else "—",
+                ),
+            )
+            self._sem_selector_map[iid] = ("guardada", r["id_rutina_guardada"])
+        # rutinas guardadas simples para agregar al día seleccionado
+        try:
+            self._sem_simples = database.get_rutinas_guardadas(semanal=0)
+        except Exception:
+            self._sem_simples = []
+        if hasattr(self, "combo_sem_simple"):
+            self.combo_sem_simple.configure(
+                values=[r["nombre"] for r in self._sem_simples]
+            )
+            if self._sem_simples:
+                self.combo_sem_simple.current(0)
+            else:
+                self.combo_sem_simple.set("— sin rutinas guardadas —")
 
-        if plantilla.get("guardada"):
-            nota = "Prescripción guardada por ejercicio (columna Series × Reps)."
+    def _sem_cargar_seleccionada(self):
+        """Carga en las tablas la rutina semanal elegida en el selector:
+        una fija del estudio o una guardada; los ejercicios quedan por día
+        empezando en Lunes, listos para editar, guardar o aplicar."""
+        sel = self.tree_sem_selector.selection()
+        if not sel or sel[0] not in getattr(self, "_sem_selector_map", {}):
+            self._mensaje("Elige una rutina semanal en la tabla de la izquierda.")
+            return
+        origen, clave = self._sem_selector_map[sel[0]]
+        self._sem_datos = self._sem_semana_vacia()
+        if origen == "fija":
+            plantilla = PLANTILLAS_SEMANA[clave]
+            sesiones, faltan = self._fichas_plantilla(plantilla)
+            for dia in DIAS_SEMANA:
+                sesion = plantilla["semana"].get(dia)
+                if not sesion:
+                    continue
+                self._sem_datos[dia]["sesion"] = sesion
+                self._sem_datos[dia]["ejercicios"] = [
+                    self._sem_ficha_con_prescripcion(f, plantilla)
+                    for f in sesiones.get(sesion, [])
+                ]
+            self._sem_nombre = plantilla["nombre"]
+            self._sem_origen = "fija"
+            self._sem_guardada_id = None
+            if faltan:
+                self._mensaje(
+                    "No están en el catálogo: "
+                    + ", ".join(dict.fromkeys(faltan))
+                )
         else:
-            nota = (
-                f"{plantilla['series']} series × {plantilla['repeticiones']} "
-                f"repeticiones · descanso entre series ≈{plantilla['descanso_series']} s"
-            )
-        tk.Label(
-            dialogo, text=nota, font=("Segoe UI", 8, "italic"),
-            fg=GRIS_TEXTO, bg=GRIS_OSCURO, justify="left",
-        ).pack(anchor="w", padx=12, pady=(6, 0))
-        if faltan:
-            tk.Label(
-                dialogo,
-                text="No está en el catálogo: " + ", ".join(dict.fromkeys(faltan)),
-                font=("Segoe UI", 8),
-                fg=NARANJA, bg=GRIS_OSCURO, justify="left",
-            ).pack(anchor="w", padx=12)
+            try:
+                guardada = database.get_rutina_guardada(clave)
+            except Exception:
+                guardada = None
+            if not guardada:
+                self._mensaje("No se pudo leer la rutina guardada.")
+                return
+            conv = self._plantilla_de_guardada(guardada)
+            for dia in DIAS_SEMANA:
+                sesion = conv["semana"].get(dia)
+                if not sesion:
+                    continue
+                self._sem_datos[dia]["sesion"] = sesion
+                self._sem_datos[dia]["ejercicios"] = [
+                    self._sem_ficha_con_prescripcion(f)
+                    for f in conv["sesiones"].get(sesion, [])
+                ]
+            self._sem_nombre = conv["nombre"]
+            self._sem_origen = "guardada"
+            self._sem_guardada_id = clave
+        # el día activo arranca en Lunes (o el primer día entrenable)
+        self._sem_dia = next(
+            (d for d in DIAS_SEMANA if self._sem_datos[d]["sesion"]),
+            DIAS_SEMANA[0],
+        )
+        self.entrada_sem_nombre.delete(0, tk.END)
+        self.entrada_sem_nombre.insert(0, self._sem_nombre)
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+        self._mensaje(
+            f"Rutina semanal cargada en la tabla: «{self._sem_nombre}» "
+            f"(día {self._sem_dia})."
+        )
 
-        def aplicar():
-            # lleva la semana editada en el cuadro (sesiones reasignadas,
-            # rutinas guardadas como sesión, descansos) sin tocar la
-            # plantilla fija del estudio
-            self._aplicar_plantilla_semana(
-                dict(plantilla, semana=dict(semana)), sesiones, dialogo
-            )
+    def _sem_nueva(self):
+        """Vacía el editor para crear una rutina semanal nueva."""
+        self._sem_datos = self._sem_semana_vacia()
+        self._sem_nombre = "Nueva rutina semanal"
+        self._sem_origen = "nueva"
+        self._sem_guardada_id = None
+        self._sem_dia = DIAS_SEMANA[0]
+        self.entrada_sem_nombre.delete(0, tk.END)
+        self.entrada_sem_nombre.insert(0, self._sem_nombre)
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+        self._mensaje("Nueva rutina semanal: añade ejercicios por día en la tabla.")
 
-        tk.Button(
-            dialogo,
-            text="APLICAR A LA SEMANA",
-            command=aplicar,
-            font=("Impact", 10),
-            fg=NEGRO, bg=NEON,
-            activebackground=NARANJA, activeforeground=BLANCO,
-            relief="flat", padx=14, pady=4, cursor="hand2",
-        ).pack(pady=(8, 12))
-
-        dialogo.wait_window()
-
-    def _aplicar_plantilla_semana(self, plantilla, sesiones, dialogo):
-        """Reemplaza la rutina semanal del paciente por la plantilla: las
-        sesiones de la semana con su nota ("Tren superior"/"Tren inferior")
-        y los días de descanso marcados."""
+    def _sem_cargar_paciente(self):
+        """Trae a las tablas la semana actual del paciente para
+        modificarla (misma estructura que la edición semanal previa)."""
         paciente_id = self._paciente_actual()
         if paciente_id is None:
-            messagebox.showwarning(
-                "Rutinas", "Selecciona un paciente antes de aplicar la plantilla."
-            )
+            self._mensaje("Selecciona un paciente antes de cargar su semana.")
             return
-        total_actual = len(
-            [r for r in getattr(self, "rutina", []) if not r.get("descanso")]
+        self._cargar_rutina()
+        self._sem_datos = self._sem_semana_vacia()
+        for e in [r for r in getattr(self, "rutina", []) if not r.get("descanso")]:
+            dia = e.get("dia") or "Lunes"
+            if dia not in self._sem_datos:
+                continue
+            sesion = (e.get("notas") or "").strip() or dia
+            self._sem_datos[dia]["sesion"] = sesion
+            self._sem_datos[dia]["ejercicios"].append(
+                self._sem_ficha_con_prescripcion(dict(e))
+            )
+        nombre_semana = next(
+            (r.get("nombre_semana") for r in getattr(self, "rutina", [])
+             if r.get("nombre_semana")),
+            "",
         )
-        if total_actual:
-            paciente = database.obtener_paciente(paciente_id) or {}
-            nombre = paciente.get("nombre") or f"paciente {paciente_id}"
-            if plantilla.get("edicion"):
-                # edición semanal de la propia semana del paciente
-                pregunta = (
-                    f"¿Aplicar la semana editada a {nombre}? Se reemplaza "
-                    "su rutina actual "
-                    f"({total_actual} ejercicio"
-                    + ("s" if total_actual != 1 else "") + ")."
+        self._sem_nombre = nombre_semana or "Semana del paciente"
+        self._sem_origen = "paciente"
+        self._sem_guardada_id = None
+        self._sem_dia = next(
+            (d for d in DIAS_SEMANA if self._sem_datos[d]["sesion"]),
+            DIAS_SEMANA[0],
+        )
+        self.entrada_sem_nombre.delete(0, tk.END)
+        self.entrada_sem_nombre.insert(0, self._sem_nombre)
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+        self._mensaje(
+            f"Semana del paciente cargada en la tabla: "
+            f"{sum(len(d['ejercicios']) for d in self._sem_datos.values())} ejercicios."
+        )
+
+    # ------------------------------------------------------------------
+    # Pintado y edición en celda de las tablas
+    # ------------------------------------------------------------------
+    def _sem_pintar_semana(self):
+        tree = self.tree_sem_semana
+        for iid in tree.get_children():
+            tree.delete(iid)
+        for dia in DIAS_SEMANA:
+            info = self._sem_datos[dia]
+            if info["sesion"]:
+                tree.insert(
+                    "", "end", iid=dia,
+                    values=(dia, info["sesion"], len(info["ejercicios"])),
                 )
             else:
-                pregunta = (
-                    f"¿Reemplazar la rutina semanal de {nombre} "
-                    f"({total_actual} ejercicio{'s' if total_actual != 1 else ''}) "
-                    f"por «{plantilla['nombre']}»?"
+                tree.insert(
+                    "", "end", iid=dia,
+                    values=(dia, "— descanso —", "—"),
                 )
-            if not messagebox.askyesno("Rutinas", pregunta):
-                return
-        try:
-            database.delete_rutinas_paciente(paciente_id)
-            for dia, sesion in plantilla["semana"].items():
-                if sesion is None:
-                    database.marcar_descanso(paciente_id, dia)
-                    continue
-                for ficha in sesiones.get(sesion, []):
-                    database.insert_rutina_paciente(
-                        {
-                            "paciente_id": paciente_id,
-                            "dia": dia,
-                            "grupo": ficha.get("grupo"),
-                            "num": ficha.get("num"),
-                            "nombre": ficha.get("nombre"),
-                            "equipo": ficha.get("equipo"),
-                            # las guardadas traen prescripción propia; las
-                            # fijas la toman de la plantilla
-                            "series": ficha.get("series") or plantilla["series"],
-                            "repeticiones": (
-                                ficha.get("repeticiones")
-                                or plantilla["repeticiones"]
-                            ),
-                            "descanso_rep": ficha.get("descanso_rep") or "",
-                            "descanso_series": (
-                                ficha.get("descanso_series")
-                                or plantilla["descanso_series"]
-                            ),
-                            "peso": ficha.get("peso") or "",
-                            # las sesiones de rutinas guardadas llevan la
-                            # clave ★ en el cuadro: se guarda sin ella
-                            "notas": sesion[2:].strip()
-                            if sesion.startswith("★ ") else sesion,
-                        }
-                    )
-            # el nombre de la semanal queda como raíz del árbol de la
-            # semana en la sub-pestaña Rutina
-            database.marcar_semana_aplicada(paciente_id, plantilla["nombre"])
-        except Exception as error:
-            messagebox.showerror(
-                "Rutinas", f"No se pudo aplicar la plantilla:\n{error}"
+        if self._sem_dia in DIAS_SEMANA:
+            tree.selection_set(self._sem_dia)
+            tree.see(self._sem_dia)
+
+    def _sem_elegir_dia(self, _event=None):
+        sel = self.tree_sem_semana.selection()
+        if sel and sel[0] in self._sem_datos:
+            self._sem_dia = sel[0]
+        self._sem_pintar_ejercicios()
+
+    def _sem_pintar_ejercicios(self):
+        tree = self.tree_sem_ej
+        for iid in tree.get_children():
+            tree.delete(iid)
+        ejercicios = self._sem_datos[self._sem_dia]["ejercicios"]
+        for i, ej in enumerate(ejercicios):
+            tree.insert(
+                "", "end", iid=str(i),
+                values=(
+                    i + 1,
+                    ej.get("nombre")
+                    or f"{ej.get('grupo') or '?'} #{ej.get('num') or '?'}",
+                    ej.get("series") or "—",
+                    ej.get("repeticiones") or "—",
+                    ej.get("descanso_rep") or "—",
+                    ej.get("descanso_series") or "—",
+                    ej.get("peso") or "—",
+                    ej.get("equipo") or "-",
+                ),
             )
-            return
-
-        # deja seleccionado el primer día de entrenamiento (tren superior)
-        entrenamiento = next(
-            (d for d in DIAS_SEMANA if plantilla["semana"].get(d)), DIAS_SEMANA[0]
+        self.lbl_sem_dia.configure(
+            text=f"Día: {self._sem_dia} · Sesión: "
+                 f"{self._sem_datos[self._sem_dia]['sesion'] or 'descanso'}"
         )
-        self.dia_actual = entrenamiento
-        self._cargar_rutina()
-        self._marcar_rutina_guardada()
-        self._mensaje(f"Rutina semanal aplicada: {plantilla['nombre']}")
-        dialogo.destroy()
 
-    # ------------------------------------------------------------------
-    # Rutinas guardadas con nombre (biblioteca del entrenador, común a
-    # todos los pacientes): simples (lista de ejercicios con su
-    # prescripción) y semanales (la semana completa del paciente con
-    # sesiones y descansos). Patrón de "Menús guardados" en Menús.
-    # ------------------------------------------------------------------
+    def _sem_cerrar_editor(self):
+        """Cierra el editor en celda (Entry/Combobox superpuesto)."""
+        if getattr(self, "_sem_editor", None) is not None:
+            try:
+                self._sem_editor.destroy()
+            except Exception:
+                pass
+            self._sem_editor = None
 
-    def _guardar_semana_actual(self):
-        """Guarda la rutina semanal cargada del paciente como rutina con
-        nombre (upsert): sesiones, días de descanso y la prescripción de
-        cada ejercicio quedan en la biblioteca y aparecen en el combo
-        Rutina semanal marcados con estrella."""
-        rutina = getattr(self, "rutina", [])
-        con_ejercicios = [r for r in rutina if not r.get("descanso")]
-        if not con_ejercicios:
-            messagebox.showwarning(
-                "Rutinas",
-                "La rutina está vacía: añade ejercicios antes de guardar la semana.",
-            )
+    def _sem_editar_sesion(self, _event=None):
+        """Doble clic en la columna Sesión: renombra la sesión del día;
+        dejándola vacía el día queda como descanso."""
+        tree = self.tree_sem_semana
+        sel = tree.selection()
+        if not sel or sel[0] not in self._sem_datos:
             return
-        nombre = simpledialog.askstring(
-            "Rutinas",
-            "Nombre de la rutina semanal:",
-            parent=self.marco.winfo_toplevel(),
-        )
-        nombre = (nombre or "").strip()
-        if not nombre:
+        dia = sel[0]
+        caja = tree.bbox(dia, "sesion")
+        if not caja:
             return
-        if any(r["nombre"] == nombre for r in database.get_rutinas_guardadas()):
-            if not messagebox.askyesno(
-                "Rutinas", f"«{nombre}» ya existe. ¿Sobrescribirla?"
-            ):
+        self._sem_cerrar_editor()
+        editor = tk.Entry(tree, justify="left")
+        editor.insert(0, self._sem_datos[dia]["sesion"] or "")
+        editor.place(x=caja[0], y=caja[1], w=caja[2], h=caja[3])
+        self._sem_editor = editor
+
+        def commit(_event=None):
+            try:
+                nuevo = editor.get().strip()
+            except Exception:
                 return
+            self._sem_cerrar_editor()
+            self._sem_datos[dia]["sesion"] = nuevo or None
+            if nuevo:
+                self._sem_dia = dia
+            self._sem_pintar_semana()
+            self._sem_pintar_ejercicios()
+
+        editor.bind("<Return>", commit)
+        editor.bind("<FocusOut>", commit)
+        editor.bind("<Escape>", lambda _e: self._sem_cerrar_editor())
+        editor.focus_set()
+
+    def _sem_editar_celda_evento(self, event=None):
+        """Doble clic en la tabla de ejercicios: edita la celda (ejercicio
+        desde el catálogo, o texto libre en series, repeticiones,
+        descansos y peso)."""
+        tree = self.tree_sem_ej
+        sel = tree.selection()
+        if not sel or not sel[0].isdigit():
+            return
+        idx = int(sel[0])
+        ejercicios = self._sem_datos[self._sem_dia]["ejercicios"]
+        if not 0 <= idx < len(ejercicios):
+            return
+        if event is not None:
+            col = tree.identify_column(event.x)
+        else:
+            col = "#2"
+        if not col or not col.startswith("#"):
+            return
+        indice = int(col[1:]) - 1
+        columnas = tree["columns"]
+        if not 0 <= indice < len(columnas):
+            return
+        col_nombre = columnas[indice]
+        editables = (
+            "ejercicio", "series", "repeticiones", "descanso_rep",
+            "descanso_series", "peso",
+        )
+        if col_nombre not in editables:
+            return
+        caja = tree.bbox(sel[0], col_nombre)
+        if not caja:
+            return
+        valor = tree.item(sel[0], "values")[indice]
+        self._sem_cerrar_editor()
+        if col_nombre == "ejercicio":
+            self._sem_cargar_catalogo()
+            editor = ttk.Combobox(
+                tree, values=list(self._sem_opciones), state="readonly",
+            )
+            editor.set(valor)
+            editor.place(x=caja[0], y=caja[1], w=max(caja[2], 280), h=caja[3])
+        else:
+            editor = tk.Entry(tree, justify="center")
+            if valor != "—":
+                editor.insert(0, valor)
+            editor.place(x=caja[0], y=caja[1], w=caja[2], h=caja[3])
+        self._sem_editor = editor
+
+        def commit(_event=None):
+            try:
+                nuevo = editor.get().strip()
+            except Exception:
+                return
+            self._sem_cerrar_editor()
+            self._sem_aplicar_celda(idx, col_nombre, nuevo)
+            self._sem_pintar_ejercicios()
+
+        editor.bind("<Return>", commit)
+        editor.bind("<FocusOut>", commit)
+        if col_nombre == "ejercicio":
+            editor.bind("<<ComboboxSelected>>", commit)
+        else:
+            editor.bind("<Escape>", lambda _e: self._sem_cerrar_editor())
+        editor.focus_set()
+
+    def _sem_aplicar_celda(self, idx, col, nuevo):
+        """Escribe en el editor el valor de una celda editada."""
+        ejercicios = self._sem_datos[self._sem_dia]["ejercicios"]
+        if not 0 <= idx < len(ejercicios):
+            return
+        ej = ejercicios[idx]
+        if col == "ejercicio":
+            destino = self._sem_opciones.get(nuevo)
+            if not destino:
+                self._mensaje("Ese ejercicio no está en el catálogo.")
+                return
+            try:
+                ficha = database.get_rutina_ejercicio(
+                    destino["grupo"], destino["num"]
+                )
+            except Exception:
+                ficha = None
+            ej["grupo"] = destino["grupo"]
+            ej["num"] = destino["num"]
+            if ficha:
+                ej["nombre"] = ficha.get("nombre") or nuevo
+                ej["equipo"] = ficha.get("equipo") or ""
+            else:
+                ej["nombre"] = nuevo
+        else:
+            ej[col] = nuevo
+
+    def _sem_cargar_catalogo(self):
+        """Catálogo completo de ejercicios para la celda Ejercicio:
+        etiqueta «nombre — grupo #num» → (grupo, num)."""
+        if self._sem_catalogo:
+            return
         filas = []
-        for r in rutina:
-            filas.append(
+        try:
+            conn = database.get_connection()
+            try:
+                conn.row_factory = sqlite3.Row
+                filas = conn.execute(
+                    "SELECT grupo, num, nombre, equipo FROM rutinas_ejercicios "
+                    "ORDER BY grupo, CAST(num AS INTEGER)"
+                ).fetchall()
+            finally:
+                conn.close()
+            filas = [dict(f) for f in filas]
+        except Exception:
+            filas = []
+        self._sem_catalogo = filas
+        for f in filas:
+            etiqueta = f"{f['nombre']} — {f['grupo']} #{f['num']}"
+            self._sem_opciones[etiqueta] = {
+                "grupo": f["grupo"], "num": f["num"],
+            }
+
+    # ------------------------------------------------------------------
+    # Añadir, quitar, reordenar y traer rutinas guardadas al día
+    # ------------------------------------------------------------------
+    def _sem_agregar_ejercicio(self):
+        """Añade a la tabla del día el ejercicio seleccionado en el
+        catálogo (o el primero del grupo activo) con 3×12 por defecto."""
+        info = self._sem_datos[self._sem_dia]
+        if not info["sesion"]:
+            info["sesion"] = f"Sesión {self._sem_dia}"
+        ej = self.ejercicio_seleccionado or (
+            self.ejercicios[0] if self.ejercicios else None
+        )
+        if not ej:
+            self._mensaje("Catálogo de ejercicios vacío.")
+            return
+        info["ejercicios"].append(
+            self._sem_ficha_con_prescripcion(
                 {
-                    "dia": r.get("dia"),
-                    "orden": r.get("orden"),
-                    "descanso": 1 if r.get("descanso") else 0,
-                    "grupo": r.get("grupo"),
-                    "num": r.get("num"),
-                    "nombre": r.get("nombre"),
-                    "equipo": r.get("equipo"),
-                    "series": r.get("series"),
-                    "repeticiones": r.get("repeticiones"),
-                    "descanso_rep": r.get("descanso_rep"),
-                    "descanso_series": r.get("descanso_series"),
-                    "peso": r.get("peso"),
-                    "notas": r.get("notas"),
+                    "grupo": ej.get("grupo"),
+                    "num": ej.get("num"),
+                    "nombre": ej.get("nombre"),
+                    "equipo": ej.get("equipo"),
                 }
             )
+        )
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+
+    def _sem_quitar_ejercicio(self):
+        sel = self.tree_sem_ej.selection()
+        if not sel or not sel[0].isdigit():
+            return
+        idx = int(sel[0])
+        ejercicios = self._sem_datos[self._sem_dia]["ejercicios"]
+        if 0 <= idx < len(ejercicios):
+            ejercicios.pop(idx)
+            self._sem_pintar_semana()
+            self._sem_pintar_ejercicios()
+
+    def _sem_mover(self, delta):
+        sel = self.tree_sem_ej.selection()
+        if not sel or not sel[0].isdigit():
+            return
+        idx = int(sel[0])
+        ejercicios = self._sem_datos[self._sem_dia]["ejercicios"]
+        destino = idx + delta
+        if not 0 <= idx < len(ejercicios) or not 0 <= destino < len(ejercicios):
+            return
+        ejercicios[idx], ejercicios[destino] = (
+            ejercicios[destino], ejercicios[idx],
+        )
+        self._sem_pintar_ejercicios()
+        self.tree_sem_ej.selection_set(str(destino))
+        self.tree_sem_ej.see(str(destino))
+
+    def _sem_agregar_guardada_al_dia(self):
+        """Agrega al día seleccionado los ejercicios de una rutina simple
+        guardada en la biblioteca (con su prescripción)."""
+        etiqueta = self.combo_sem_simple.get()
+        guardada = next(
+            (r for r in getattr(self, "_sem_simples", [])
+             if r["nombre"] == etiqueta),
+            None,
+        )
+        if not guardada:
+            self._mensaje("Elige una rutina guardada de la lista.")
+            return
+        try:
+            rutina = database.get_rutina_guardada(guardada["id_rutina_guardada"])
+        except Exception:
+            rutina = None
+        ejercicios = [
+            e for e in (rutina or {}).get("ejercicios", [])
+            if not e.get("descanso")
+        ]
+        if not ejercicios:
+            self._mensaje("La rutina guardada está vacía.")
+            return
+        info = self._sem_datos[self._sem_dia]
+        if not info["sesion"]:
+            info["sesion"] = guardada["nombre"]
+        for e in ejercicios:
+            info["ejercicios"].append(self._sem_ficha_con_prescripcion(dict(e)))
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+        self._mensaje(
+            f"Agregados {len(ejercicios)} ejercicios de "
+            f"«{guardada['nombre']}» al día {self._sem_dia}."
+        )
+
+    # ------------------------------------------------------------------
+    # Guardar, aplicar y eliminar la rutina semanal
+    # ------------------------------------------------------------------
+    def _sem_guardar(self):
+        """Guarda la semana de las tablas como rutina semanal con nombre
+        (upsert por nombre): sesiones, descansos y la prescripción de cada
+        ejercicio quedan en la biblioteca."""
+        nombre = self.entrada_sem_nombre.get().strip()
+        if not nombre:
+            self._mensaje("Escribe un nombre para guardar la rutina semanal.")
+            return
+        total = sum(len(d["ejercicios"]) for d in self._sem_datos.values())
+        if not total:
+            self._mensaje("La semana está vacía: añade ejercicios antes de guardar.")
+            return
+        filas = []
+        for dia in DIAS_SEMANA:
+            info = self._sem_datos[dia]
+            if not info["sesion"]:
+                filas.append(
+                    {
+                        "dia": dia, "orden": 1, "descanso": 1,
+                        "grupo": None, "num": None, "nombre": "Descanso",
+                        "equipo": "", "series": "", "repeticiones": "",
+                        "descanso_rep": "", "descanso_series": "", "peso": "",
+                        "notas": "",
+                    }
+                )
+                continue
+            for i, ej in enumerate(info["ejercicios"], start=1):
+                filas.append(
+                    {
+                        "dia": dia, "orden": i, "descanso": 0,
+                        "grupo": ej.get("grupo"), "num": ej.get("num"),
+                        "nombre": ej.get("nombre"), "equipo": ej.get("equipo"),
+                        "series": ej.get("series") or "",
+                        "repeticiones": ej.get("repeticiones") or "",
+                        "descanso_rep": ej.get("descanso_rep") or "",
+                        "descanso_series": ej.get("descanso_series") or "",
+                        "peso": ej.get("peso") or "",
+                        "notas": info["sesion"],
+                    }
+                )
         try:
             database.guardar_rutina_guardada(nombre, True, filas)
         except Exception as error:
             messagebox.showerror(
-                "Rutinas", f"No se pudo guardar la semana:\n{error}"
+                "Rutinas", f"No se pudo guardar la rutina semanal:\n{error}"
             )
             return
-        self._refrescar_combo_plantilla()
-        self._pintar_rutinas_guardadas()
-        self._mensaje(
-            f"Rutina semanal guardada: «{nombre}» "
-            f"({len(con_ejercicios)} ejercicios)."
-        )
+        self._sem_nombre = nombre
+        self._sem_origen = "guardada"
+        self._sem_refrescar_selector()
+        self._mensaje(f"Rutina semanal guardada: «{nombre}» ({total} ejercicios).")
 
-    def _crear_seccion_rutinas_guardadas(self, marco):
-        """Tabla de la biblioteca de rutinas guardadas incrustada en la
-        sub-pestaña, debajo de la rutina del paciente: lista las simples
-        y las semanales con sus botones (antes abría una ventana)."""
-        marco_lista = tk.Frame(marco, bg=GRIS_OSCURO)
-        marco_lista.pack(fill="both", expand=True)
-        columnas = ("nombre", "tipo", "detalle", "creado_en")
-        self.tree_guardadas = ttk.Treeview(
-            marco_lista, columns=columnas, show="headings", height=1,
-            style="Gym.Treeview",
-        )
-        for col, texto, ancho, alineacion in (
-            ("nombre", "Nombre", 280, "w"),
-            ("tipo", "Tipo", 80, "center"),
-            ("detalle", "Contenido", 220, "w"),
-            ("creado_en", "Creada", 130, "center"),
-        ):
-            self.tree_guardadas.heading(col, text=texto, anchor=alineacion)
-            self.tree_guardadas.column(
-                col, width=ancho, minwidth=ancho, anchor=alineacion
-            )
-        self.tree_guardadas.pack(side="left", fill="both", expand=True)
-        barra = ttk.Scrollbar(
-            marco_lista, orient="vertical", command=self.tree_guardadas.yview
-        )
-        self.tree_guardadas.configure(yscrollcommand=barra.set)
-        barra.pack(side="right", fill="y")
-        # doble clic: editar una simple / abrir una semanal
-        self.tree_guardadas.bind(
-            "<Double-1>", lambda _e: self._editar_rutina_guardada()
-        )
-
-        fila_botones = tk.Frame(marco, bg=GRIS_OSCURO)
-        fila_botones.pack(fill="x", pady=(6, 0))
-        for texto, comando, estilo in (
-            ("NUEVA RUTINA", self._nueva_rutina_guardada, "principal"),
-            ("EDITAR", self._editar_rutina_guardada, "secundario"),
-            ("APLICAR AL DÍA", self._aplicar_rutina_guardada, "principal"),
-            ("ABRIR SEMANAL", self._abrir_rutina_guardada_semanal, "principal"),
-            ("ELIMINAR", self._eliminar_rutina_guardada, "peligro"),
-        ):
-            tk.Button(
-                fila_botones,
-                text=texto,
-                command=comando,
-                font=("Segoe UI", 8, "bold"),
-                fg={"principal": NEGRO, "secundario": BLANCO,
-                    "peligro": NEON}[estilo],
-                bg={"principal": NEON, "secundario": GRIS,
-                    "peligro": GRIS}[estilo],
-                activebackground=NARANJA,
-                activeforeground=BLANCO,
-                relief="flat",
-                padx=10,
-                pady=3,
-                cursor="hand2",
-            ).pack(side="left", padx=(0, 6))
-        self._pintar_rutinas_guardadas()
-
-    def _pintar_rutinas_guardadas(self):
-        """Rellena la tabla de rutinas guardadas con la biblioteca."""
-        if not hasattr(self, "tree_guardadas"):
-            return
-        self.tree_guardadas.delete(*self.tree_guardadas.get_children())
-        try:
-            guardadas = database.get_rutinas_guardadas()
-        except Exception:
-            guardadas = []
-        for r in guardadas:
-            if r["semanal"]:
-                tipo = "Semanal"
-                detalle = (
-                    f"{r['dias']} día" + ("" if r["dias"] == 1 else "s")
-                    + f" con {r['ejercicios']} ejercicio"
-                    + ("" if r["ejercicios"] == 1 else "s")
-                )
-            else:
-                tipo = "Rutina"
-                detalle = (
-                    f"{r['ejercicios']} ejercicio"
-                    + ("" if r["ejercicios"] == 1 else "s")
-                )
-            self.tree_guardadas.insert(
-                "", "end", iid=str(r["id_rutina_guardada"]),
-                values=(
-                    r["nombre"], tipo, detalle, r.get("creado_en") or "",
-                ),
-            )
-
-    def _rutina_guardada_seleccionada(self):
-        """Devuelve la rutina guardada elegida en la tabla (o None)."""
-        seleccion = self.tree_guardadas.selection()
-        if not seleccion:
-            messagebox.showinfo(
-                "Rutinas", "Selecciona una rutina guardada de la lista."
-            )
-            return None
-        return database.get_rutina_guardada(int(seleccion[0]))
-
-    def _nueva_rutina_guardada(self):
-        """Abre el cuadro para armar una rutina nueva y refresca la tabla."""
-        self._abrir_crear_rutina()
-        self._pintar_rutinas_guardadas()
-
-    def _editar_rutina_guardada(self):
-        """Edita la rutina simple elegida; las semanales se ajustan
-        guardando de nuevo la semana del paciente con el mismo nombre."""
-        guardada = self._rutina_guardada_seleccionada()
-        if guardada is None:
-            return
-        if guardada["semanal"]:
-            messagebox.showinfo(
-                "Rutinas",
-                "Las rutinas semanales se ajustan guardando de nuevo la "
-                "semana del paciente con el mismo nombre.",
-            )
-            return
-        self._abrir_crear_rutina(existente=guardada)
-        self._pintar_rutinas_guardadas()
-
-    def _aplicar_rutina_guardada(self):
-        """Aplica la rutina simple elegida al día activo del paciente."""
-        guardada = self._rutina_guardada_seleccionada()
-        if guardada is None:
-            return
-        if guardada["semanal"]:
-            messagebox.showinfo(
-                "Rutinas",
-                "«" + guardada["nombre"] + "» es semanal: usa Abrir semanal.",
-            )
-            return
-        self._aplicar_rutina_guardada_al_dia(guardada)
-
-    def _abrir_rutina_guardada_semanal(self):
-        """Abre la rutina semanal elegida en el cuadro de plantillas
-        (previsualización y aplicación a la semana del paciente)."""
-        guardada = self._rutina_guardada_seleccionada()
-        if guardada is None:
-            return
-        if not guardada["semanal"]:
-            messagebox.showinfo(
-                "Rutinas",
-                "«" + guardada["nombre"] + "» es una rutina simple: "
-                "usa Aplicar al día.",
-            )
-            return
-        self._abrir_plantilla_semana(self._plantilla_de_guardada(guardada))
-
-    def _eliminar_rutina_guardada(self):
-        """Elimina de la biblioteca la rutina elegida (los pacientes no
-        se tocan)."""
-        guardada = self._rutina_guardada_seleccionada()
-        if guardada is None:
-            return
-        if not messagebox.askyesno(
-            "Rutinas",
-            f"¿Eliminar «{guardada['nombre']}»? "
-            "(no toca la rutina de los pacientes)",
-        ):
-            return
-        database.delete_rutina_guardada(guardada["id_rutina_guardada"])
-        self._pintar_rutinas_guardadas()
-        self._refrescar_combo_plantilla()
-        self._mensaje(f"Rutina eliminada: «{guardada['nombre']}».")
-
-    def _aplicar_rutina_guardada_al_dia(self, guardada):
-        """Añade al día activo del paciente los ejercicios de una rutina
-        simple guardada, con su prescripción; si el día está marcado como
-        descanso ofrece quitar la marca (patrón de Añadir ejercicio)."""
+    def _sem_aplicar(self):
+        """Aplica la semana de las tablas a la rutina del paciente:
+        reemplaza sus 7 días (ejercicios y descansos) y carga el día
+        Lunes o el primero entrenable en la sub-pestaña Rutina."""
         paciente_id = self._paciente_actual()
         if paciente_id is None:
-            messagebox.showwarning(
-                "Rutinas", "Selecciona un paciente antes de aplicar la rutina."
+            self._mensaje(
+                "Selecciona un paciente antes de aplicar la rutina semanal."
             )
             return
-        ejercicios = [
-            e for e in guardada["ejercicios"] if not e.get("descanso")
-        ]
-        if not ejercicios:
-            messagebox.showwarning(
-                "Rutinas", "La rutina guardada no tiene ejercicios."
-            )
-            return
-        dia = getattr(self, "dia_actual", DIAS_SEMANA[0])
-        filas = [
-            r for r in getattr(self, "rutina", [])
-            if (r.get("dia") or "Lunes") == dia
-        ]
-        if any(r.get("descanso") for r in filas):
-            if not messagebox.askyesno(
-                "Rutinas",
-                f"{dia} está marcado como día de descanso.\n"
-                "¿Quitar el descanso y añadir los ejercicios?",
-            ):
-                return
-            database.quitar_descanso(paciente_id, dia)
-        paciente = database.obtener_paciente(paciente_id) or {}
-        nombre_paciente = paciente.get("nombre") or f"paciente {paciente_id}"
-        if not messagebox.askyesno(
-            "Rutinas",
-            f"¿Añadir {len(ejercicios)} ejercicio"
-            + ("" if len(ejercicios) == 1 else "s")
-            + f" de «{guardada['nombre']}» al {dia} de {nombre_paciente}?",
-        ):
-            return
+        nombre = (
+            self.entrada_sem_nombre.get().strip()
+            or self._sem_nombre
+            or "Semana del paciente"
+        )
         try:
-            for ficha in ejercicios:
-                database.insert_rutina_paciente(
-                    {
-                        "paciente_id": paciente_id,
-                        "dia": dia,
-                        "grupo": ficha.get("grupo"),
-                        "num": ficha.get("num"),
-                        "nombre": ficha.get("nombre"),
-                        "equipo": ficha.get("equipo"),
-                        "series": ficha.get("series"),
-                        "repeticiones": ficha.get("repeticiones"),
-                        "descanso_rep": ficha.get("descanso_rep"),
-                        "descanso_series": ficha.get("descanso_series"),
-                        "peso": ficha.get("peso"),
-                    }
-                )
+            database.delete_rutinas_paciente(paciente_id)
+            for dia in DIAS_SEMANA:
+                info = self._sem_datos[dia]
+                if not info["sesion"] or not info["ejercicios"]:
+                    database.marcar_descanso(paciente_id, dia)
+                    continue
+                for ej in info["ejercicios"]:
+                    database.insert_rutina_paciente(
+                        {
+                            "paciente_id": paciente_id,
+                            "dia": dia,
+                            "grupo": ej.get("grupo"),
+                            "num": ej.get("num"),
+                            "nombre": ej.get("nombre"),
+                            "equipo": ej.get("equipo"),
+                            "series": ej.get("series") or "",
+                            "repeticiones": ej.get("repeticiones") or "",
+                            "descanso_rep": ej.get("descanso_rep") or "",
+                            "descanso_series": ej.get("descanso_series") or "",
+                            "peso": ej.get("peso") or "",
+                            "notas": info["sesion"],
+                        }
+                    )
+            database.marcar_semana_aplicada(paciente_id, nombre)
         except Exception as error:
             messagebox.showerror(
-                "Rutinas", f"No se pudo aplicar la rutina:\n{error}"
+                "Rutinas", f"No se pudo aplicar la rutina semanal:\n{error}"
             )
             return
+        self.dia_actual = next(
+            (d for d in DIAS_SEMANA if self._sem_datos[d]["sesion"]),
+            DIAS_SEMANA[0],
+        )
         self._cargar_rutina()
         self._marcar_rutina_guardada()
-        self._mensaje(f"Aplicada «{guardada['nombre']}» al {dia}.")
+        self._mensaje(f"Rutina semanal aplicada: «{nombre}».")
+        try:
+            self.notebook_rut.select(1)   # sub-pestaña Rutina
+        except Exception:
+            pass
 
-    def _abrir_crear_rutina(self, existente=None):
-        """Cuadro para crear (o editar) una rutina simple con nombre: se
-        eligen ejercicios del catálogo (grupo + ejercicio) con su
-        prescripción y se agregan a la lista; GUARDAR RUTINA la escribe en
-        la biblioteca (upsert por nombre) sin tocar a los pacientes."""
-        dialogo = tk.Toplevel(self.marco)
-        titulo = "Editar rutina" if existente else "Nueva rutina"
-        dialogo.title(titulo)
-        dialogo.configure(bg=GRIS_OSCURO)
-        dialogo.transient(self.marco)
-        dialogo.grab_set()
-
-        tk.Label(
-            dialogo,
-            text=titulo.upper(),
-            font=("Impact", 13),
-            fg=NEON,
-            bg=GRIS_OSCURO,
-        ).pack(anchor="w", padx=12, pady=(10, 2))
-
-        tk.Label(
-            dialogo, text="Nombre:", font=("Segoe UI", 8),
-            fg=GRIS_TEXTO, bg=GRIS_OSCURO,
-        ).pack(anchor="w", padx=12)
-        entrada_nombre = ttk.Entry(dialogo, width=38, style="Gym.TEntry")
-        entrada_nombre.pack(anchor="w", padx=12, pady=(0, 8))
-
-        # selector de ejercicio del catálogo (grupo -> ejercicios)
-        fila_sel = tk.Frame(dialogo, bg=GRIS_OSCURO)
-        fila_sel.pack(fill="x", padx=12)
-        tk.Label(
-            fila_sel, text="Grupo:", font=("Segoe UI", 8),
-            fg=GRIS_TEXTO, bg=GRIS_OSCURO,
-        ).pack(side="left")
-        combo_grupo = ttk.Combobox(
-            fila_sel, state="readonly", width=13, style="Gym.TCombobox",
-        )
-        grupos = [g["grupo"] for g in database.get_rutinas_grupos()]
-        combo_grupo.configure(values=grupos)
-        combo_grupo.pack(side="left", padx=(4, 10))
-
-        tk.Label(
-            fila_sel, text="Ejercicio:", font=("Segoe UI", 8),
-            fg=GRIS_TEXTO, bg=GRIS_OSCURO,
-        ).pack(side="left")
-        combo_ej = ttk.Combobox(
-            fila_sel, state="readonly", width=30, style="Gym.TCombobox",
-        )
-        combo_ej.pack(side="left", fill="x", expand=True, padx=(4, 0))
-
-        fichas_grupo = []
-
-        def poblar_ejercicios(*_):
-            fichas_grupo.clear()
-            try:
-                fichas_grupo.extend(
-                    database.get_rutinas_ejercicios(combo_grupo.get())
-                )
-            except Exception:
-                pass
-            combo_ej.configure(
-                values=[
-                    f"{f['num']}. {f['nombre']} ({f['equipo'] or 'sin equipo'})"
-                    for f in fichas_grupo
-                ]
-            )
-            if fichas_grupo:
-                combo_ej.current(0)
-            else:
-                combo_ej.set("")
-
-        combo_grupo.bind("<<ComboboxSelected>>", poblar_ejercicios)
-        if grupos:
-            combo_grupo.current(0)
-        poblar_ejercicios()
-
-        # prescripción por defecto del ejercicio agregado (misma que el
-        # formulario de la rutina del paciente)
-        marco_presc = tk.Frame(dialogo, bg=GRIS_OSCURO)
-        marco_presc.pack(fill="x", padx=12, pady=(8, 0))
-        entradas = {}
-        for col, texto, clave, defecto in (
-            (0, "Series", "series", "3"),
-            (1, "Repeticiones", "repeticiones", "12"),
-            (2, "Descanso ej. (s)", "descanso_rep", ""),
-            (3, "Descanso serie (s)", "descanso_series", ""),
-            (4, "Peso (kg)", "peso", ""),
-        ):
-            tk.Label(
-                marco_presc, text=texto, font=("Segoe UI", 8),
-                fg=GRIS_TEXTO, bg=GRIS_OSCURO,
-            ).grid(row=0, column=col, sticky="w", padx=(0, 6))
-            entrada = ttk.Entry(marco_presc, width=9, style="Gym.TEntry")
-            entrada.grid(row=1, column=col, sticky="w", padx=(0, 6))
-            if defecto:
-                entrada.insert(0, defecto)
-            entradas[clave] = entrada
-
-        ejercicios = []
-        if existente:
-            entrada_nombre.insert(0, existente["nombre"])
-            ejercicios.extend(
-                [dict(e) for e in existente["ejercicios"] if not e.get("descanso")]
-            )
-
-        columnas = ("nombre", "equipo", "series", "reps", "desc_rep", "desc_serie", "peso")
-        tree = ttk.Treeview(
-            dialogo, columns=columnas, show="headings", height=8,
-            style="Gym.Treeview",
-        )
-        for col, texto, ancho, alineacion in (
-            ("nombre", "Ejercicio", 240, "w"),
-            ("equipo", "Equipo", 110, "w"),
-            ("series", "Series", 50, "center"),
-            ("reps", "Reps", 60, "center"),
-            ("desc_rep", "Desc. ej.", 60, "center"),
-            ("desc_serie", "Desc. serie", 70, "center"),
-            ("peso", "Peso", 60, "center"),
-        ):
-            tree.heading(col, text=texto, anchor=alineacion)
-            tree.column(col, width=ancho, minwidth=ancho, anchor=alineacion)
-
-        def pintar_lista():
-            tree.delete(*tree.get_children())
-            for posicion, ficha in enumerate(ejercicios):
-                tree.insert(
-                    "", "end", iid=str(posicion),
-                    values=(
-                        ficha["nombre"],
-                        ficha.get("equipo") or "-",
-                        ficha.get("series") or "-",
-                        ficha.get("repeticiones") or "-",
-                        ficha.get("descanso_rep") or "-",
-                        ficha.get("descanso_series") or "-",
-                        ficha.get("peso") or "-",
-                    ),
-                )
-
-        def agregar():
-            indice = combo_ej.current()
-            if not 0 <= indice < len(fichas_grupo):
-                messagebox.showwarning(
-                    "Rutinas", "Elige un ejercicio del catálogo.", parent=dialogo
-                )
-                return
-            ficha = fichas_grupo[indice]
-            ejercicios.append(
-                {
-                    "grupo": ficha.get("grupo"),
-                    "num": ficha.get("num"),
-                    "nombre": ficha.get("nombre"),
-                    "equipo": ficha.get("equipo"),
-                    "series": entradas["series"].get().strip(),
-                    "repeticiones": entradas["repeticiones"].get().strip(),
-                    "descanso_rep": entradas["descanso_rep"].get().strip(),
-                    "descanso_series": entradas["descanso_series"].get().strip(),
-                    "peso": entradas["peso"].get().strip(),
-                }
-            )
-            pintar_lista()
-            entradas["peso"].delete(0, "end")
-
-        def quitar():
-            seleccion = tree.selection()
-            if not seleccion:
-                return
-            indice = int(seleccion[0])
-            if 0 <= indice < len(ejercicios):
-                ejercicios.pop(indice)
-                pintar_lista()
-
-        def guardar():
-            nombre = entrada_nombre.get().strip()
-            if not nombre:
-                messagebox.showwarning(
-                    "Rutinas", "Ponle un nombre a la rutina.", parent=dialogo
-                )
-                return
-            if not ejercicios:
-                messagebox.showwarning(
-                    "Rutinas", "Añade al menos un ejercicio.", parent=dialogo
-                )
-                return
-            nombre_repetido = nombre != (existente or {}).get("nombre") and any(
-                r["nombre"] == nombre for r in database.get_rutinas_guardadas()
-            )
-            if nombre_repetido and not messagebox.askyesno(
-                "Rutinas", f"«{nombre}» ya existe. ¿Sobrescribirla?",
-                parent=dialogo,
-            ):
-                return
-            try:
-                database.guardar_rutina_guardada(nombre, False, ejercicios)
-            except Exception as error:
-                messagebox.showerror(
-                    "Rutinas", f"No se pudo guardar la rutina:\n{error}",
-                    parent=dialogo,
-                )
-                return
+    def _sem_eliminar_guardada(self):
+        """Elimina de la biblioteca la rutina semanal guardada
+        seleccionada en la tabla (las fijas del estudio no se borran)."""
+        sel = self.tree_sem_selector.selection()
+        if not sel or sel[0] not in getattr(self, "_sem_selector_map", {}):
             self._mensaje(
-                f"Rutina guardada: «{nombre}» ({len(ejercicios)} ejercicios)."
+                "Elige en la tabla la rutina guardada que quieras eliminar."
             )
-            dialogo.destroy()
-
-        fila_agregar = tk.Frame(dialogo, bg=GRIS_OSCURO)
-        fila_agregar.pack(anchor="w", padx=12, pady=(8, 0))
-        tk.Button(
-            fila_agregar,
-            text="＋ AGREGAR EJERCICIO",
-            command=agregar,
-            font=("Impact", 9),
-            fg=NEGRO, bg=NEON,
-            activebackground=NARANJA, activeforeground=BLANCO,
-            relief="flat", padx=10, pady=2, cursor="hand2",
-        ).pack(side="left")
-
-        marco_lista = tk.Frame(dialogo, bg=GRIS_OSCURO)
-        marco_lista.pack(fill="both", expand=True, padx=12, pady=(8, 0))
-        tree.pack(side="left", fill="both", expand=True)
-        barra = ttk.Scrollbar(marco_lista, orient="vertical", command=tree.yview)
-        tree.configure(yscrollcommand=barra.set)
-        barra.pack(side="right", fill="y")
-        pintar_lista()
-
-        fila_final = tk.Frame(dialogo, bg=GRIS_OSCURO)
-        fila_final.pack(fill="x", padx=12, pady=(8, 12))
-        tk.Button(
-            fila_final,
-            text="Quitar seleccionado",
-            command=quitar,
-            font=("Segoe UI", 8, "bold"),
-            fg=BLANCO, bg=GRIS,
-            activebackground=NARANJA, activeforeground=BLANCO,
-            relief="flat", padx=8, pady=2, cursor="hand2",
-        ).pack(side="left")
-        tk.Button(
-            fila_final,
-            text="GUARDAR RUTINA",
-            command=guardar,
-            font=("Impact", 10),
-            fg=NEGRO, bg=NEON,
-            activebackground=NARANJA, activeforeground=BLANCO,
-            relief="flat", padx=14, pady=4, cursor="hand2",
-        ).pack(side="right")
-        tk.Button(
-            fila_final,
-            text="CANCELAR",
-            command=dialogo.destroy,
-            font=("Impact", 10),
-            fg=BLANCO, bg=GRIS,
-            activebackground=NARANJA, activeforeground=BLANCO,
-            relief="flat", padx=14, pady=4, cursor="hand2",
-        ).pack(side="right", padx=(0, 8))
-
-        dialogo.wait_window()
-
-    # ------------------------------------------------------------------
-    # Peso desde el 1RM: referencias de la sesión y las guardadas
-    # ------------------------------------------------------------------
-
+            return
+        origen, clave = self._sem_selector_map[sel[0]]
+        if origen != "guardada":
+            self._mensaje(
+                "Las rutinas fijas del estudio no se pueden eliminar."
+            )
+            return
+        try:
+            database.delete_rutina_guardada(clave)
+        except Exception as error:
+            messagebox.showerror(
+                "Rutinas", f"No se pudo eliminar la rutina guardada:\n{error}"
+            )
+            return
+        self._sem_refrescar_selector()
+        self._mensaje("Rutina semanal guardada eliminada.")
     def _recargar_referencias_1rm(self):
         """Llena el combo "1RM de referencia": el último calculado en la
         sesión y los guardados del paciente activo; preselecciona el del
@@ -1621,6 +1725,7 @@ class RutinasTab:
         self._crear_tab_rutina()
         self._crear_tab_estiramiento()
         self._crear_tab_progresion()
+        self._crear_tab_semana()
         self.notebook_rut.bind("<<NotebookTabChanged>>", self._al_cambiar_subpestana)
         self.cargar(getattr(self.app, "id_paciente_antro", None))
 
@@ -1921,59 +2026,8 @@ class RutinasTab:
         marco = ttk.Frame(self.notebook_rut, style="Gym.TFrame")
         self.notebook_rut.add(marco, text="  Rutina  ")
 
-        # barra superior: rutina semanal (las fijas del estudio y las
-        # guardadas con estrella) y guardado de la semana del paciente
-        fila_semanal = ttk.Frame(marco, style="Gym.TFrame")
-        fila_semanal.pack(side="top", fill="x", padx=10, pady=(4, 0))
-        tk.Label(
-            fila_semanal,
-            text="Rutina semanal:",
-            font=("Segoe UI", 8),
-            fg=GRIS_TEXTO,
-            bg=GRIS_OSCURO,
-        ).pack(side="left")
-        self.combo_plantilla = ttk.Combobox(
-            fila_semanal,
-            values=[p["nombre"] for p in PLANTILLAS_SEMANA],
-            state="readonly",
-            width=50,
-            style="Gym.TCombobox",
-        )
-        self.combo_plantilla.set(PLACEHOLDER_PLANTILLA)
-        self.combo_plantilla.pack(side="left", padx=(6, 10))
-        self.combo_plantilla.bind("<<ComboboxSelected>>", self._al_elegir_plantilla)
-        tk.Button(
-            fila_semanal,
-            text="💾 GUARDAR SEMANA",
-            command=self._guardar_semana_actual,
-            font=("Segoe UI", 8, "bold"),
-            fg=NEON,
-            bg=GRIS,
-            activebackground=NARANJA,
-            activeforeground=BLANCO,
-            relief="flat",
-            padx=10,
-            pady=3,
-            cursor="hand2",
-        ).pack(side="left")
-        # edición semanal de la rutina del paciente: su semana actual en
-        # el mismo cuadro de las plantillas (reasignar sesiones y
-        # descansos, quitar ejercicios y aplicar)
-        tk.Button(
-            fila_semanal,
-            text="✏ EDITAR SEMANA",
-            command=self._editar_semana_paciente,
-            font=("Segoe UI", 8, "bold"),
-            fg=NEON,
-            bg=GRIS,
-            activebackground=NARANJA,
-            activeforeground=BLANCO,
-            relief="flat",
-            padx=10,
-            pady=3,
-            cursor="hand2",
-        ).pack(side="left", padx=(8, 0))
-        self._refrescar_combo_plantilla()
+        # la rutina semanal se elige, edita, guarda y aplica en la
+        # sub-pestaña «Semana» (tablas integradas, sin cuadros).
 
         contenedor_principal = ttk.Frame(marco, style="Gym.TFrame")
         contenedor_principal.pack(fill="both", expand=True, padx=10, pady=(2, 6))
@@ -2230,16 +2284,6 @@ class RutinasTab:
         )
         self.lbl_rutina_guardada.pack(anchor="w")
 
-        # Rutinas guardadas arriba, rutina del paciente debajo y el
-        # selector de ejercicio con su previsualizacion al fondo, ligados
-        # a la tabla (clic en una fila actualiza combo y previsualizacion)
-        self.marco_guardadas = ttk.LabelFrame(
-            contenedor_principal,
-            text="Rutinas guardadas",
-            padding=4,
-            style="Gym.TLabelframe",
-        )
-        self._crear_seccion_rutinas_guardadas(self.marco_guardadas)
 
         # --- Barra de días de la rutina semanal (patrón de Menús) ---
         barra_dias = ttk.Frame(contenedor_principal, style="Gym.TFrame")
@@ -2273,7 +2317,6 @@ class RutinasTab:
         # abrir más o menos a voluntad y, si la ventana no alcanza, los
         # dos paneles ceden proporcionalmente sin desaparecer
         barra_dias.pack(side="top", fill="x", pady=(6, 0))
-        self.marco_guardadas.pack(side="top", fill="x", pady=(6, 0))
         panes = ttk.Panedwindow(contenedor_principal, orient="vertical")
         panes.add(marco_rutina_pac, weight=2)
         panes.add(superior, weight=1)
@@ -2348,6 +2391,9 @@ class RutinasTab:
             self._cargar_est_paciente()
         elif sub == 3:
             self.titulo.configure(text="PROGRESIÓN · MODELO ACSM 2009")
+            self.marco_grupo.pack_forget()
+        elif sub == 4:
+            self.titulo.configure(text="RUTINA SEMANAL · TABLAS")
             self.marco_grupo.pack_forget()
         else:
             self.titulo.configure(text=f"RUTINAS · {GRUPOS_ETIQUETAS.get(self.grupo, self.grupo).upper()}")

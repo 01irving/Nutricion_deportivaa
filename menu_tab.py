@@ -2206,13 +2206,26 @@ class MenusTab:
             datos = json.loads(m.get("detalle") or "{}")
         except (json.JSONDecodeError, TypeError):
             datos = {}
+        formato = self._elegir_formato_semanal(
+            padre=getattr(self, "_mg_ventana", None),
+        )
+        if formato is None:
+            return
         ruta = menus_print.ruta_temporal_pdf(m["nombre"] or "menu")
         try:
-            menus_print.generar_pdf_menus(
-                ruta, {}, datos.get("tiempos", []),
-                datos.get("dias", {}), subgrupos=SUBGRUPOS_CORTO,
-                nombre_menu=m["nombre"],
-            )
+            if formato == "menusemanal1":
+                menus_print.generar_pdf_menusemanal1(
+                    ruta, {}, datos.get("tiempos", []),
+                    datos.get("dias", {}), nombre_menu=m["nombre"],
+                    seleccion=self._seleccion_menusemanal1(
+                        datos.get("tiempos", []), datos.get("dias", {})),
+                )
+            else:
+                menus_print.generar_pdf_menus(
+                    ruta, {}, datos.get("tiempos", []),
+                    datos.get("dias", {}), subgrupos=SUBGRUPOS_CORTO,
+                    nombre_menu=m["nombre"],
+                )
         except Exception as error:
             messagebox.showerror(
                 "Imprimir", f"No se pudo generar el reporte:\n{error}",
@@ -2766,12 +2779,119 @@ class MenusTab:
                 lineas.append(f"• {nombre}: " + " | ".join(partes))
         return "\n".join(lineas)
 
+    # ------------------------------------------------------------------
+    # MENUSEMANAL1 — selección previa al menú semanal
+    # ------------------------------------------------------------------
+    def _elegir_formato_semanal(self, padre=None):
+        """Diálogo previo al menú semanal: elige entre el formato
+        MENUSEMANAL1 (tabla semanal estilo gimnasio, con la selección de
+        desayunos y colaciones ANTES de la tabla) y el formato SMAE
+        (tarjetas, equivalentes y fichas)."""
+        dialogo = tk.Toplevel(self.marco)
+        dialogo.title("Formato del menú semanal")
+        dialogo.configure(bg=GRIS_OSCURO)
+        dialogo.transient(self.marco)
+        dialogo.grab_set()
+
+        tk.Label(
+            dialogo, text="FORMATO DEL MENÚ SEMANAL",
+            font=("Impact", 13), fg=NEON, bg=GRIS_OSCURO,
+        ).pack(anchor="w", padx=14, pady=(12, 2))
+        tk.Label(
+            dialogo,
+            text="Elige el formato antes de generar el menú semanal:",
+            font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+        ).pack(anchor="w", padx=14, pady=(0, 6))
+
+        var = tk.StringVar(value="menusemanal1")
+        for valor, texto in (
+            ("menusemanal1",
+             "MENUSEMANAL1 — tabla semanal estilo gimnasio: selección de "
+             "desayunos y colaciones antes de la tabla, platillos en medida "
+             "casera y valores aproximados."),
+            ("smae",
+             "Formato SMAE — tarjetas de aportaciones, gráfica de "
+             "equivalentes, tablas por tiempo y fichas de platillo."),
+        ):
+            tk.Radiobutton(
+                dialogo, text=texto, value=valor, variable=var,
+                font=("Segoe UI", 9), fg=BLANCO, bg=GRIS_OSCURO,
+                selectcolor=GRIS, activebackground=GRIS_OSCURO,
+                activeforeground=NEON, anchor="w", justify="left",
+                wraplength=540, cursor="hand2",
+            ).pack(fill="x", padx=18, pady=4)
+
+        resultado = {"valor": None}
+
+        def aceptar(_event=None):
+            resultado["valor"] = var.get()
+            dialogo.destroy()
+
+        def cancelar(_event=None):
+            dialogo.destroy()
+
+        fila = tk.Frame(dialogo, bg=GRIS_OSCURO)
+        fila.pack(pady=(8, 12))
+        tk.Button(
+            fila, text="CONTINUAR", command=aceptar,
+            font=("Impact", 10), fg=NEGRO, bg=NEON,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=14, pady=3, cursor="hand2",
+        ).pack(side="left", padx=6)
+        tk.Button(
+            fila, text="CANCELAR", command=cancelar,
+            font=("Segoe UI", 9, "bold"), fg=BLANCO, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=12, pady=3, cursor="hand2",
+        ).pack(side="left", padx=6)
+        dialogo.bind("<Return>", aceptar)
+        dialogo.bind("<Escape>", cancelar)
+        dialogo.wait_window()
+        return resultado["valor"]
+
+    def _seleccion_menusemanal1(self, tiempos, dias):
+        """Bloques de la sección «SELECCIÓN ANTES DEL MENÚ SEMANAL» del
+        formato menusemanal1: desayunos a escoger y colaciones fijas,
+        deducidos de la semana cargada."""
+        bloques = []
+        desayunos = []
+        for t_idx, nombre_tiempo in enumerate(tiempos or []):
+            bajo = (nombre_tiempo or "").lower()
+            nombres = []
+            for info in (dias or {}).values():
+                platillos = (info or {}).get("platillos") or {}
+                plat = platillos.get(t_idx) or platillos.get(str(t_idx))
+                if plat:
+                    nombres.append(str(plat))
+            unicos = list(dict.fromkeys(nombres))
+            if not unicos:
+                continue
+            if "desayuno" in bajo:
+                for u in unicos:
+                    if u not in desayunos:
+                        desayunos.append(u)
+            elif "colación" in bajo or "colacion" in bajo:
+                bloques.append(
+                    (f"{nombre_tiempo} (fija)", "  ·  ".join(unicos))
+                )
+        if desayunos:
+            bloques.insert(0, (
+                "Desayuno — escoger entre las opciones",
+                "  |  ".join(desayunos),
+            ))
+        return bloques or None
+
     def imprimir(self):
         """Genera el PDF del menú semanal y lo abre en Acrobat."""
         if self.paciente_id is None:
             messagebox.showwarning(
                 "Menús", "Selecciona un paciente antes de imprimir."
             )
+            return
+
+        # Selección previa del formato del menú semanal
+        formato = self._elegir_formato_semanal()
+        if formato is None:
             return
 
         dias = {}
@@ -2797,11 +2917,22 @@ class MenusTab:
         nombre = paciente.get("nombre") or f"paciente_{self.paciente_id}"
         ruta = menus_print.ruta_temporal_pdf(nombre)
         try:
-            menus_print.generar_pdf_menus(
-                ruta, paciente, getattr(self, "tiempos", []), dias,
-                subgrupos=SUBGRUPOS_CORTO,
-                nombre_menu=f"Menú semanal — {nombre}",
-            )
+            if formato == "menusemanal1":
+                menus_print.generar_pdf_menusemanal1(
+                    ruta, paciente, getattr(self, "tiempos", []), dias,
+                    nombre_menu=f"menusemanal1 — {nombre}",
+                    seleccion=self._seleccion_menusemanal1(
+                        getattr(self, "tiempos", []), dias),
+                    notas=["Menú semanal para quien acude al gimnasio 3 "
+                           "veces por semana, adaptado al SMAE con "
+                           "platillos mexicanos."],
+                )
+            else:
+                menus_print.generar_pdf_menus(
+                    ruta, paciente, getattr(self, "tiempos", []), dias,
+                    subgrupos=SUBGRUPOS_CORTO,
+                    nombre_menu=f"Menú semanal — {nombre}",
+                )
         except Exception as error:
             messagebox.showerror(
                 "Imprimir", f"No se pudo generar el reporte:\n{error}"
@@ -2818,11 +2949,16 @@ class MenusTab:
             )
             return
 
+        mensaje = (
+            "MENUSEMANAL1: selección de desayunos y colaciones antes de la "
+            "tabla semanal, platillos en medida casera y valores "
+            "aproximados."
+            if formato == "menusemanal1" else
+            "Formato SMAE: tarjetas de aportaciones, equivalentes por "
+            "grupo, tablas por tiempo de comida y fichas de platillo."
+        )
         messagebox.showinfo(
-            "Imprimir",
-            f"Reporte generado:\n{ruta}\n\n"
-            "Formato SMAE: tarjetas de aportaciones, equivalentes por grupo, "
-            "tablas por tiempo de comida y fichas de platillo.",
+            "Imprimir", f"Reporte generado:\n{ruta}\n\n{mensaje}",
         )
 
     def cargar(self, paciente_id):
