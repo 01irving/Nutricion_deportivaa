@@ -361,6 +361,54 @@ class RutinasTab:
             sesiones[sesion] = filas
         return sesiones, faltan
 
+    def _editar_semana_paciente(self):
+        """Cuadro de edición semanal de la rutina del paciente: la misma
+        ventana de las plantillas pero cargada con su semana actual (las
+        sesiones salen de las notas de cada día, patrón de
+        _plantilla_de_guardada). Permite reasignar sesiones y descansos
+        día a día, quitar ejercicios de una sesión y APLICAR reemplaza
+        su semana."""
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            messagebox.showwarning(
+                "Rutinas",
+                "Selecciona un paciente antes de editar su semana.",
+            )
+            return
+        rutina = getattr(self, "rutina", [])
+        con_ejercicios = [r for r in rutina if not r.get("descanso")]
+        if not con_ejercicios:
+            messagebox.showwarning(
+                "Rutinas",
+                "La rutina está vacía: añade ejercicios antes de editar "
+                "la semana.",
+            )
+            return
+        semana = {dia: None for dia in DIAS_SEMANA}
+        sesiones = {}
+        for e in con_ejercicios:
+            sesion = (e.get("notas") or "").strip() or (e.get("dia") or "")
+            semana[e.get("dia") or "Lunes"] = sesion
+            sesiones.setdefault(sesion, []).append(dict(e))
+        # una semana aplicada de una plantilla conserva su nombre; una
+        # armada a mano se anuncia como "Semana del paciente"
+        nombre_semana = next(
+            (r.get("nombre_semana") for r in rutina if r.get("nombre_semana")),
+            "Semana del paciente",
+        )
+        self._abrir_plantilla_semana(
+            {
+                "nombre": nombre_semana,
+                "guardada": True,
+                "edicion": True,
+                "semana": semana,
+                "sesiones": {s: tuple(fs) for s, fs in sesiones.items()},
+                "series": "",
+                "repeticiones": "",
+                "descanso_series": "",
+            }
+        )
+
     def _abrir_plantilla_semana(self, plantilla):
         """Cuadro de la rutina semanal: vista previa de la semana y de cada
         sesión (con posibilidad de quitar ejercicios) y botón para aplicar
@@ -659,12 +707,21 @@ class RutinasTab:
         if total_actual:
             paciente = database.obtener_paciente(paciente_id) or {}
             nombre = paciente.get("nombre") or f"paciente {paciente_id}"
-            if not messagebox.askyesno(
-                "Rutinas",
-                f"¿Reemplazar la rutina semanal de {nombre} "
-                f"({total_actual} ejercicio{'s' if total_actual != 1 else ''}) "
-                f"por «{plantilla['nombre']}»?",
-            ):
+            if plantilla.get("edicion"):
+                # edición semanal de la propia semana del paciente
+                pregunta = (
+                    f"¿Aplicar la semana editada a {nombre}? Se reemplaza "
+                    "su rutina actual "
+                    f"({total_actual} ejercicio"
+                    + ("s" if total_actual != 1 else "") + ")."
+                )
+            else:
+                pregunta = (
+                    f"¿Reemplazar la rutina semanal de {nombre} "
+                    f"({total_actual} ejercicio{'s' if total_actual != 1 else ''}) "
+                    f"por «{plantilla['nombre']}»?"
+                )
+            if not messagebox.askyesno("Rutinas", pregunta):
                 return
         try:
             database.delete_rutinas_paciente(paciente_id)
@@ -1899,6 +1956,23 @@ class RutinasTab:
             pady=3,
             cursor="hand2",
         ).pack(side="left")
+        # edición semanal de la rutina del paciente: su semana actual en
+        # el mismo cuadro de las plantillas (reasignar sesiones y
+        # descansos, quitar ejercicios y aplicar)
+        tk.Button(
+            fila_semanal,
+            text="✏ EDITAR SEMANA",
+            command=self._editar_semana_paciente,
+            font=("Segoe UI", 8, "bold"),
+            fg=NEON,
+            bg=GRIS,
+            activebackground=NARANJA,
+            activeforeground=BLANCO,
+            relief="flat",
+            padx=10,
+            pady=3,
+            cursor="hand2",
+        ).pack(side="left", padx=(8, 0))
         self._refrescar_combo_plantilla()
 
         contenedor_principal = ttk.Frame(marco, style="Gym.TFrame")
