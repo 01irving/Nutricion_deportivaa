@@ -424,17 +424,45 @@ class RutinasTab:
         tree_semana.configure(yscrollcommand=barra_semana.set)
         barra_semana.pack(side="right", fill="y")
 
-        # --- selector de sesión con sus ejercicios abajo ---
+        # copia editable de la semana: los cambios del cuadro no tocan
+        # la plantilla fija del estudio
+        semana = dict(plantilla["semana"])
+
+        def pintar_semana():
+            for item in tree_semana.get_children():
+                tree_semana.delete(item)
+            for dia in DIAS_SEMANA:
+                sesion = semana.get(dia)
+                if sesion is None:
+                    tree_semana.insert(
+                        "", "end", iid=dia, values=(dia, "DESCANSO", "—")
+                    )
+                else:
+                    total = len(sesiones.get(sesion, []))
+                    tree_semana.insert(
+                        "", "end", iid=dia, values=(dia, sesion, total)
+                    )
+
+        # --- selector de sesión: las sesiones de la plantilla, las
+        # rutinas guardadas con nombre (★, se cargan como sesión) y el
+        # descanso; la elección se asigna al día seleccionado arriba ---
+        try:
+            guardadas_simples = database.get_rutinas_guardadas(semanal=0)
+        except Exception:
+            guardadas_simples = []
+        etiquetas_rutinas = {
+            "★ " + g["nombre"]: g["nombre"] for g in guardadas_simples
+        }
+        OPCION_DESCANSO = "— Día de descanso —"
         fila_sesion = tk.Frame(dialogo, bg=GRIS_OSCURO)
         fila_sesion.pack(fill="x", padx=12, pady=(10, 0))
         tk.Label(
             fila_sesion, text="Sesión:", font=("Segoe UI", 8),
             fg=GRIS_TEXTO, bg=GRIS_OSCURO,
         ).pack(side="left")
-        nombres_sesiones = list(sesiones)
         combo_sesion = ttk.Combobox(
-            fila_sesion, values=nombres_sesiones, state="readonly",
-            style="Gym.TCombobox", width=18,
+            fila_sesion, state="readonly", style="Gym.TCombobox", width=30,
+            values=list(sesiones) + list(etiquetas_rutinas) + [OPCION_DESCANSO],
         )
         combo_sesion.current(0)
         combo_sesion.pack(side="left", padx=(4, 12))
@@ -461,21 +489,54 @@ class RutinasTab:
         tree_sesion.configure(yscrollcommand=barra_sesion.set)
         barra_sesion.pack(side="right", fill="y")
 
-        def pintar_semana():
-            for item in tree_semana.get_children():
-                tree_semana.delete(item)
-            for dia in DIAS_SEMANA:
-                sesion = plantilla["semana"].get(dia)
-                if sesion is None:
-                    tree_semana.insert("", "end", values=(dia, "DESCANSO", "—"))
-                else:
-                    total = len(sesiones.get(sesion, []))
-                    tree_semana.insert(
-                        "", "end", values=(dia, sesion, total)
+        def sesion_activa():
+            """Nombre de sesión real según lo elegido en el combo: una
+            sesión de la plantilla, una rutina guardada (se carga como
+            sesión propia con clave ★ la primera vez, sin mezclarse con
+            una sesión homónima de la plantilla) o None si eligió
+            descanso."""
+            etiqueta = combo_sesion.get()
+            if etiqueta in etiquetas_rutinas:
+                nombre = "★ " + etiquetas_rutinas[etiqueta]
+                if nombre not in sesiones:
+                    g = next(
+                        g for g in guardadas_simples
+                        if "★ " + g["nombre"] == etiqueta
                     )
+                    guardada = database.get_rutina_guardada(
+                        g["id_rutina_guardada"]
+                    )
+                    sesiones[nombre] = [
+                        dict(e) for e in guardada["ejercicios"]
+                        if not e.get("descanso")
+                    ]
+                return nombre
+            if etiqueta == OPCION_DESCANSO:
+                return None
+            return etiqueta
+
+        def elegir_sesion(*_):
+            """Asigna al día seleccionado de la Semana lo elegido en el
+            combo (sesión, rutina guardada o descanso) y muestra sus
+            ejercicios abajo."""
+            dia_elegido = tree_semana.selection()
+            sesion = sesion_activa()
+            if not dia_elegido:
+                if sesion is None or combo_sesion.get() in etiquetas_rutinas:
+                    messagebox.showinfo(
+                        "Rutinas",
+                        "Selecciona un día en la Semana para asignarle la "
+                        "sesión o rutina.",
+                        parent=dialogo,
+                    )
+                pintar_sesion()
+                return
+            semana[dia_elegido[0]] = sesion
+            pintar_semana()
+            pintar_sesion()
 
         def pintar_sesion(*_):
-            sesion = combo_sesion.get()
+            sesion = sesion_activa()
             for item in tree_sesion.get_children():
                 tree_sesion.delete(item)
             for posicion, ficha in enumerate(sesiones.get(sesion, []), start=1):
@@ -500,10 +561,10 @@ class RutinasTab:
 
         def quitar_de_sesion():
             seleccion = tree_sesion.selection()
-            if not seleccion:
+            sesion = sesion_activa()
+            if not seleccion or sesion is None:
                 return
             indice = int(seleccion[0])
-            sesion = combo_sesion.get()
             if 0 <= indice < len(sesiones.get(sesion, [])):
                 sesiones[sesion].pop(indice)
                 pintar_sesion()
@@ -519,7 +580,21 @@ class RutinasTab:
             relief="flat", padx=8, pady=2, cursor="hand2",
         ).pack(side="left")
 
-        combo_sesion.bind("<<ComboboxSelected>>", pintar_sesion)
+        def al_elegir_dia(*_):
+            """Clic en un día de la Semana: el combo queda en su sesión
+            actual (o descanso) y abajo se ven sus ejercicios."""
+            dia = tree_semana.selection()
+            if not dia:
+                return
+            sesion = semana.get(dia[0])
+            if sesion is None:
+                combo_sesion.set(OPCION_DESCANSO)
+            elif sesion in sesiones:
+                combo_sesion.set(sesion)
+            pintar_sesion()
+
+        tree_semana.bind("<<TreeviewSelect>>", al_elegir_dia)
+        combo_sesion.bind("<<ComboboxSelected>>", elegir_sesion)
         pintar_semana()
         pintar_sesion()
 
@@ -543,7 +618,12 @@ class RutinasTab:
             ).pack(anchor="w", padx=12)
 
         def aplicar():
-            self._aplicar_plantilla_semana(plantilla, sesiones, dialogo)
+            # lleva la semana editada en el cuadro (sesiones reasignadas,
+            # rutinas guardadas como sesión, descansos) sin tocar la
+            # plantilla fija del estudio
+            self._aplicar_plantilla_semana(
+                dict(plantilla, semana=dict(semana)), sesiones, dialogo
+            )
 
         tk.Button(
             dialogo,
@@ -608,7 +688,10 @@ class RutinasTab:
                                 or plantilla["descanso_series"]
                             ),
                             "peso": ficha.get("peso") or "",
-                            "notas": sesion,
+                            # las sesiones de rutinas guardadas llevan la
+                            # clave ★ en el cuadro: se guarda sin ella
+                            "notas": sesion[2:].strip()
+                            if sesion.startswith("★ ") else sesion,
                         }
                     )
             # el nombre de la semanal queda como raíz del árbol de la
