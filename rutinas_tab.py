@@ -785,6 +785,15 @@ class RutinasTab:
 
         fila_ej = ttk.Frame(marco_ej, style="Gym.TFrame")
         fila_ej.pack(side="bottom", fill="x", pady=(4, 0))
+        tk.Label(
+            fila_ej, text="Añadir del catálogo:",
+            font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+        ).pack(side="left")
+        self.combo_sem_anadir = ttk.Combobox(
+            fila_ej, values=[], state="readonly", width=32,
+            style="Gym.TCombobox",
+        )
+        self.combo_sem_anadir.pack(side="left", padx=(4, 6))
         tk.Button(
             fila_ej, text="＋ AÑADIR AL DÍA",
             command=self._sem_agregar_ejercicio,
@@ -844,6 +853,9 @@ class RutinasTab:
             relief="flat", padx=8, pady=2, cursor="hand2",
         ).pack(side="left", padx=(8, 0))
 
+        # catálogo para la lista Añadir y los desplegables de celda
+        self._sem_cargar_catalogo()
+        self.combo_sem_anadir.configure(values=list(self._sem_opciones))
         self._sem_refrescar_selector()
         self._sem_pintar_semana()
         self._sem_pintar_ejercicios()
@@ -1103,6 +1115,18 @@ class RutinasTab:
                     ej.get("equipo") or "-",
                 ),
             )
+        if not ejercicios:
+            # día sin ejercicios (sesión nueva o descanso): fila de
+            # invitación cuyo doble clic despliega el catálogo
+            tree.insert(
+                "", "end", iid="nuevo",
+                values=(
+                    1,
+                    "— doble clic aquí para añadir el primer ejercicio "
+                    "del catálogo —",
+                    "—", "—", "—", "—", "—", "-",
+                ),
+            )
         self.lbl_sem_dia.configure(
             text=f"Día: {self._sem_dia} · Sesión: "
                  f"{self._sem_datos[self._sem_dia]['sesion'] or 'descanso'}"
@@ -1290,6 +1314,10 @@ class RutinasTab:
         descansos y peso)."""
         tree = self.tree_sem_ej
         sel = tree.selection()
+        if sel and sel[0] == "nuevo":
+            # día vacío: despliega el catálogo para el primer ejercicio
+            self._sem_anadir_primero(event)
+            return
         if not sel or not sel[0].isdigit():
             return
         idx = int(sel[0])
@@ -1387,6 +1415,38 @@ class RutinasTab:
         else:
             ej[col] = nuevo
 
+    def _sem_anadir_primero(self, event=None):
+        """Fila de invitación de un día sin ejercicios: despliega el
+        catálogo para añadir el primer ejercicio de la sesión; si el
+        día descansaba, la sesión se crea con el nombre del día."""
+        tree = self.tree_sem_ej
+        caja = tree.bbox("nuevo", "ejercicio")
+        if not caja:
+            return
+        self._sem_cargar_catalogo()
+        self._sem_cerrar_editor()
+        editor = ttk.Combobox(
+            tree, values=list(self._sem_opciones), state="readonly",
+        )
+        editor.set("+ Añadir el primer ejercicio del catálogo…")
+        editor.place(x=caja[0], y=caja[1], w=max(caja[2], 300), h=caja[3])
+        self._sem_editor = editor
+
+        def commit(_event=None):
+            try:
+                elegido = editor.get().strip()
+            except Exception:
+                return
+            self._sem_cerrar_editor()
+            if elegido and not elegido.startswith("+ Añadir"):
+                self._sem_insertar_ejercicio(-1, elegido)
+
+        editor.bind("<Return>", commit)
+        editor.bind("<FocusOut>", commit)
+        editor.bind("<<ComboboxSelected>>", commit)
+        editor.bind("<Escape>", lambda _e: self._sem_cerrar_editor())
+        editor.focus_set()
+
     def _sem_cargar_catalogo(self):
         """Catálogo completo de ejercicios para la celda Ejercicio:
         etiqueta «nombre — grupo #num» → (grupo, num)."""
@@ -1417,29 +1477,38 @@ class RutinasTab:
     # Añadir, quitar, reordenar y traer rutinas guardadas al día
     # ------------------------------------------------------------------
     def _sem_agregar_ejercicio(self):
-        """Añade a la tabla del día el ejercicio seleccionado en el
-        catálogo (o el primero del grupo activo) con 3×12 por defecto."""
+        """Añade a la tabla del día el ejercicio elegido en la lista
+        'Añadir del catálogo' (con 3×12 y 60 s para editar en
+        celda); funciona también en sesiones nuevas y vacías."""
         info = self._sem_datos[self._sem_dia]
         if not info["sesion"]:
             info["sesion"] = f"Sesión {self._sem_dia}"
-        ej = self.ejercicio_seleccionado or (
-            self.ejercicios[0] if self.ejercicios else None
-        )
-        if not ej:
-            self._mensaje("Catálogo de ejercicios vacío.")
+        etiqueta = self.combo_sem_anadir.get()
+        destino = self._sem_opciones.get(etiqueta)
+        if not destino:
+            self._mensaje(
+                "Elige un ejercicio en la lista «Añadir del catálogo»."
+            )
             return
+        try:
+            ficha = database.get_rutina_ejercicio(
+                destino["grupo"], destino["num"]
+            )
+        except Exception:
+            ficha = None
         info["ejercicios"].append(
             self._sem_ficha_con_prescripcion(
                 {
-                    "grupo": ej.get("grupo"),
-                    "num": ej.get("num"),
-                    "nombre": ej.get("nombre"),
-                    "equipo": ej.get("equipo"),
+                    "grupo": destino["grupo"],
+                    "num": destino["num"],
+                    "nombre": (ficha or {}).get("nombre") or etiqueta,
+                    "equipo": (ficha or {}).get("equipo") or "",
                 }
             )
         )
         self._sem_pintar_semana()
         self._sem_pintar_ejercicios()
+        self.tree_sem_ej.see(str(len(info["ejercicios"]) - 1))
 
     def _sem_insertar_ejercicio(self, idx, etiqueta):
         """Añade un ejercicio nuevo del catálogo debajo de la fila
