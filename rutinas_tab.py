@@ -748,7 +748,8 @@ class RutinasTab:
         # ---------- tabla editable de ejercicios del día ------------------
         marco_ej = ttk.LabelFrame(
             derecho,
-            text="Ejercicios del día — doble clic para editar ejercicio, "
+            text="Ejercicios del día — doble clic en # añade un ejercicio "
+                 "nuevo del catálogo; en el resto se edita ejercicio, "
                  "series, repeticiones, descansos y peso",
             padding=4,
         )
@@ -1307,7 +1308,7 @@ class RutinasTab:
             return
         col_nombre = columnas[indice]
         editables = (
-            "ejercicio", "series", "repeticiones", "descanso_rep",
+            "num", "ejercicio", "series", "repeticiones", "descanso_rep",
             "descanso_series", "peso",
         )
         if col_nombre not in editables:
@@ -1317,12 +1318,18 @@ class RutinasTab:
             return
         valor = tree.item(sel[0], "values")[indice]
         self._sem_cerrar_editor()
-        if col_nombre == "ejercicio":
+        if col_nombre in ("num", "ejercicio"):
+            # doble clic en # o en Ejercicio: despliega el catálogo
+            # para AÑADIR un ejercicio nuevo (#) o REEMPLAZAR el de
+            # la fila (Ejercicio)
             self._sem_cargar_catalogo()
             editor = ttk.Combobox(
                 tree, values=list(self._sem_opciones), state="readonly",
             )
-            editor.set(valor)
+            editor.set(
+                "+ Añadir ejercicio del catálogo…" if col_nombre == "num"
+                else valor
+            )
             editor.place(x=caja[0], y=caja[1], w=max(caja[2], 280), h=caja[3])
         else:
             editor = tk.Entry(tree, justify="center")
@@ -1337,12 +1344,17 @@ class RutinasTab:
             except Exception:
                 return
             self._sem_cerrar_editor()
+            if col_nombre == "num":
+                # añade un ejercicio nuevo debajo de la fila elegida
+                if nuevo and not nuevo.startswith("+ Añadir"):
+                    self._sem_insertar_ejercicio(idx, nuevo)
+                return
             self._sem_aplicar_celda(idx, col_nombre, nuevo)
             self._sem_pintar_ejercicios()
 
         editor.bind("<Return>", commit)
         editor.bind("<FocusOut>", commit)
-        if col_nombre == "ejercicio":
+        if col_nombre in ("num", "ejercicio"):
             editor.bind("<<ComboboxSelected>>", commit)
         else:
             editor.bind("<Escape>", lambda _e: self._sem_cerrar_editor())
@@ -1428,6 +1440,43 @@ class RutinasTab:
         )
         self._sem_pintar_semana()
         self._sem_pintar_ejercicios()
+
+    def _sem_insertar_ejercicio(self, idx, etiqueta):
+        """Añade un ejercicio nuevo del catálogo debajo de la fila
+        idx de la tabla (doble clic en #): crea la sesión si el día
+        descansaba y deja 3×12 con 60 s para editar en la celda."""
+        destino = self._sem_opciones.get(etiqueta)
+        if not destino:
+            self._mensaje("Ese ejercicio no está en el catálogo.")
+            return
+        info = self._sem_datos[self._sem_dia]
+        if not info["sesion"]:
+            info["sesion"] = f"Sesión {self._sem_dia}"
+        try:
+            ficha = database.get_rutina_ejercicio(
+                destino["grupo"], destino["num"]
+            )
+        except Exception:
+            ficha = None
+        nuevo = self._sem_ficha_con_prescripcion(
+            {
+                "grupo": destino["grupo"],
+                "num": destino["num"],
+                "nombre": (ficha or {}).get("nombre") or etiqueta,
+                "equipo": (ficha or {}).get("equipo") or "",
+            }
+        )
+        ejercicios = info["ejercicios"]
+        posicion = min(idx + 1, len(ejercicios))
+        ejercicios.insert(posicion, nuevo)
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+        self.tree_sem_ej.selection_set(str(posicion))
+        self.tree_sem_ej.see(str(posicion))
+        self._mensaje(
+            f"Ejercicio añadido en {self._sem_dia}: "
+            f"{nuevo['nombre']} (posición {posicion + 1})."
+        )
 
     def _sem_quitar_ejercicio(self):
         sel = self.tree_sem_ej.selection()
