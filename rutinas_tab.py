@@ -51,6 +51,9 @@ DIAS_SEMANA = (
     "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo",
 )
 
+# Opción del desplegable de Sesión que marca el día como descanso.
+OPCION_DESCANSO = "— Día de descanso —"
+
 # ----------------------------------------------------------------------
 # Plantillas de rutina semanal (patrón del combo "Menú:" de la pestaña
 # Menús). Los ejercicios son (grupo, num, marca) del catálogo de
@@ -717,8 +720,8 @@ class RutinasTab:
         # ---------- tabla de la semana (7 días, Lunes primero) -----------
         marco_semana = ttk.LabelFrame(
             derecho,
-            text="Semana — doble clic en Sesión para renombrarla "
-                 "(vacío = día de descanso)",
+            text="Semana — doble clic en Sesión: despliega descanso, "
+                 "sesiones y rutinas disponibles, o escribe el nombre",
             padding=4,
         )
         marco_semana.pack(fill="x")
@@ -1106,9 +1109,62 @@ class RutinasTab:
                 pass
             self._sem_editor = None
 
+    def _sem_opciones_sesion(self, dia):
+        """Opciones del desplegable de Sesión para un día: descanso,
+        las sesiones ya presentes en la semana, las rutinas guardadas
+        simples (★) y las sesiones de las rutinas semanales guardadas
+        y de las plantillas del estudio (◆). Devuelve (valores, mapa).
+        """
+        valores = [OPCION_DESCANSO]
+        mapa = {OPCION_DESCANSO: ("descanso",)}
+        # sesiones ya presentes en la semana (copian sus ejercicios)
+        vistas = []
+        for d in DIAS_SEMANA:
+            ses = self._sem_datos[d]["sesion"]
+            if ses and ses not in vistas:
+                vistas.append(ses)
+                if d != dia:
+                    valores.append(ses)
+                    mapa[ses] = ("semana", d)
+        # rutinas guardadas simples de la biblioteca (★)
+        try:
+            simples = database.get_rutinas_guardadas(semanal=0)
+        except Exception:
+            simples = []
+        for r in simples:
+            etiqueta = f"★ {r['nombre']}"
+            valores.append(etiqueta)
+            mapa[etiqueta] = ("simple", r["id_rutina_guardada"])
+        # sesiones de las plantillas del estudio (◆)
+        for idx, p in enumerate(PLANTILLAS_SEMANA):
+            for sesion in p["sesiones"]:
+                etiqueta = f"◆ {sesion} — {p['nombre']}"
+                valores.append(etiqueta)
+                mapa[etiqueta] = ("fija", idx, sesion)
+        # sesiones de las rutinas semanales guardadas (◆)
+        for r in self._semanales_guardadas():
+            try:
+                rutina = database.get_rutina_guardada(r["id_rutina_guardada"])
+            except Exception:
+                continue
+            sesiones = []
+            for e in rutina.get("ejercicios", []):
+                ses = (e.get("notas") or "").strip()
+                if e.get("descanso") or not ses or ses in sesiones:
+                    continue
+                sesiones.append(ses)
+            for ses in sesiones:
+                etiqueta = f"◆ {ses} — {r['nombre']}"
+                valores.append(etiqueta)
+                mapa[etiqueta] = ("semanal", r["id_rutina_guardada"], ses)
+        return valores, mapa
+
     def _sem_editar_sesion(self, _event=None):
-        """Doble clic en la columna Sesión: renombra la sesión del día;
-        dejándola vacía el día queda como descanso."""
+        """Doble clic en la columna Sesión: despliega las opciones
+        disponibles para el día — descanso, las sesiones ya presentes
+        en la semana, las rutinas guardadas simples (★) y las sesiones
+        de las rutinas semanales guardadas y de las plantillas del
+        estudio (◆) — o escribe un nombre nuevo para la sesión."""
         tree = self.tree_sem_semana
         sel = tree.selection()
         if not sel or sel[0] not in self._sem_datos:
@@ -1117,28 +1173,108 @@ class RutinasTab:
         caja = tree.bbox(dia, "sesion")
         if not caja:
             return
+        valores, mapa = self._sem_opciones_sesion(dia)
         self._sem_cerrar_editor()
-        editor = tk.Entry(tree, justify="left")
-        editor.insert(0, self._sem_datos[dia]["sesion"] or "")
-        editor.place(x=caja[0], y=caja[1], w=caja[2], h=caja[3])
+        # combobox editable: elige de la lista o escribe el nombre
+        editor = ttk.Combobox(tree, values=valores)
+        editor.set(self._sem_datos[dia]["sesion"] or "")
+        editor.place(x=caja[0], y=caja[1], w=max(caja[2], 240), h=caja[3])
         self._sem_editor = editor
 
         def commit(_event=None):
             try:
-                nuevo = editor.get().strip()
+                elegido = editor.get().strip()
             except Exception:
                 return
             self._sem_cerrar_editor()
-            self._sem_datos[dia]["sesion"] = nuevo or None
-            if nuevo:
-                self._sem_dia = dia
-            self._sem_pintar_semana()
-            self._sem_pintar_ejercicios()
+            self._sem_aplicar_sesion(dia, elegido, mapa)
 
         editor.bind("<Return>", commit)
         editor.bind("<FocusOut>", commit)
+        editor.bind("<<ComboboxSelected>>", commit)
         editor.bind("<Escape>", lambda _e: self._sem_cerrar_editor())
         editor.focus_set()
+
+    def _sem_aplicar_sesion(self, dia, elegido, mapa):
+        """Aplica la opción elegida en el desplegable de Sesión:
+        descanso, copia de una sesión de la semana, carga de una
+        rutina guardada o de una sesión de plantilla, o renombrado
+        con texto libre (vacío deja el día como descanso)."""
+        if not elegido:
+            self._sem_datos[dia]["sesion"] = None
+            self._sem_datos[dia]["ejercicios"] = []
+            self._sem_dia = dia
+            self._sem_pintar_semana()
+            self._sem_pintar_ejercicios()
+            self._mensaje(f"{dia}: día de descanso.")
+            return
+        origen = mapa.get(elegido)
+        if origen is None:
+            # texto libre: renombra la sesión (o la crea si descansaba)
+            self._sem_datos[dia]["sesion"] = elegido
+            self._sem_dia = dia
+            self._sem_pintar_semana()
+            self._sem_pintar_ejercicios()
+            return
+        tipo = origen[0]
+        if tipo == "descanso":
+            self._sem_datos[dia]["sesion"] = None
+            self._sem_datos[dia]["ejercicios"] = []
+            self._sem_dia = dia
+            self._sem_pintar_semana()
+            self._sem_pintar_ejercicios()
+            self._mensaje(f"{dia}: día de descanso.")
+            return
+        ejercicios = []
+        nombre_sesion = elegido
+        if tipo == "semana":
+            _, dia_origen = origen
+            nombre_sesion = self._sem_datos[dia_origen]["sesion"] or elegido
+            ejercicios = [
+                self._sem_ficha_con_prescripcion(dict(f))
+                for f in self._sem_datos[dia_origen]["ejercicios"]
+            ]
+        elif tipo == "simple":
+            try:
+                rutina = database.get_rutina_guardada(origen[1])
+            except Exception:
+                rutina = None
+            nombre_sesion = (rutina or {}).get("nombre") or elegido[2:]
+            ejercicios = [
+                self._sem_ficha_con_prescripcion(dict(e))
+                for e in (rutina or {}).get("ejercicios", [])
+                if not e.get("descanso")
+            ]
+        elif tipo == "fija":
+            _, idx, sesion = origen
+            plantilla = PLANTILLAS_SEMANA[idx]
+            sesiones, _faltan = self._fichas_plantilla(plantilla)
+            nombre_sesion = sesion
+            ejercicios = [
+                self._sem_ficha_con_prescripcion(f, plantilla)
+                for f in sesiones.get(sesion, [])
+            ]
+        elif tipo == "semanal":
+            _, id_rutina, sesion = origen
+            try:
+                rutina = database.get_rutina_guardada(id_rutina)
+            except Exception:
+                rutina = None
+            nombre_sesion = sesion
+            ejercicios = [
+                self._sem_ficha_con_prescripcion(dict(e))
+                for e in (rutina or {}).get("ejercicios", [])
+                if not e.get("descanso")
+                and (e.get("notas") or "").strip() == sesion
+            ]
+        self._sem_datos[dia]["sesion"] = nombre_sesion
+        self._sem_datos[dia]["ejercicios"] = ejercicios
+        self._sem_dia = dia
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+        self._mensaje(
+            f"{dia}: «{nombre_sesion}» con {len(ejercicios)} ejercicios."
+        )
 
     def _sem_editar_celda_evento(self, event=None):
         """Doble clic en la tabla de ejercicios: edita la celda (ejercicio
