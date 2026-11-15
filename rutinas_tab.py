@@ -850,7 +850,7 @@ class RutinasTab:
         marco_lista.pack(fill="both", expand=True)
         columnas = ("nombre", "tipo", "detalle", "creado_en")
         self.tree_guardadas = ttk.Treeview(
-            marco_lista, columns=columnas, show="headings", height=4,
+            marco_lista, columns=columnas, show="headings", height=2,
             style="Gym.Treeview",
         )
         for col, texto, ancho, alineacion in (
@@ -2024,7 +2024,7 @@ class RutinasTab:
         self.txt_preview_desc = tk.Text(
             marco_desc,
             width=32,
-            height=8,
+            height=6,
             wrap="word",
             bg=GRIS_OSCURO,
             fg=BLANCO,
@@ -2093,7 +2093,7 @@ class RutinasTab:
             marco_rutina_pac,
             columns=cols,
             show="tree headings",
-            height=10,
+            height=12,
             selectmode="browse",
             style="Gym.Treeview",
         )
@@ -2240,13 +2240,9 @@ class RutinasTab:
             style="Gym.TLabelframe",
         )
         self._crear_seccion_rutinas_guardadas(self.marco_guardadas)
-        superior.pack(side="bottom", fill="both", expand=True, pady=(6, 0))
-        marco_rutina_pac.pack(side="bottom", fill="both", pady=(6, 0))
-        self.marco_guardadas.pack(side="bottom", fill="x", pady=(6, 0))
 
         # --- Barra de días de la rutina semanal (patrón de Menús) ---
         barra_dias = ttk.Frame(contenedor_principal, style="Gym.TFrame")
-        barra_dias.pack(side="bottom", fill="x", pady=(6, 0))
         tk.Label(
             barra_dias, text="Día:", font=("Segoe UI", 8),
             fg=GRIS_TEXTO, bg=GRIS_OSCURO,
@@ -2269,6 +2265,29 @@ class RutinasTab:
             relief="flat", padx=10, pady=3, cursor="hand2",
         )
         self.btn_descanso.pack(side="right", padx=(6, 0))
+
+        # orden vertical con prioridad: barra de días y rutinas guardadas
+        # se empaquetan desde arriba; la tabla del árbol (arriba) y el
+        # selector con su previsualización (abajo) comparten el resto en
+        # un Panedwindow con separador arrastrable: la tabla se puede
+        # abrir más o menos a voluntad y, si la ventana no alcanza, los
+        # dos paneles ceden proporcionalmente sin desaparecer
+        barra_dias.pack(side="top", fill="x", pady=(6, 0))
+        self.marco_guardadas.pack(side="top", fill="x", pady=(6, 0))
+        panes = ttk.Panedwindow(contenedor_principal, orient="vertical")
+        panes.add(marco_rutina_pac, weight=2)
+        panes.add(superior, weight=1)
+        panes.pack(fill="both", expand=True)
+        # reparto inicial 60/40 en cuanto el cuadro tenga geometría
+        reparto = {"hecho": False}
+
+        def reparto_inicial(_evento=None):
+            alto = panes.winfo_height()
+            if not reparto["hecho"] and alto > 60:
+                reparto["hecho"] = True
+                panes.sashpos(0, int(alto * 0.6))
+
+        panes.bind("<Configure>", reparto_inicial)
 
         self.marco_rutina_pac = marco_rutina_pac
 
