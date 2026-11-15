@@ -1294,6 +1294,20 @@ def quitar_descanso(paciente_id, dia):
         conn.close()
 
 
+def delete_rutina_dia(paciente_id, dia):
+    """Borra todos los ejercicios de un día de la rutina del paciente
+    (para reemplazarlos al cambiar la sesión del día)."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "DELETE FROM rutinas_paciente WHERE paciente_id = ? AND dia = ?",
+            (paciente_id, dia),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def marcar_semana_aplicada(paciente_id, nombre_semana):
     """Etiqueta todas las filas de la rutina del paciente con el nombre
     de la rutina semanal aplicada: es el nivel raíz del árbol de la

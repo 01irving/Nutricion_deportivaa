@@ -408,6 +408,7 @@ class RutinasTab:
         cols_semana = ("dia", "sesion", "total")
         tree_semana = ttk.Treeview(
             marco_semana, columns=cols_semana, show="headings", height=7,
+            selectmode="browse",
             style="Gym.Treeview",
         )
         for col, texto, ancho, alineacion in (
@@ -429,6 +430,9 @@ class RutinasTab:
         semana = dict(plantilla["semana"])
 
         def pintar_semana():
+            # repinta conservando la seleccion de dias (se reasigna sobre
+            # lo que ya esta marcado)
+            dias = tree_semana.selection()
             for item in tree_semana.get_children():
                 tree_semana.delete(item)
             for dia in DIAS_SEMANA:
@@ -442,6 +446,8 @@ class RutinasTab:
                     tree_semana.insert(
                         "", "end", iid=dia, values=(dia, sesion, total)
                     )
+            if dias:
+                tree_semana.selection_set(dias)
 
         # --- selector de sesión: las sesiones de la plantilla, las
         # rutinas guardadas con nombre (★, se cargan como sesión) y el
@@ -2074,6 +2080,23 @@ class RutinasTab:
             pady=2,
             cursor="hand2",
         ).pack(fill="x")
+        # cambiar la sesion del dia seleccionado en el arbol: sesiones de
+        # la semana, rutinas guardadas con estrella o descanso
+        tk.Label(
+            acciones,
+            text="Sesión del día:",
+            font=("Segoe UI", 8),
+            fg=GRIS_TEXTO,
+            bg=GRIS_OSCURO,
+        ).pack(anchor="w", pady=(10, 0))
+        self.combo_sesion_dia = ttk.Combobox(
+            acciones, state="readonly", width=22, style="Gym.TCombobox"
+        )
+        self.combo_sesion_dia.pack(fill="x")
+        self.combo_sesion_dia.bind(
+            "<<ComboboxSelected>>", self._al_elegir_sesion_dia
+        )
+        self._actualizar_sesion_dia()
         self.btn_imprimir_rutina = tk.Button(
             acciones,
             text="IMPRIMIR RUTINA",
@@ -2241,7 +2264,9 @@ class RutinasTab:
     def _al_seleccionar_fila_rutina(self, _event=None):
         """Clic en una fila de la rutina del paciente: lleva el ejercicio
         al selector (cambiando de grupo si hace falta) y la
-        previsualizacion muestra su titulo, descripcion e imagen."""
+        previsualización muestra su título, descripción e imagen; el
+        combo Sesión del día se sincroniza con el día de la fila."""
+        self._actualizar_sesion_dia()
         seleccion = self.tree_rutina.selection()
         if not seleccion or not seleccion[0].isdigit():
             return
@@ -2361,6 +2386,157 @@ class RutinasTab:
         self._cargar_rutina()
         self._marcar_rutina_guardada()
         self._mensaje(f"Añadido a {dia}: {ej.get('nombre')}")
+
+    # ------------------------------------------------------------------
+    # Sesión del día: cambiar los ejercicios del día seleccionado en el
+    # árbol por los de una rutina guardada, de otra sesión de la semana,
+    # o marcarlo como descanso.
+    # ------------------------------------------------------------------
+
+    def _sesiones_disponibles(self):
+        """Sesiones que se pueden asignar a un día: las de la semana del
+        paciente y las rutinas guardadas con nombre (prefijo estrella)."""
+        sesiones_semana = sorted({
+            (r.get("notas") or "").strip()
+            for r in getattr(self, "rutina", [])
+            if r.get("notas") and not r.get("descanso")
+        })
+        try:
+            guardadas = database.get_rutinas_guardadas(semanal=0)
+        except Exception:
+            guardadas = []
+        return sesiones_semana, ["★ " + g["nombre"] for g in guardadas]
+
+    def _sesion_del_dia(self, dia):
+        """Sesión actual del día (su nota) o None si está de descanso;
+        cadena vacía si el día está vacío."""
+        filas = [
+            r for r in getattr(self, "rutina", [])
+            if (r.get("dia") or "Lunes") == dia
+        ]
+        if any(r.get("descanso") for r in filas):
+            return None
+        return next(
+            ((r.get("notas") or "").strip() for r in filas if r.get("notas")),
+            "",
+        )
+
+    def _actualizar_sesion_dia(self):
+        """Llena el combo Sesión del día según la selección del árbol y
+        deja marcada la sesión actual del día."""
+        if not hasattr(self, "combo_sesion_dia"):
+            return
+        dia = self._dia_destino_rutina()
+        sesiones_semana, rutinas_guardadas = self._sesiones_disponibles()
+        self.combo_sesion_dia.configure(
+            values=sesiones_semana + rutinas_guardadas + ["Día de descanso"]
+        )
+        actual = self._sesion_del_dia(dia)
+        if actual is None:
+            self.combo_sesion_dia.set("Día de descanso")
+        elif actual and actual in sesiones_semana + rutinas_guardadas:
+            self.combo_sesion_dia.set(actual)
+        else:
+            self.combo_sesion_dia.set("")
+
+    def _al_elegir_sesion_dia(self, _event=None):
+        """Cambio en el combo Sesión del día: reemplaza los ejercicios
+        del día seleccionado en el árbol por los de la rutina o sesión
+        elegida, o lo marca como descanso; pide confirmación si el día
+        tenía ejercicios."""
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            messagebox.showwarning(
+                "Rutinas", "Selecciona un paciente antes de cambiar sesiones."
+            )
+            return
+        dia = self._dia_destino_rutina()
+        eleccion = self.combo_sesion_dia.get()
+        if not eleccion:
+            return
+        filas_dia = [
+            r for r in getattr(self, "rutina", [])
+            if (r.get("dia") or "Lunes") == dia
+        ]
+        con_ejercicios = [r for r in filas_dia if not r.get("descanso")]
+        actual = self._sesion_del_dia(dia)
+        if (actual or "") == eleccion or (
+            actual is None and eleccion == "Día de descanso"
+        ):
+            return
+        if eleccion == "Día de descanso":
+            if con_ejercicios and not messagebox.askyesno(
+                "Rutinas",
+                f"{dia} tiene {len(con_ejercicios)} ejercicio(s).\n"
+                "¿Borrarlos y marcar el día como descanso?",
+            ):
+                return
+            database.marcar_descanso(paciente_id, dia)
+            self.dia_actual = dia
+            self._cargar_rutina()
+            self._marcar_rutina_guardada()
+            self._mensaje(f"{dia}: día de descanso.")
+            return
+        if eleccion.startswith("★ "):
+            guardada = database.get_rutina_guardada(
+                next(
+                    g["id_rutina_guardada"]
+                    for g in database.get_rutinas_guardadas(semanal=0)
+                    if "★ " + g["nombre"] == eleccion
+                )
+            )
+            fichas = [
+                dict(e) for e in guardada["ejercicios"]
+                if not e.get("descanso")
+            ]
+            notas = guardada["nombre"]
+        else:
+            fichas = [
+                dict(r) for r in getattr(self, "rutina", [])
+                if (r.get("notas") or "").strip() == eleccion
+                and not r.get("descanso")
+            ]
+            notas = eleccion
+        if not fichas:
+            messagebox.showinfo(
+                "Rutinas", "La sesión elegida no tiene ejercicios."
+            )
+            return
+        if con_ejercicios and not messagebox.askyesno(
+            "Rutinas",
+            f"{dia} tiene {len(con_ejercicios)} ejercicio(s) de "
+            f"«{actual or 'otra sesión'}».\n"
+            f"¿Reemplazarlos por «{notas}»?",
+        ):
+            return
+        try:
+            database.delete_rutina_dia(paciente_id, dia)
+            for ficha in fichas:
+                database.insert_rutina_paciente(
+                    {
+                        "paciente_id": paciente_id,
+                        "dia": dia,
+                        "grupo": ficha.get("grupo"),
+                        "num": ficha.get("num"),
+                        "nombre": ficha.get("nombre"),
+                        "equipo": ficha.get("equipo"),
+                        "series": ficha.get("series"),
+                        "repeticiones": ficha.get("repeticiones"),
+                        "descanso_rep": ficha.get("descanso_rep"),
+                        "descanso_series": ficha.get("descanso_series"),
+                        "peso": ficha.get("peso"),
+                        "notas": notas,
+                    }
+                )
+        except Exception as error:
+            messagebox.showerror(
+                "Rutinas", f"No se pudo cambiar la sesión:\n{error}"
+            )
+            return
+        self.dia_actual = dia
+        self._cargar_rutina()
+        self._marcar_rutina_guardada()
+        self._mensaje(f"{dia}: sesión cambiada a «{notas}».")
 
     def _mostrar_ejercicio(self, ej):
         self.lbl_preview_titulo.configure(
@@ -3222,6 +3398,7 @@ class RutinasTab:
         if "dia:" + dia_activo in self.tree_rutina.get_children(raiz):
             self.tree_rutina.see("dia:" + dia_activo)
             self.tree_rutina.selection_set("dia:" + dia_activo)
+        self._actualizar_sesion_dia()
         # estado neutro del letrero: lo que se ve viene de la BD; los
         # escritos lo encienden en neón con la hora (_marcar_rutina_guardada)
         if hasattr(self, "lbl_rutina_guardada"):
