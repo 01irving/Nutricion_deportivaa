@@ -12,7 +12,11 @@ con la columna semanal para distinguir el tipo); este cargador solo llena
 el tipo simple con upsert por nombre.
 
 Uso:
-    python cargar_rutinas_simples.py [--dry-run]
+    python cargar_rutinas_simples.py [--dry-run] [--db <ruta.otra.db>]
+
+Con --db se llenan las rutinas simples de OTRA base de datos (por
+ejemplo la de la app instalada, cuyo uso diario nunca se sobreescribe
+desde el proyecto).
 """
 import ast
 import json
@@ -20,9 +24,12 @@ import os
 import shutil
 import sqlite3
 import sys
+from pathlib import Path
 
 RUTA = os.path.dirname(os.path.abspath(__file__))
 DB = os.path.join(RUTA, "Nutrición_deportiva.db")
+if "--db" in sys.argv:
+    DB = os.path.abspath(sys.argv[sys.argv.index("--db") + 1])
 DRY = "--dry-run" in sys.argv
 
 CAMPOS = ("grupo", "num", "nombre", "equipo",
@@ -165,9 +172,13 @@ def main():
 
     if not os.path.exists(DB.replace(".db", "_respaldo_rutinas_simples.db")):
         shutil.copy(DB, DB.replace(".db", "_respaldo_rutinas_simples.db"))
+    print("BD objetivo:", DB)
 
     sys.path.insert(0, RUTA)
     import database
+    if "--db" in sys.argv:
+        # redirige también la escritura: get_connection usa DB_PATH
+        database.DB_PATH = Path(DB)
     for nombre, filas in rutinas:
         database.guardar_rutina_guardada(nombre, 0, filas)
     print("LISTO: rutinas simples guardadas en la BD")
