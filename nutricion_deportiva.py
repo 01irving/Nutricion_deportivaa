@@ -953,6 +953,28 @@ class App(tk.Tk):
             rowheight=24,
             font=("Segoe UI", 10),
         )
+        # variante compacta para la rutina del paciente: filas de 19px
+        # para ver más ejercicios de la semana en el mismo alto
+        style.layout("Gym.Treeview.Compacta", style.layout("Gym.Treeview"))
+        style.configure(
+            "Gym.Treeview.Compacta",
+            background=GRIS,
+            fieldbackground=GRIS,
+            foreground=BLANCO,
+            rowheight=19,
+            font=("Segoe UI", 9),
+        )
+        style.configure(
+            "Gym.Treeview.Compacta.Heading",
+            background=NEON,
+            foreground=NEGRO,
+            font=("Segoe UI", 9, "bold"),
+        )
+        style.map(
+            "Gym.Treeview.Compacta",
+            background=[("selected", NARANJA)],
+            foreground=[("selected", BLANCO)],
+        )
         style.configure(
             "Eq.Treeview",
             background=GRIS,

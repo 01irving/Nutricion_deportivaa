@@ -850,7 +850,7 @@ class RutinasTab:
         marco_lista.pack(fill="both", expand=True)
         columnas = ("nombre", "tipo", "detalle", "creado_en")
         self.tree_guardadas = ttk.Treeview(
-            marco_lista, columns=columnas, show="headings", height=2,
+            marco_lista, columns=columnas, show="headings", height=1,
             style="Gym.Treeview",
         )
         for col, texto, ancho, alineacion in (
@@ -1987,7 +1987,7 @@ class RutinasTab:
         self.combo_ej = ttk.Combobox(
             panel_sel, values=[], width=46, state="readonly", style="Gym.TCombobox"
         )
-        self.combo_ej.pack(pady=(8, 0))
+        self.combo_ej.pack(pady=(4, 0))
         self.combo_ej.bind("<<ComboboxSelected>>", self._al_seleccionar_combo)
         # agrega el ejercicio seleccionado a la rutina/sesion elegida en
         # el arbol (o al dia activo), con prescripcion inicial 3x12
@@ -2004,7 +2004,7 @@ class RutinasTab:
             padx=12,
             pady=3,
             cursor="hand2",
-        ).pack(fill="x", pady=(8, 0))
+        ).pack(fill="x", pady=(4, 0))
 
         self.lbl_catalogo = tk.Label(
             panel_sel,
@@ -2095,7 +2095,7 @@ class RutinasTab:
             show="tree headings",
             height=12,
             selectmode="browse",
-            style="Gym.Treeview",
+            style="Gym.Treeview.Compacta",
         )
         # columna #0: jerarquia semana -> dia/sesion -> ejercicios
         self.tree_rutina.heading("#0", text="Semana / Día", anchor="w")
@@ -2278,16 +2278,24 @@ class RutinasTab:
         panes.add(marco_rutina_pac, weight=2)
         panes.add(superior, weight=1)
         panes.pack(fill="both", expand=True)
-        # reparto inicial 60/40 en cuanto el cuadro tenga geometría
-        reparto = {"hecho": False}
+        # reparto inicial: la tabla del árbol se lleva ~68% del cuadro y
+        # se recalcula en cada cambio de tamaño hasta que el usuario
+        # arrastra el separador (a partir de ahí se respeta su elección)
+        reparto = {"ratio": 0.68, "tocado": False}
 
         def reparto_inicial(_evento=None):
             alto = panes.winfo_height()
-            if not reparto["hecho"] and alto > 60:
-                reparto["hecho"] = True
-                panes.sashpos(0, int(alto * 0.6))
+            if alto > 60 and not reparto["tocado"]:
+                # la tabla se lleva ~68% dejando al panel de abajo lo
+                # justo para el combo y AGREGAR A LA RUTINA (>= 82px)
+                panes.sashpos(0, min(int(alto * reparto["ratio"]), alto - 82))
+
+        def separador_tocado(evento):
+            if "sash" in str(panes.identify(evento.x, evento.y)):
+                reparto["tocado"] = True
 
         panes.bind("<Configure>", reparto_inicial)
+        panes.bind("<ButtonPress-1>", separador_tocado)
 
         self.marco_rutina_pac = marco_rutina_pac
 
