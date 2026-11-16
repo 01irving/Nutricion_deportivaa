@@ -707,6 +707,7 @@ class RutinasTab:
             ("⤓ SEMANA DEL PACIENTE", self._sem_cargar_paciente, False),
             ("💾 GUARDAR", self._sem_guardar, False),
             ("✔ APLICAR AL PACIENTE", self._sem_aplicar, True),
+            ("🖨 IMPRIMIR SEMANA", self._sem_imprimir, False),
         ):
             tk.Button(
                 fila_acciones, text=texto, command=comando,
@@ -1887,6 +1888,92 @@ class RutinasTab:
             self.notebook_rut.select(1)   # sub-pestaña Rutina
         except Exception:
             pass
+
+    def _sem_imprimir(self):
+        """Genera el PDF de la rutina semanal tal como está en las
+        tablas (vista de la semana, tabla por día y detalle con
+        ilustraciones del catálogo) y lo abre; funciona con o sin
+        paciente seleccionado."""
+        plan = []
+        for dia in DIAS_SEMANA:
+            info = self._sem_datos[dia]
+            if not info["sesion"]:
+                # los días de descanso entran como fila marcada
+                plan.append(
+                    {
+                        "dia": dia, "orden": 1, "descanso": 1,
+                        "nombre": "Descanso", "equipo": "",
+                        "series": "", "repeticiones": "",
+                        "descanso_rep": "", "descanso_series": "",
+                        "peso": "", "notas": "",
+                        "grupo": None, "num": None,
+                    }
+                )
+                continue
+            for i, ej in enumerate(info["ejercicios"], start=1):
+                fila = {
+                    "dia": dia,
+                    "orden": i,
+                    "descanso": 0,
+                    "grupo": ej.get("grupo"),
+                    "num": ej.get("num"),
+                    "nombre": ej.get("nombre"),
+                    "equipo": ej.get("equipo"),
+                    "series": ej.get("series") or "",
+                    "repeticiones": ej.get("repeticiones") or "",
+                    "descanso_rep": ej.get("descanso_rep") or "",
+                    "descanso_series": ej.get("descanso_series") or "",
+                    "peso": ej.get("peso") or "",
+                    "notas": info["sesion"],
+                }
+                try:
+                    ficha = database.get_rutina_ejercicio(
+                        fila["grupo"], fila["num"]
+                    )
+                except Exception:
+                    ficha = None
+                if ficha:
+                    for campo in ("descripcion", "imagen_blob",
+                                  "imagen_nombre"):
+                        fila[campo] = ficha.get(campo)
+                plan.append(fila)
+        if not any(not f.get("descanso") for f in plan):
+            self._mensaje(
+                "La semana está vacía: añade ejercicios antes de imprimir."
+            )
+            return
+        paciente_id = self._paciente_actual()
+        paciente = {}
+        if paciente_id is not None:
+            try:
+                paciente = database.obtener_paciente(paciente_id) or {}
+            except Exception:
+                paciente = {}
+        nombre = (
+            self.entrada_sem_nombre.get().strip()
+            or self._sem_nombre
+            or "Rutina semanal"
+        )
+        if paciente.get("nombre"):
+            nombre = f"{nombre} — {paciente['nombre']}"
+        ruta = rutina_print.ruta_temporal_pdf(nombre)
+        try:
+            rutina_print.generar_pdf_rutina(ruta, paciente, plan, modo="todo")
+        except Exception as error:
+            messagebox.showerror(
+                "Imprimir", f"No se pudo generar el reporte:\n{error}"
+            )
+            return
+        try:
+            rutina_print.abrir_para_imprimir(ruta)
+        except Exception as error:
+            messagebox.showerror(
+                "Imprimir",
+                f"Se generó el PDF en:\n{ruta}\n\n"
+                f"No se pudo abrir automáticamente: {error}",
+            )
+            return
+        self._mensaje("Rutina semanal: reporte generado.")
 
     def _sem_eliminar_guardada(self):
         """Elimina de la biblioteca la rutina semanal guardada
@@ -3753,13 +3840,64 @@ class RutinasTab:
             self.menu_rutina_ctx.grab_release()
         return "break"
 
+    def _renombrar_semana_paciente(self):
+        """Doble clic sobre el nombre de la semana (nodo raíz del árbol
+        de la rutina del paciente): pide el nombre nuevo y lo guarda como
+        nombre_semana del paciente activo; la biblioteca y las plantillas
+        no se tocan."""
+        if not getattr(self, "rutina", []):
+            messagebox.showinfo(
+                "Rutinas",
+                "La rutina está vacía: añade ejercicios antes de "
+                "renombrar la semana.",
+            )
+            return
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            messagebox.showwarning(
+                "Rutinas",
+                "Selecciona un paciente antes de renombrar la semana.",
+            )
+            return
+        actual = next(
+            (
+                r.get("nombre_semana")
+                for r in self.rutina
+                if r.get("nombre_semana")
+            ),
+            "Semana del paciente",
+        )
+        nuevo = simpledialog.askstring(
+            "Rutinas",
+            "Nombre de la semana:",
+            initialvalue=actual,
+            parent=self.marco.winfo_toplevel(),
+        )
+        nuevo = (nuevo or "").strip()
+        if not nuevo or nuevo == actual:
+            return
+        try:
+            database.marcar_semana_aplicada(paciente_id, nuevo)
+        except Exception as error:
+            messagebox.showerror(
+                "Rutinas", f"No se pudo renombrar la semana:\n{error}"
+            )
+            return
+        self._render_rutina()
+        self._marcar_rutina_guardada()
+        self._mensaje(f"Semana renombrada: «{nuevo}».")
+
     def _editar_ejercicio_rutina(self, _event=None):
         """Cuadro para editar la prescripción de un ejercicio de la rutina
         (doble clic o clic derecho > Editar, como el edit de equivalentes
         en Menús). Al guardar, el cambio queda solo en la rutina del
         paciente activo: la plantilla semanal y las rutinas de los demás
-        pacientes no se tocan."""
+        pacientes no se tocan. Doble clic sobre la raíz de la semana
+        renombra la semana del paciente."""
         seleccion = self.tree_rutina.selection()
+        if seleccion and seleccion[0] == "semana":
+            self._renombrar_semana_paciente()
+            return
         if not seleccion or not seleccion[0].isdigit():
             return
         paciente_id = self._paciente_actual()
