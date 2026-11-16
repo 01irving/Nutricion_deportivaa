@@ -41,6 +41,9 @@ MAX = int(sys.argv[sys.argv.index('--max') + 1]) if '--max' in sys.argv else Non
 SOLO = sys.argv[sys.argv.index('--tiempo') + 1] if '--tiempo' in sys.argv else None
 if '--db' in sys.argv:
     DB = sys.argv[sys.argv.index('--db') + 1]
+# --desde-creditos: aplica al DB actual las imagenes ya resueltas en
+# imagenes_creditos.json (por nombre del platillo), sin volver a buscar
+DESDE_CREDITOS = '--desde-creditos' in sys.argv
 
 API = 'https://commons.wikimedia.org/w/api.php'
 UA = 'NutricionDeportiva-img-loader/1.0 (app profesional de nutricion)'
@@ -75,11 +78,22 @@ def relevant(titulo, palabras):
     return any(p in t for p in palabras)
 
 
-def peticion(params):
+def peticion(params, reintentos=3):
     url = API + '?' + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers={'User-Agent': UA})
-    with urllib.request.urlopen(req, timeout=25, context=CTX_SSL) as r:
-        return json.load(r)
+    for intento in range(reintentos):
+        req = urllib.request.Request(url, headers={'User-Agent': UA})
+        try:
+            with urllib.request.urlopen(req, timeout=25,
+                                        context=CTX_SSL) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as error:
+            if error.code == 429 and intento < reintentos - 1:
+                espera = 30 * (intento + 1)
+                print(f'    429 too many requests: espero {espera}s...')
+                time.sleep(espera)
+                continue
+            raise
+    return {}
 
 
 def limpiar_html(s):
@@ -143,8 +157,11 @@ def main():
     ).fetchone()[0]
     print(f'platillos sin imagen: {total_sin}')
 
+    # reemplaza SOLO las ilustraciones generadas; las fotos originales
+    # (113) y cualquier imagen que el usuario haya subido quedan intactas
     consulta = ('SELECT id_platillo, nombre, tiempo_comida FROM platillos '
-                'WHERE imagen_blob IS NULL')
+                "WHERE imagen_blob IS NULL OR imagen_nombre LIKE "
+                "'Ilustración generada%'")
     parametros = []
     if SOLO:
         consulta += ' AND tiempo_comida LIKE ?'
@@ -154,6 +171,40 @@ def main():
         consulta += ' LIMIT ?'
         parametros.append(MAX)
     filas = con.execute(consulta, parametros).fetchall()
+
+    if DESDE_CREDITOS:
+        creditos_ruta = os.path.join(RUTA, 'imagenes_creditos.json')
+        creditos = json.load(open(creditos_ruta, encoding='utf-8'))
+        descargadas = 0
+        sin_creditos = []
+        for f in filas:
+            entrada = creditos.get(f['nombre'])
+            if not entrada or not entrada.get('url'):
+                sin_creditos.append(f['nombre'])
+                continue
+            try:
+                blob = descargar(entrada['url'])
+            except Exception as error:
+                print(f'  DESCARGA FALLO ({f["nombre"][:40]}): {error}')
+                continue
+            atribucion = (f"{entrada['archivo_comunes'].replace('Archivo:', '')}"
+                          f" — {entrada['autor']}, {entrada['licencia']}, "
+                          'Wikimedia Commons')
+            with con:
+                con.execute(
+                    'UPDATE platillos SET imagen_blob = ?, imagen_nombre = ?, '
+                    "actualizado_en = datetime('now', 'localtime') "
+                    'WHERE id_platillo = ?',
+                    (sqlite3.Binary(blob), atribucion, f['id_platillo']))
+            descargadas += 1
+            print(f'  OK {descargadas:3} | {f["nombre"][:36]:36} | '
+                  f'{entrada["archivo_comunes"][:52]}')
+            time.sleep(0.3)
+        con.close()
+        print(f'\naplicadas desde creditos: {descargadas} | sin creditos: '
+              f'{len(sin_creditos)}')
+        print('LISTO')
+        return 0
 
     creditos_ruta = os.path.join(
         RUTA, 'imagenes_creditos.json'
