@@ -499,7 +499,6 @@ class RutinasTab:
         self.est_actual = None
         self.est_seleccion = []
         self._est_foto = None
-        self._cargar_grupos()
         self._cargar_ejercicios()
         self.imagen_actual = None
         self._img_origen = None
@@ -2178,46 +2177,43 @@ class RutinasTab:
         arbol.selection_set("principiantes")
         mostrar_nivel()
 
-    def _cargar_grupos(self):
-        """Grupos musculares disponibles en la base, con hombros primero."""
-        try:
-            filas = database.get_rutinas_grupos()
-        except Exception:
-            filas = []
-        filas.sort(
-            key=lambda f: (
-                GRUPOS_PREFERIDOS.index(f["grupo"])
-                if f["grupo"] in GRUPOS_PREFERIDOS
-                else len(GRUPOS_PREFERIDOS),
-                f["grupo"],
-            )
-        )
-        self.grupos = filas or [{"grupo": "hombros", "total": 0}]
-        disponibles = [g["grupo"] for g in self.grupos]
-        if self.grupo not in disponibles:
-            self.grupo = disponibles[0]
 
     def _cargar_ejercicios(self, grupo=None):
-        """Lee los ejercicios (imagen + descripción) del grupo desde la base única."""
-        self.grupo = grupo or self.grupo or "hombros"
+        """Lee los ejercicios del catálogo: TODOS los grupos si no se
+        pide uno concreto (el selector diario ya no filtra por grupo)."""
+        if grupo:
+            self.grupo = grupo
         try:
-            filas = database.get_rutinas_ejercicios(self.grupo)
-            if filas:
-                self.ejercicios = filas
-                return
+            if grupo:
+                filas = database.get_rutinas_ejercicios(self.grupo)
+                if filas:
+                    self.ejercicios = filas
+                    return
+            else:
+                todos = []
+                for g in GRUPOS_PREFERIDOS:
+                    try:
+                        todos.extend(database.get_rutinas_ejercicios(g) or [])
+                    except Exception:
+                        pass
+                if todos:
+                    self.ejercicios = todos
+                    return
         except Exception:
             pass
-        # Respaldo: JSON local si la base no responde o está vacía
-        nombre_json = CATALOGOS_JSON.get(self.grupo, "")
-        ruta_json = os.path.join(base_dir(), nombre_json) if nombre_json else ""
-        for codificacion in ("utf-8-sig", "utf-8"):
-            try:
-                with open(ruta_json, "r", encoding=codificacion) as f:
-                    self.ejercicios = json.load(f)
-                return
-            except Exception:
-                continue
+        # Respaldo: JSON locales de los grupos pedidos
         self.ejercicios = []
+        claves = [grupo] if grupo else list(GRUPOS_PREFERIDOS)
+        for g in claves:
+            nombre_json = CATALOGOS_JSON.get(g, "")
+            ruta_json = os.path.join(base_dir(), nombre_json) if nombre_json else ""
+            for codificacion in ("utf-8-sig", "utf-8"):
+                try:
+                    with open(ruta_json, "r", encoding=codificacion) as f:
+                        self.ejercicios.extend(json.load(f))
+                    break
+                except Exception:
+                    continue
 
     def create(self, parent):
         self.marco = ttk.Frame(parent, style="Gym.TFrame")
@@ -2228,32 +2224,12 @@ class RutinasTab:
 
         self.titulo = tk.Label(
             fila_titulo,
-            text=f"RUTINAS · {GRUPOS_ETIQUETAS.get(self.grupo, self.grupo).upper()}",
+            text="RUTINAS",
             font=("Impact", 15),
             fg=NEON,
             bg=GRIS_OSCURO,
         )
-        self.marco_grupo = ttk.Frame(fila_titulo, style="Gym.TFrame")
-        self.marco_grupo.pack(side="left", padx=(8, 10), pady=2)
 
-        self.lbl_grupo_titulo = tk.Label(
-            self.marco_grupo,
-            text="Grupo:",
-            font=("Segoe UI", 8),
-            fg=GRIS_TEXTO,
-            bg=GRIS_OSCURO,
-        )
-        self.lbl_grupo_titulo.pack(side="left", padx=(0, 4))
-        self.grupo_combo = ttk.Combobox(
-            self.marco_grupo,
-            values=[GRUPOS_ETIQUETAS.get(g["grupo"], g["grupo"].capitalize()) for g in self.grupos],
-            state="readonly",
-            width=12,
-            style="Gym.TCombobox",
-        )
-        self.grupo_combo.pack(side="left")
-        self.grupo_combo.set(self.grupo.capitalize())
-        self.grupo_combo.bind("<<ComboboxSelected>>", self._al_cambiar_grupo)
 
         # Calculadora 1RM (por ejercicio, ramas de árbol) a la derecha
         tk.Button(
@@ -2954,15 +2930,6 @@ class RutinasTab:
             self.lbl_preview_img.configure(image="", text="")
             self.lbl_preview_fuente.configure(text="")
 
-    def _al_cambiar_grupo(self, event=None):
-        texto = self.grupo_combo.get().strip()
-        elegido = {v: k for k, v in GRUPOS_ETIQUETAS.items()}.get(texto, texto.lower())
-        if not elegido or elegido == self.grupo:
-            return
-        self._cargar_ejercicios(elegido)
-        if self._subpestana_actual() != 2:
-            self.titulo.configure(text=f"RUTINAS · {GRUPOS_ETIQUETAS.get(self.grupo, self.grupo).upper()}")
-        self._poblar_combo_ejercicios()
 
     def _subpestana_actual(self):
         try:
@@ -2975,16 +2942,11 @@ class RutinasTab:
         sub = self._subpestana_actual()
         if sub == 2:
             self.titulo.configure(text="ESTIRAMIENTOS")
-            self.marco_grupo.pack_forget()
             self._cargar_est_paciente()
         elif sub == 3:
             self.titulo.configure(text="PROGRESIÓN · MODELO ACSM 2009")
-            self.marco_grupo.pack_forget()
-
         else:
-            self.titulo.configure(text=f"RUTINAS · {GRUPOS_ETIQUETAS.get(self.grupo, self.grupo).upper()}")
-            if not self.marco_grupo.winfo_ismapped():
-                self.marco_grupo.pack(side="left", padx=(8, 10), pady=2, before=self.titulo)
+            self.titulo.configure(text="RUTINAS")
 
     def _al_seleccionar_combo(self, event=None):
         idx = self.combo_ej.current()
@@ -2996,9 +2958,9 @@ class RutinasTab:
 
     def _al_seleccionar_fila_rutina(self, _event=None):
         """Clic en una fila de la rutina del paciente: lleva el ejercicio
-        al selector (cambiando de grupo si hace falta) y la
-        previsualización muestra su título, descripción e imagen; el
-        combo Sesión del día se sincroniza con el día de la fila."""
+        al selector y la previsualización muestra su título,
+        descripción e imagen; el combo Sesión del día se sincroniza
+        con el día de la fila."""
         self._actualizar_sesion_dia()
         seleccion = self.tree_rutina.selection()
         if not seleccion or not seleccion[0].isdigit():
@@ -3010,14 +2972,7 @@ class RutinasTab:
         )
         if not fila:
             return
-        grupo = (fila.get("grupo") or "").strip()
         num = str(fila.get("num") or "")
-        if grupo and grupo != self.grupo:
-            # el combo solo lista el grupo actual: cambia de grupo
-            self.grupo_combo.set(
-                GRUPOS_ETIQUETAS.get(grupo, grupo.capitalize())
-            )
-            self._al_cambiar_grupo()
         indice = self._indice_ejercicio_combo(fila, num)
         if indice is not None:
             self.combo_ej.current(indice)
@@ -3030,10 +2985,15 @@ class RutinasTab:
             )
 
     def _indice_ejercicio_combo(self, fila, num):
-        """Índice del ejercicio de la fila en el combo actual (por num y,
-        si el catálogo se renumeró, por nombre)."""
+        """Índice del ejercicio de la fila en el combo completo (por
+        grupo y número; si el catálogo se renumeró, por nombre)."""
+        grupo = (fila.get("grupo") or "").strip()
         for indice, ej in enumerate(self.ejercicios):
-            if num and str(ej.get("num") or "") == num:
+            if (
+                num
+                and str(ej.get("num") or "") == num
+                and (not grupo or (ej.get("grupo") or "").strip() == grupo)
+            ):
                 return indice
         for indice, ej in enumerate(self.ejercicios):
             if fila.get("nombre") and ej.get("nombre") == fila.get("nombre"):
@@ -3312,7 +3272,9 @@ class RutinasTab:
 
         if self._img_origen is None:
             nombre = ej.get("imagen_nombre") or ej.get("imagen") or ""
-            ruta = os.path.join(RUTA_IMAGENES, self.grupo, nombre) if nombre else ""
+            ruta = os.path.join(
+                RUTA_IMAGENES, ej.get("grupo") or self.grupo, nombre
+            ) if nombre else ""
             if ruta and os.path.exists(ruta):
                 try:
                     with Image.open(ruta) as imagen:
