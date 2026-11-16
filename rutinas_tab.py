@@ -1827,23 +1827,33 @@ class RutinasTab:
         self._sem_nombre = nombre
         self._sem_origen = "guardada"
         self._sem_refrescar_selector()
-        self._mensaje(f"Rutina semanal guardada: «{nombre}» ({total} ejercicios).")
+        # guarda para el paciente: aplica la semana de las tablas
+        if self._sem_aplicar_al_paciente(nombre):
+            self.dia_actual = next(
+                (d for d in DIAS_SEMANA if self._sem_datos[d]["sesion"]),
+                DIAS_SEMANA[0],
+            )
+            self._cargar_rutina()
+            self._marcar_rutina_guardada()
+            self._mensaje(
+                f"Rutina semanal guardada y aplicada al paciente: "
+                f"«{nombre}» ({total} ejercicios)."
+            )
+        else:
+            self._mensaje(
+                f"Rutina semanal guardada en la biblioteca: «{nombre}» "
+                f"({total} ejercicios). Sin paciente seleccionado para "
+                "aplicarla."
+            )
 
-    def _sem_aplicar(self):
-        """Aplica la semana de las tablas a la rutina del paciente:
-        reemplaza sus 7 días (ejercicios y descansos) y carga el día
-        Lunes o el primero entrenable en la sub-pestaña Rutina."""
+    def _sem_aplicar_al_paciente(self, nombre):
+        """Escribe la semana de las tablas en la rutina del paciente:
+        borra su semana actual, inserta ejercicios y descansos y
+        etiqueta la semana aplicada. True si se escribió en la BD.
+        (Núcleo común de GUARDAR y APLICAR AL PACIENTE.)"""
         paciente_id = self._paciente_actual()
         if paciente_id is None:
-            self._mensaje(
-                "Selecciona un paciente antes de aplicar la rutina semanal."
-            )
-            return
-        nombre = (
-            self.entrada_sem_nombre.get().strip()
-            or self._sem_nombre
-            or "Semana del paciente"
-        )
+            return False
         try:
             database.delete_rutinas_paciente(paciente_id)
             for dia in DIAS_SEMANA:
@@ -1873,6 +1883,26 @@ class RutinasTab:
             messagebox.showerror(
                 "Rutinas", f"No se pudo aplicar la rutina semanal:\n{error}"
             )
+            return False
+        return True
+
+    def _sem_aplicar(self):
+        """Aplica la semana de las tablas a la rutina del paciente:
+        reemplaza sus 7 días (ejercicios y descansos), carga el primer
+        día entrenable en la sub-pestaña Rutina y cierra las tablas.
+        (Para guardar además en la biblioteca, usa GUARDAR.)"""
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            self._mensaje(
+                "Selecciona un paciente antes de aplicar la rutina semanal."
+            )
+            return
+        nombre = (
+            self.entrada_sem_nombre.get().strip()
+            or self._sem_nombre
+            or "Semana del paciente"
+        )
+        if not self._sem_aplicar_al_paciente(nombre):
             return
         self.dia_actual = next(
             (d for d in DIAS_SEMANA if self._sem_datos[d]["sesion"]),
