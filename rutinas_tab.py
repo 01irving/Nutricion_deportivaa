@@ -788,46 +788,40 @@ class RutinasTab:
             "<<TreeviewSelect>>", self._sem_elegir_dia
         )
 
-        # ---------- tabla editable de ejercicios del día ------------------
-        marco_ej = ttk.LabelFrame(
-            derecho,
-            text="Ejercicios del día — doble clic en # añade; en Ejercicio "
-                 "elige grupo (p. ej. Hombros) y luego el ejercicio; "
-                 "series, repeticiones, descansos y peso se editan directo",
-            padding=4,
-        )
-        marco_ej.pack(fill="both", expand=True, pady=(6, 0))
-        cols_ej = (
-            "num", "ejercicio", "series", "repeticiones", "descanso_rep",
-            "descanso_series", "peso", "equipo",
-        )
-        self.tree_sem_ej = ttk.Treeview(
-            marco_ej, columns=cols_ej, show="headings", height=9,
-            selectmode="browse", style="Gym.Treeview",
-        )
-        for col, texto, ancho, alineacion in (
-            ("num", "#", 30, "center"),
-            ("ejercicio", "Ejercicio", 250, "w"),
-            ("series", "Series", 52, "center"),
-            ("repeticiones", "Reps", 62, "center"),
-            ("descanso_rep", "Desc. reps", 70, "center"),
-            ("descanso_series", "Desc. series", 76, "center"),
-            ("peso", "Peso", 60, "center"),
-            ("equipo", "Equipo", 105, "w"),
-        ):
-            self.tree_sem_ej.heading(col, text=texto, anchor=alineacion)
-            self.tree_sem_ej.column(
-                col, width=ancho, minwidth=ancho, anchor=alineacion
-            )
-        self.tree_sem_ej.pack(side="top", fill="both", expand=True)
-        barra_ej = ttk.Scrollbar(
-            marco_ej, orient="vertical", command=self.tree_sem_ej.yview
-        )
-        self.tree_sem_ej.configure(yscrollcommand=barra_ej.set)
-        self.tree_sem_ej.bind("<Double-1>", self._sem_editar_celda_evento)
+        # ---------- funciones de la sesión, entre Semana y Ejercicios ----
+        # (rutina simple guardada, catálogo, quitar y reordenar: todo lo
+        # que estaba al pie de la tabla de ejercicios, pedido del autor)
+        fila_funciones = ttk.Frame(derecho, style="Gym.TFrame")
+        fila_funciones.pack(fill="x", pady=(6, 0))
 
-        fila_ej = ttk.Frame(marco_ej, style="Gym.TFrame")
-        fila_ej.pack(side="bottom", fill="x", pady=(4, 0))
+        fila_guardada = ttk.Frame(fila_funciones, style="Gym.TFrame")
+        fila_guardada.pack(fill="x")
+        tk.Label(
+            fila_guardada, text="Rutina guardada simple:",
+            font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+        ).pack(side="left")
+        self.combo_sem_simple = ttk.Combobox(
+            fila_guardada, values=[], state="readonly", width=36,
+            style="Gym.TCombobox",
+        )
+        self.combo_sem_simple.pack(side="left", padx=(4, 6))
+        tk.Button(
+            fila_guardada, text="⤒ AGREGAR AL DÍA",
+            command=self._sem_agregar_guardada_al_dia,
+            font=("Segoe UI", 8, "bold"), fg=NEON, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=8, pady=2, cursor="hand2",
+        ).pack(side="left")
+        tk.Button(
+            fila_guardada, text="💾 GUARDAR DÍA COMO NUEVA",
+            command=self._sem_guardar_dia_simple,
+            font=("Segoe UI", 8, "bold"), fg=NEGRO, bg=NEON,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=8, pady=2, cursor="hand2",
+        ).pack(side="left", padx=(8, 0))
+
+        fila_ej = ttk.Frame(fila_funciones, style="Gym.TFrame")
+        fila_ej.pack(fill="x", pady=(4, 0))
         tk.Label(
             fila_ej, text="Añadir del catálogo:",
             font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
@@ -870,31 +864,43 @@ class RutinasTab:
         )
         self.lbl_sem_dia.pack(side="left", padx=(10, 0))
 
-        fila_guardada = ttk.Frame(marco_ej, style="Gym.TFrame")
-        fila_guardada.pack(side="bottom", fill="x", pady=(2, 0))
-        tk.Label(
-            fila_guardada, text="Rutina guardada simple:",
-            font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
-        ).pack(side="left")
-        self.combo_sem_simple = ttk.Combobox(
-            fila_guardada, values=[], state="readonly", width=36,
-            style="Gym.TCombobox",
+        # ---------- tabla editable de ejercicios del día ------------------
+        marco_ej = ttk.LabelFrame(
+            derecho,
+            text="Ejercicios del día — doble clic en # añade; en Ejercicio "
+                 "elige grupo (p. ej. Hombros) y luego el ejercicio; "
+                 "series, repeticiones, descansos y peso se editan directo",
+            padding=4,
         )
-        self.combo_sem_simple.pack(side="left", padx=(4, 6))
-        tk.Button(
-            fila_guardada, text="⤒ AGREGAR AL DÍA",
-            command=self._sem_agregar_guardada_al_dia,
-            font=("Segoe UI", 8, "bold"), fg=NEON, bg=GRIS,
-            activebackground=NARANJA, activeforeground=BLANCO,
-            relief="flat", padx=8, pady=2, cursor="hand2",
-        ).pack(side="left")
-        tk.Button(
-            fila_guardada, text="💾 GUARDAR DÍA COMO NUEVA",
-            command=self._sem_guardar_dia_simple,
-            font=("Segoe UI", 8, "bold"), fg=NEGRO, bg=NEON,
-            activebackground=NARANJA, activeforeground=BLANCO,
-            relief="flat", padx=8, pady=2, cursor="hand2",
-        ).pack(side="left", padx=(8, 0))
+        marco_ej.pack(fill="both", expand=True, pady=(6, 0))
+        cols_ej = (
+            "num", "ejercicio", "series", "repeticiones", "descanso_rep",
+            "descanso_series", "peso", "equipo",
+        )
+        self.tree_sem_ej = ttk.Treeview(
+            marco_ej, columns=cols_ej, show="headings", height=9,
+            selectmode="browse", style="Gym.Treeview",
+        )
+        for col, texto, ancho, alineacion in (
+            ("num", "#", 30, "center"),
+            ("ejercicio", "Ejercicio", 250, "w"),
+            ("series", "Series", 52, "center"),
+            ("repeticiones", "Reps", 62, "center"),
+            ("descanso_rep", "Desc. reps", 70, "center"),
+            ("descanso_series", "Desc. series", 76, "center"),
+            ("peso", "Peso", 60, "center"),
+            ("equipo", "Equipo", 105, "w"),
+        ):
+            self.tree_sem_ej.heading(col, text=texto, anchor=alineacion)
+            self.tree_sem_ej.column(
+                col, width=ancho, minwidth=ancho, anchor=alineacion
+            )
+        self.tree_sem_ej.pack(side="top", fill="both", expand=True)
+        barra_ej = ttk.Scrollbar(
+            marco_ej, orient="vertical", command=self.tree_sem_ej.yview
+        )
+        self.tree_sem_ej.configure(yscrollcommand=barra_ej.set)
+        self.tree_sem_ej.bind("<Double-1>", self._sem_editar_celda_evento)
 
         # ---------- historial de rutinas guardadas del paciente ----------
         marco_hist = ttk.LabelFrame(
