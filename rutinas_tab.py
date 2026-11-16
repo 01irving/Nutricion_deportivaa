@@ -622,7 +622,7 @@ class RutinasTab:
         Rutina: el botón «ABRIR RUTINA SEMANAL» las muestra sobre la
         vista diaria y las vuelve a ocultar (sin pestaña aparte ni
         cuadros de diálogo).""",
-        marco = ttk.Frame(self.marco_rut, style="Gym.TFrame")
+        marco = ttk.Frame(self.interior_rut, style="Gym.TFrame")
         self.marco_sem = marco
 
         # estado del editor semanal (se llena al cargar una rutina)
@@ -2804,9 +2804,59 @@ class RutinasTab:
         marco = self.marco_rut
         self.notebook_rut.add(marco, text="  Rutina  ")
 
+        # contenedor con scroll vertical: en pantallas donde el contenido
+        # no cabe (1366x768 con la vista diaria o las tablas abiertas) la
+        # barra llega hasta el fondo en vez de cortar el historial y la
+        # barra de días
+        lienzo = tk.Canvas(
+            marco, bg=GRIS_OSCURO, highlightthickness=0, yscrollincrement=48
+        )
+        scroll_rut = ttk.Scrollbar(
+            marco, orient="vertical", command=lienzo.yview
+        )
+        lienzo.configure(yscrollcommand=scroll_rut.set)
+        lienzo.pack(side="left", fill="both", expand=True)
+        scroll_rut.pack(side="right", fill="y")
+        interior = ttk.Frame(lienzo, style="Gym.TFrame")
+        self.interior_rut = interior
+        ventana_rut = lienzo.create_window((0, 0), window=interior, anchor="nw")
+
+        def _ajustar_region(_evento=None):
+            lienzo.configure(scrollregion=lienzo.bbox("all"))
+
+        def _ajustar_ancho(evento):
+            lienzo.itemconfigure(ventana_rut, width=evento.width)
+
+        def _rueda_lienzo(evento):
+            bajo = marco.winfo_toplevel().winfo_containing(
+                evento.x_root, evento.y_root
+            )
+            if bajo is None:
+                return
+            # solo cuando el puntero está sobre el contenido de Rutina
+            dentro = False
+            w = bajo
+            while w is not None:
+                if w is lienzo:
+                    dentro = True
+                    break
+                w = getattr(w, "master", None)
+            if not dentro:
+                return
+            if isinstance(bajo, (ttk.Treeview, tk.Text)):
+                return   # los widgets con scroll propio mandan
+            paso = -1 * (evento.delta // 120)
+            if paso:
+                lienzo.yview_scroll(paso, "units")
+                return "break"
+
+        interior.bind("<Configure>", _ajustar_region)
+        lienzo.bind("<Configure>", _ajustar_ancho)
+        marco.bind_all("<MouseWheel>", _rueda_lienzo, add="+")
+
         # botón que muestra/oculta las tablas de la rutina semanal
         # dentro de esta sub-pestaña (sin cuadros de diálogo)
-        fila_sem = ttk.Frame(marco, style="Gym.TFrame")
+        fila_sem = ttk.Frame(interior, style="Gym.TFrame")
         fila_sem.pack(side="top", fill="x", padx=10, pady=(4, 0))
         tk.Label(
             fila_sem,
@@ -2831,7 +2881,7 @@ class RutinasTab:
         )
         self.btn_ver_semana.pack(side="left", padx=(6, 0))
 
-        self.contenedor_rut = ttk.Frame(marco, style="Gym.TFrame")
+        self.contenedor_rut = ttk.Frame(interior, style="Gym.TFrame")
         contenedor_principal = self.contenedor_rut
         contenedor_principal.pack(fill="both", expand=True, padx=10, pady=(2, 6))
 
