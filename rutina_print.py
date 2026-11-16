@@ -31,6 +31,7 @@ from impresion_utils import (
     calcular_edad,
     crear_membrete,
     nombre_pdf,
+    pedir_guardar_pdf,
 )
 from impresion_utils import ruta_temporal_pdf as _ruta_temporal_pdf
 from rutas import base_dir
@@ -40,6 +41,7 @@ __all__ = [
     "calcular_edad",
     "generar_pdf_rutina",
     "nombre_pdf",
+    "pedir_guardar_pdf",
     "ruta_temporal_pdf",
 ]
 

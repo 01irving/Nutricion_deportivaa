@@ -2147,7 +2147,9 @@ class RutinasTab:
                 f"No se pudo abrir automáticamente: {error}",
             )
             return
-        self._mensaje("Rutina semanal: reporte generado.")
+        self._mensaje(
+            "Rutina semanal: PDF en Documentos\\Nutrición Deportiva."
+        )
 
     def _sem_eliminar_guardada(self):
         """Elimina de la biblioteca la rutina semanal guardada
@@ -2991,6 +2993,25 @@ class RutinasTab:
         self.menu_imprimir.add_command(
             label="Tabla + descripciones (todo)",
             command=lambda: self._imprimir_rutina("todo"),
+        )
+        # guardar sin pasar por Acrobat: elige carpeta y nombre y el PDF
+        # se escribe ahí directo (misma elección tabla/descripciones/todo)
+        self.menu_imprimir.add_separator()
+        menu_guardar = tk.Menu(self.menu_imprimir, tearoff=0, font=("Segoe UI", 9))
+        menu_guardar.add_command(
+            label="Tabla semanal",
+            command=lambda: self._imprimir_rutina("tabla", guardar=True),
+        )
+        menu_guardar.add_command(
+            label="Descripciones de ejercicios",
+            command=lambda: self._imprimir_rutina("descripcion", guardar=True),
+        )
+        menu_guardar.add_command(
+            label="Tabla + descripciones (todo)",
+            command=lambda: self._imprimir_rutina("todo", guardar=True),
+        )
+        self.menu_imprimir.add_cascade(
+            label="💾 Guardar PDF…", menu=menu_guardar
         )
         # clic derecho sobre la rutina: editar / quitar el ejercicio;
         # doble clic edita, igual que en Menús
@@ -4161,10 +4182,12 @@ class RutinasTab:
             boton.winfo_rooty() + boton.winfo_height(),
         )
 
-    def _imprimir_rutina(self, modo="todo"):
+    def _imprimir_rutina(self, modo="todo", guardar=False):
         """Genera el PDF de la rutina en el modo elegido ("tabla" = solo
         plan semanal y tablas por día; "descripcion" = solo el detalle
-        con imagen y descripción; "todo" = ambos) y lo abre."""
+        con imagen y descripción; "todo" = ambos) y lo abre. Con
+        guardar=True pide carpeta y nombre (el PDF se escribe ahí en
+        lugar de la carpeta de reportes de Documentos)."""
         paciente_id = self._paciente_actual()
         if paciente_id is None:
             messagebox.showwarning(
@@ -4198,7 +4221,15 @@ class RutinasTab:
 
         paciente = database.obtener_paciente(paciente_id) or {}
         nombre = paciente.get("nombre") or f"paciente_{paciente_id}"
-        ruta = rutina_print.ruta_temporal_pdf(nombre)
+        if guardar:
+            # el usuario elige carpeta y nombre; cancelar no genera nada
+            ruta = rutina_print.pedir_guardar_pdf(
+                "Rutina", nombre, parent=self.marco.winfo_toplevel()
+            )
+            if not ruta:
+                return
+        else:
+            ruta = rutina_print.ruta_temporal_pdf(nombre)
         try:
             rutina_print.generar_pdf_rutina(ruta, paciente, plan, modo=modo)
         except Exception as error:
@@ -4217,7 +4248,9 @@ class RutinasTab:
             )
             return
 
-        self._mensaje("Rutina: reporte generado.")
+        self._mensaje(
+            f"PDF guardado: {ruta}" if guardar else "Rutina: reporte generado."
+        )
 
     def _cargar_rutina(self):
         paciente_id = self._paciente_actual()

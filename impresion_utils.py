@@ -374,6 +374,63 @@ def ruta_acrobat():
     return None
 
 
+def _documentos_usuario():
+    """Carpeta Documentos del usuario (la real de Windows, aunque la
+    haya movido OneDrive; cae a ~ si no se puede resolver)."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        CSIDL_PERSONAL = 0x05  # FOLDERID_Documents (SHGetFolderPath)
+        buf = ctypes.create_unicode_buffer(wintypes.MAX_PATH)
+        if ctypes.windll.shell32.SHGetFolderPathW(None, CSIDL_PERSONAL, None, 0, buf) == 0:
+            if buf.value:
+                return buf.value
+    except Exception:
+        pass
+    for candidata in (
+        os.path.join(os.path.expanduser("~"), "Documents"),
+        os.path.join(os.path.expanduser("~"), "OneDrive", "Documents"),
+        os.path.expanduser("~"),
+    ):
+        if os.path.isdir(candidata):
+            return candidata
+    return os.path.expanduser("~")
+
+
+def carpeta_pdfs():
+    """Carpeta de salida de los reportes: Documentos\\Nutrición Deportiva
+    (creada si falta; la carpeta temporal si no se pudo crear).
+
+    Los reportes viven aquí y no en %TEMP% porque Acrobat trata los
+    archivos de la carpeta temporal como ubicación no confiable y deja
+    bloqueada la opción de Guardar; desde una carpeta del usuario se
+    pueden guardar sin restricciones y no se pierden al limpiar
+    temporales."""
+    carpeta = os.path.join(_documentos_usuario(), "Nutrición Deportiva")
+    try:
+        os.makedirs(carpeta, exist_ok=True)
+    except OSError:
+        return tempfile.gettempdir()
+    return carpeta
+
+
+def pedir_guardar_pdf(prefijo, nombre_base, parent=None):
+    """Diálogo Guardar como para un reporte: devuelve la ruta elegida
+    (cadena vacía si se cancela). Arranca en la carpeta de los reportes
+    con el nombre estándar ya sugerido."""
+    from tkinter import filedialog
+
+    return filedialog.asksaveasfilename(
+        parent=parent,
+        title="Guardar PDF",
+        defaultextension=".pdf",
+        initialdir=carpeta_pdfs(),
+        initialfile=nombre_pdf(prefijo, nombre_base),
+        filetypes=(("PDF", "*.pdf"), ("Todos los archivos", "*.*")),
+    )
+
+
 def abrir_para_imprimir(ruta):
     """
     Abre el PDF en Acrobat para revisarlo/ajustarlo antes de imprimir.
@@ -396,4 +453,8 @@ def nombre_pdf(prefijo, nombre_paciente):
 
 
 def ruta_temporal_pdf(prefijo, nombre_paciente):
-    return os.path.join(tempfile.gettempdir(), nombre_pdf(prefijo, nombre_paciente))
+    """Ruta del PDF de un reporte (nombre conservado por compatibilidad
+    con todas las pestañas). Ya no va a %TEMP% sino a la carpeta de
+    reportes del usuario (carpeta_pdfs): Acrobat permite Guardar sobre
+    ella y el reporte no se pierde al limpiar temporales."""
+    return os.path.join(carpeta_pdfs(), nombre_pdf(prefijo, nombre_paciente))
