@@ -5,7 +5,7 @@ import sqlite3
 import unicodedata
 from datetime import datetime
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, simpledialog
 
 try:  # Tk nativo solo decodifica PNG/GIF; Pillow permite leer el JPEG guardado en la BD
     from PIL import Image, ImageTk
@@ -856,6 +856,41 @@ class RutinasTab:
             relief="flat", padx=8, pady=2, cursor="hand2",
         ).pack(side="left", padx=(8, 0))
 
+        # ---------- historial de rutinas guardadas del paciente ----------
+        marco_hist = ttk.LabelFrame(
+            derecho,
+            text="Rutinas guardadas del paciente (doble clic = cargar para "
+                 "editar o volver a aplicar)",
+            padding=4,
+        )
+        marco_hist.pack(fill="x", pady=(6, 0))
+        cols_hist = ("semana", "fecha", "ejercicios", "dias")
+        self.tree_sem_historial = ttk.Treeview(
+            marco_hist, columns=cols_hist, show="headings", height=4,
+            selectmode="browse", style="Gym.Treeview",
+        )
+        for col, texto, ancho, alineacion in (
+            ("semana", "Rutina semanal", 300, "w"),
+            ("fecha", "Fecha guardada", 130, "center"),
+            ("ejercicios", "Ejerc.", 60, "center"),
+            ("dias", "Días", 50, "center"),
+        ):
+            self.tree_sem_historial.heading(
+                col, text=texto, anchor=alineacion
+            )
+            self.tree_sem_historial.column(
+                col, width=ancho, minwidth=ancho, anchor=alineacion
+            )
+        self.tree_sem_historial.pack(side="left", fill="x", expand=True)
+        barra_hist = ttk.Scrollbar(
+            marco_hist, orient="vertical",
+            command=self.tree_sem_historial.yview,
+        )
+        self.tree_sem_historial.configure(yscrollcommand=barra_hist.set)
+        self.tree_sem_historial.bind(
+            "<Double-1>", lambda _e: self._sem_cargar_historial()
+        )
+
         # catálogo para la lista Añadir y los desplegables de celda
         self._sem_cargar_catalogo()
         self.combo_sem_anadir.configure(values=list(self._sem_opciones))
@@ -889,6 +924,7 @@ class RutinasTab:
         self._sem_refrescar_selector()
         self._sem_pintar_semana()
         self._sem_pintar_ejercicios()
+        self._sem_refrescar_historial()
         self._mensaje(
             "Rutina semanal en tablas: elige una rutina (doble clic), "
             "edita en celdas y guarda o aplica."
@@ -1884,6 +1920,33 @@ class RutinasTab:
                 "Rutinas", f"No se pudo aplicar la rutina semanal:\n{error}"
             )
             return False
+        # historial: copia de la semana guardada del paciente con fecha
+        detalle = json.dumps(
+            [
+                {
+                    "dia": dia,
+                    "sesion": self._sem_datos[dia]["sesion"] or "",
+                    "ejercicios": [
+                        {
+                            k: ej.get(k)
+                            for k in (
+                                "grupo", "num", "nombre", "equipo",
+                                "series", "repeticiones", "descanso_rep",
+                                "descanso_series", "peso",
+                            )
+                        }
+                        for ej in self._sem_datos[dia]["ejercicios"]
+                    ],
+                }
+                for dia in DIAS_SEMANA
+            ],
+            ensure_ascii=False,
+        )
+        try:
+            database.guardar_rutina_historial(paciente_id, nombre, detalle)
+            self._sem_refrescar_historial()
+        except Exception:
+            pass   # el historial no debe impedir la aplicación
         return True
 
     def _sem_aplicar(self):
@@ -1917,6 +1980,88 @@ class RutinasTab:
             self.notebook_rut.select(1)   # sub-pestaña Rutina
         except Exception:
             pass
+
+    def _sem_refrescar_historial(self):
+        """Tabla del historial: las rutinas semanales guardadas del
+        paciente con su fecha, la más reciente primero."""
+        if not hasattr(self, "tree_sem_historial"):
+            return
+        for iid in self.tree_sem_historial.get_children():
+            self.tree_sem_historial.delete(iid)
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            self.tree_sem_historial.insert(
+                "", "end", iid="sin",
+                values=("Sin paciente seleccionado", "—", "—", "—"),
+            )
+            return
+        try:
+            entradas = database.get_rutinas_historial(paciente_id)
+        except Exception:
+            entradas = []
+        if not entradas:
+            self.tree_sem_historial.insert(
+                "", "end", iid="sin",
+                values=(
+                    "Aún no hay rutinas guardadas para este paciente",
+                    "—", "—", "—",
+                ),
+            )
+            return
+        for e in entradas:
+            self.tree_sem_historial.insert(
+                "", "end", iid=str(e["id_historial"]),
+                values=(
+                    e["nombre_semana"], e["fecha"],
+                    e["ejercicios"], e["dias"],
+                ),
+            )
+
+    def _sem_cargar_historial(self):
+        """Carga en las tablas la rutina guardada del paciente elegida
+        en el historial (doble clic): restaura los 7 días con su
+        sesión y ejercicios y deja el nombre en el campo Nombre, lista
+        para editarla y volver a aplicar o guardar."""
+        tree = self.tree_sem_historial
+        sel = tree.selection()
+        if not sel or not sel[0].isdigit():
+            self._mensaje(
+                "Elige una rutina guardada del paciente en el historial."
+            )
+            return
+        try:
+            entrada = database.get_rutina_historial(int(sel[0]))
+        except Exception:
+            entrada = None
+        if not entrada:
+            self._mensaje("No se pudo leer la rutina guardada del paciente.")
+            return
+        self._sem_datos = self._sem_semana_vacia()
+        for d in entrada.get("dias", []):
+            dia = d.get("dia") or "Lunes"
+            if dia not in self._sem_datos:
+                continue
+            sesion = (d.get("sesion") or "").strip() or None
+            self._sem_datos[dia]["sesion"] = sesion
+            self._sem_datos[dia]["ejercicios"] = [
+                self._sem_ficha_con_prescripcion(dict(e))
+                for e in d.get("ejercicios", [])
+            ]
+        self._sem_nombre = entrada.get("nombre_semana") or "Rutina del paciente"
+        self._sem_origen = "paciente"
+        self._sem_guardada_id = None
+        self.entrada_sem_nombre.delete(0, tk.END)
+        self.entrada_sem_nombre.insert(0, self._sem_nombre)
+        self._sem_dia = next(
+            (d for d in DIAS_SEMANA if self._sem_datos[d]["sesion"]),
+            DIAS_SEMANA[0],
+        )
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+        self._mensaje(
+            f"Rutina del paciente cargada: «{self._sem_nombre}» "
+            f"(guardada {entrada.get('fecha') or '—'})."
+        )
 
     def _sem_imprimir(self):
         """Genera el PDF de la rutina semanal tal como está en las
@@ -3875,7 +4020,9 @@ class RutinasTab:
                 "Rutinas", f"No se pudo renombrar la semana:\n{error}"
             )
             return
-        self._render_rutina()
+        # recarga las filas desde la BD: la raíz del árbol y el marco
+        # muestran el nombre nuevo
+        self._cargar_rutina()
         self._marcar_rutina_guardada()
         self._mensaje(f"Semana renombrada: «{nuevo}».")
 
@@ -4268,6 +4415,8 @@ class RutinasTab:
         self._cargar_est_paciente()
         self._cargar_calentamiento_paciente()
         self._recargar_referencias_1rm()
+        if hasattr(self, "tree_sem_historial"):
+            self._sem_refrescar_historial()
 
     def refrescar_estado(self):
         paciente_id = getattr(self.app, "id_paciente_antro", None)
