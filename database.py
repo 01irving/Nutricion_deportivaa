@@ -454,6 +454,21 @@ def init_db():
                 "ALTER TABLE rutinas_paciente ADD COLUMN nombre_semana TEXT DEFAULT ''"
             )
 
+        # historial de rutinas semanales guardadas del paciente: cada
+        # GUARDAR/APLICAR deja una entrada con la fecha y el detalle
+        # completo de la semana (JSON) para volver a cargarla
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rutinas_paciente_historial (
+                id_historial INTEGER PRIMARY KEY AUTOINCREMENT,
+                paciente_id INTEGER REFERENCES pacientes(id),
+                nombre_semana TEXT,
+                fecha TEXT DEFAULT (datetime('now', 'localtime')),
+                detalle TEXT
+            )
+            """
+        )
+
         # rutinas guardadas con nombre (biblioteca del entrenador, común a
         # todos los pacientes): semanal=0 rutina simple (lista de ejercicios
         # con prescripción), semanal=1 rutina semanal (la semana completa,
@@ -1381,6 +1396,80 @@ ORDEN_DIAS_SQL = (
     " WHEN 'Miércoles' THEN 3 WHEN 'Jueves' THEN 4 WHEN 'Viernes' THEN 5"
     " WHEN 'Sábado' THEN 6 WHEN 'Domingo' THEN 7 ELSE 8 END"
 )
+
+
+def guardar_rutina_historial(paciente_id, nombre_semana, detalle):
+    """Deja en el historial una copia de la rutina semanal guardada
+    del paciente (detalle = JSON con los 7 días)."""
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "INSERT INTO rutinas_paciente_historial "
+            "(paciente_id, nombre_semana, detalle) VALUES (?, ?, ?)",
+            (paciente_id, nombre_semana, detalle),
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def get_rutinas_historial(paciente_id):
+    """Rutinas semanales guardadas del paciente, la más reciente
+    primero, con el número de ejercicios y días del detalle."""
+    conn = get_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        filas = conn.execute(
+            "SELECT id_historial, nombre_semana, fecha, detalle "
+            "FROM rutinas_paciente_historial WHERE paciente_id = ? "
+            "ORDER BY id_historial DESC",
+            (paciente_id,),
+        ).fetchall()
+        salida = []
+        for f in filas:
+            try:
+                dias = json.loads(f["detalle"] or "[]")
+            except (json.JSONDecodeError, TypeError):
+                dias = []
+            salida.append({
+                "id_historial": f["id_historial"],
+                "nombre_semana": f["nombre_semana"],
+                "fecha": f["fecha"],
+                "ejercicios": sum(
+                    len(d.get("ejercicios") or []) for d in dias
+                ),
+                "dias": sum(1 for d in dias if d.get("sesion")),
+            })
+        return salida
+    finally:
+        conn.close()
+
+
+def get_rutina_historial(id_historial):
+    """Una entrada del historial con su detalle ya parseado."""
+    conn = get_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        f = conn.execute(
+            "SELECT * FROM rutinas_paciente_historial WHERE id_historial = ?",
+            (id_historial,),
+        ).fetchone()
+        if not f:
+            return None
+        try:
+            dias = json.loads(f["detalle"] or "[]")
+        except (json.JSONDecodeError, TypeError):
+            dias = []
+        return {
+            "id_historial": f["id_historial"],
+            "paciente_id": f["paciente_id"],
+            "nombre_semana": f["nombre_semana"],
+            "fecha": f["fecha"],
+            "dias": dias,
+        }
+    finally:
+        conn.close()
 
 
 def guardar_rutina_guardada(nombre, semanal, ejercicios):
