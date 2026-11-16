@@ -706,16 +706,56 @@ class RutinasTab:
             ("⤓ SEMANA DEL PACIENTE", self._sem_cargar_paciente, False),
             ("💾 GUARDAR", self._sem_guardar, False),
             ("✔ APLICAR AL PACIENTE", self._sem_aplicar, True),
-            ("🖨 IMPRIMIR SEMANA", self._sem_imprimir, False),
+            ("🖨 IMPRIMIR SEMANA", self._abrir_menu_sem_imprimir, False),
         ):
-            tk.Button(
+            boton = tk.Button(
                 fila_acciones, text=texto, command=comando,
                 font=("Segoe UI", 8, "bold"),
                 fg=NEGRO if destacado else NEON,
                 bg=NEON if destacado else GRIS,
                 activebackground=NARANJA, activeforeground=BLANCO,
                 relief="flat", padx=10, pady=3, cursor="hand2",
-            ).pack(side="left", padx=(0, 5))
+            )
+            boton.pack(side="left", padx=(0, 5))
+            if texto == "🖨 IMPRIMIR SEMANA":
+                self.btn_sem_imprimir = boton
+
+        # despliegue de impresión de la semana: solo la tabla, solo las
+        # descripciones o ambas, cada una con su versión de Guardar PDF
+        # (patrón del menú IMPRIMIR RUTINA)
+        self.menu_sem_imprimir = tk.Menu(
+            self.btn_sem_imprimir, tearoff=0, font=("Segoe UI", 9)
+        )
+        self.menu_sem_imprimir.add_command(
+            label="Tabla semanal", command=lambda: self._sem_imprimir("tabla")
+        )
+        self.menu_sem_imprimir.add_command(
+            label="Descripciones de ejercicios",
+            command=lambda: self._sem_imprimir("descripcion"),
+        )
+        self.menu_sem_imprimir.add_command(
+            label="Tabla + descripciones (todo)",
+            command=lambda: self._sem_imprimir("todo"),
+        )
+        self.menu_sem_imprimir.add_separator()
+        menu_guardar_sem = tk.Menu(
+            self.menu_sem_imprimir, tearoff=0, font=("Segoe UI", 9)
+        )
+        menu_guardar_sem.add_command(
+            label="Tabla semanal",
+            command=lambda: self._sem_imprimir("tabla", guardar=True),
+        )
+        menu_guardar_sem.add_command(
+            label="Descripciones de ejercicios",
+            command=lambda: self._sem_imprimir("descripcion", guardar=True),
+        )
+        menu_guardar_sem.add_command(
+            label="Tabla + descripciones (todo)",
+            command=lambda: self._sem_imprimir("todo", guardar=True),
+        )
+        self.menu_sem_imprimir.add_cascade(
+            label="💾 Guardar PDF…", menu=menu_guardar_sem
+        )
 
         # ---------- tabla de la semana (7 días, Lunes primero) -----------
         marco_semana = ttk.LabelFrame(
@@ -2063,11 +2103,22 @@ class RutinasTab:
             f"(guardada {entrada.get('fecha') or '—'})."
         )
 
-    def _sem_imprimir(self):
+    def _abrir_menu_sem_imprimir(self):
+        """Despliega las opciones de impresión de la semana debajo del
+        botón IMPRIMIR SEMANA."""
+        boton = self.btn_sem_imprimir
+        self.menu_sem_imprimir.tk_popup(
+            boton.winfo_rootx(),
+            boton.winfo_rooty() + boton.winfo_height(),
+        )
+
+    def _sem_imprimir(self, modo="todo", guardar=False):
         """Genera el PDF de la rutina semanal tal como está en las
         tablas (vista de la semana, tabla por día y detalle con
-        ilustraciones del catálogo) y lo abre; funciona con o sin
-        paciente seleccionado."""
+        ilustraciones del catálogo) en el modo elegido ("tabla", solo
+        el plan y las tablas; "descripcion", solo el detalle; "todo",
+        ambos) y lo abre; funciona con o sin paciente seleccionado. Con
+        guardar=True pide carpeta y nombre y el PDF se escribe ahí."""
         plan = []
         for dia in DIAS_SEMANA:
             info = self._sem_datos[dia]
@@ -2130,9 +2181,17 @@ class RutinasTab:
         )
         if paciente.get("nombre"):
             nombre = f"{nombre} — {paciente['nombre']}"
-        ruta = rutina_print.ruta_temporal_pdf(nombre)
+        if guardar:
+            # el usuario elige carpeta y nombre; cancelar no genera nada
+            ruta = rutina_print.pedir_guardar_pdf(
+                "Rutina", nombre, parent=self.marco.winfo_toplevel()
+            )
+            if not ruta:
+                return
+        else:
+            ruta = rutina_print.ruta_temporal_pdf(nombre)
         try:
-            rutina_print.generar_pdf_rutina(ruta, paciente, plan, modo="todo")
+            rutina_print.generar_pdf_rutina(ruta, paciente, plan, modo=modo)
         except Exception as error:
             messagebox.showerror(
                 "Imprimir", f"No se pudo generar el reporte:\n{error}"
@@ -2148,7 +2207,9 @@ class RutinasTab:
             )
             return
         self._mensaje(
-            "Rutina semanal: PDF en Documentos\\Nutrición Deportiva."
+            f"PDF guardado: {ruta}"
+            if guardar
+            else "Rutina semanal: PDF en Documentos\\Nutrición Deportiva."
         )
 
     def _sem_eliminar_guardada(self):
