@@ -1985,6 +1985,7 @@ class RutinasTab:
         try:
             database.guardar_rutina_historial(paciente_id, nombre, detalle)
             self._sem_refrescar_historial()
+            self._refrescar_historial_pac()
         except Exception:
             pass   # el historial no debe impedir la aplicación
         return True
@@ -3131,13 +3132,52 @@ class RutinasTab:
         )
         self.btn_descanso.pack(side="right", padx=(6, 0))
 
-        # orden vertical con prioridad: barra de días y rutinas guardadas
-        # se empaquetan desde arriba; la tabla del árbol (arriba) y el
-        # selector con su previsualización (abajo) comparten el resto en
-        # un Panedwindow con separador arrastrable: la tabla se puede
-        # abrir más o menos a voluntad y, si la ventana no alcanza, los
-        # dos paneles ceden proporcionalmente sin desaparecer
+        # --- Historial del paciente: rutinas semanales guardadas con
+        # fecha (cada GUARDAR/APLICAR deja una copia; doble clic la
+        # recupera como rutina actual del paciente) ---
+        marco_historial_pac = ttk.LabelFrame(
+            contenedor_principal,
+            text="Historial del paciente — doble clic: recuperar esta "
+                 "rutina fechada",
+            padding=4,
+            style="Gym.TLabelframe",
+        )
+        cols_hist = ("nombre", "fecha", "ejercicios", "dias")
+        self.tree_historial_pac = ttk.Treeview(
+            marco_historial_pac, columns=cols_hist, show="headings",
+            height=3, selectmode="browse", style="Gym.Treeview.Compacta",
+        )
+        for col, texto, ancho, alineacion in (
+            ("nombre", "Rutina guardada", 340, "w"),
+            ("fecha", "Guardada", 150, "w"),
+            ("ejercicios", "Ejercicios", 90, "center"),
+            ("dias", "Días", 60, "center"),
+        ):
+            self.tree_historial_pac.heading(col, text=texto, anchor=alineacion)
+            self.tree_historial_pac.column(
+                col, width=ancho, minwidth=ancho, anchor=alineacion,
+                stretch=(col == "nombre"),
+            )
+        self.tree_historial_pac.pack(side="left", fill="both", expand=True)
+        barra_hist_pac = ttk.Scrollbar(
+            marco_historial_pac, orient="vertical",
+            command=self.tree_historial_pac.yview,
+        )
+        self.tree_historial_pac.configure(yscrollcommand=barra_hist_pac.set)
+        barra_hist_pac.pack(side="right", fill="y")
+        self.tree_historial_pac.bind(
+            "<Double-1>", lambda _e: self._aplicar_historial_pac()
+        )
+        self.marco_historial_pac = marco_historial_pac
+
+        # orden vertical con prioridad: barra de días (arriba) y el
+        # historial del paciente (abajo) se empaquetan primero; la tabla
+        # del árbol y el selector con su previsualización comparten el
+        # resto en un Panedwindow con separador arrastrable: la tabla se
+        # puede abrir más o menos a voluntad y, si la ventana no alcanza,
+        # los dos paneles ceden proporcionalmente sin desaparecer
         barra_dias.pack(side="top", fill="x", pady=(6, 0))
+        self.marco_historial_pac.pack(side="bottom", fill="x", pady=(6, 0))
         panes = ttk.Panedwindow(contenedor_principal, orient="vertical")
         panes.add(marco_rutina_pac, weight=2)
         panes.add(superior, weight=1)
@@ -4059,6 +4099,131 @@ class RutinasTab:
             self.menu_rutina_ctx.grab_release()
         return "break"
 
+    def _refrescar_historial_pac(self):
+        """Tabla del historial en la sub-pestaña Rutina: las rutinas
+        semanales guardadas del paciente con su fecha, la más reciente
+        primero; doble clic restaura esa copia como su rutina actual."""
+        if not hasattr(self, "tree_historial_pac"):
+            return
+        for iid in self.tree_historial_pac.get_children():
+            self.tree_historial_pac.delete(iid)
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            self.tree_historial_pac.insert(
+                "", "end", iid="sin",
+                values=("Sin paciente seleccionado", "—", "—", "—"),
+            )
+            return
+        try:
+            entradas = database.get_rutinas_historial(paciente_id)
+        except Exception:
+            entradas = []
+        if not entradas:
+            self.tree_historial_pac.insert(
+                "", "end", iid="sin",
+                values=(
+                    "Aún no hay rutinas guardadas para este paciente",
+                    "—", "—", "—",
+                ),
+            )
+            return
+        for e in entradas:
+            self.tree_historial_pac.insert(
+                "", "end", iid=str(e["id_historial"]),
+                values=(
+                    e["nombre_semana"], e["fecha"],
+                    e["ejercicios"], e["dias"],
+                ),
+            )
+
+    def _aplicar_historial_pac(self):
+        """Doble clic en el historial de la sub-pestaña Rutina: restaura
+        esa copia fechada como la rutina actual del paciente (pide
+        confirmación porque reemplaza su semana; la copia queda en el
+        historial y puede recuperarse otra vez)."""
+        sel = self.tree_historial_pac.selection()
+        if not sel or not sel[0].isdigit():
+            self._mensaje(
+                "Elige una rutina guardada del paciente en el historial."
+            )
+            return
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            messagebox.showwarning(
+                "Rutinas",
+                "Selecciona un paciente antes de recuperar una rutina.",
+            )
+            return
+        try:
+            entrada = database.get_rutina_historial(int(sel[0]))
+        except Exception:
+            entrada = None
+        if not entrada:
+            self._mensaje("No se pudo leer la rutina guardada del paciente.")
+            return
+        dias = entrada.get("dias") or []
+        total = sum(len(d.get("ejercicios") or []) for d in dias)
+        paciente = database.obtener_paciente(paciente_id) or {}
+        nombre_paciente = paciente.get("nombre") or f"paciente {paciente_id}"
+        if not messagebox.askyesno(
+            "Rutinas",
+            f"¿Recuperar «{entrada.get('nombre_semana')}» "
+            f"({total} ejercicios, guardada el "
+            f"{entrada.get('fecha') or '—'}) como la rutina actual de "
+            f"{nombre_paciente}? Reemplaza su rutina actual.",
+        ):
+            return
+        try:
+            database.delete_rutinas_paciente(paciente_id)
+            for d in dias:
+                dia = d.get("dia") or "Lunes"
+                sesion = (d.get("sesion") or "").strip()
+                ejercicios = d.get("ejercicios") or []
+                if not sesion or not ejercicios:
+                    database.marcar_descanso(paciente_id, dia)
+                    continue
+                for ej in ejercicios:
+                    database.insert_rutina_paciente(
+                        {
+                            "paciente_id": paciente_id,
+                            "dia": dia,
+                            "grupo": ej.get("grupo"),
+                            "num": ej.get("num"),
+                            "nombre": ej.get("nombre"),
+                            "equipo": ej.get("equipo"),
+                            "series": ej.get("series") or "",
+                            "repeticiones": ej.get("repeticiones") or "",
+                            "descanso_rep": ej.get("descanso_rep") or "",
+                            "descanso_series": ej.get("descanso_series") or "",
+                            "peso": ej.get("peso") or "",
+                            "notas": sesion,
+                        }
+                    )
+            database.marcar_semana_aplicada(
+                paciente_id, entrada.get("nombre_semana") or ""
+            )
+        except Exception as error:
+            messagebox.showerror(
+                "Rutinas", f"No se pudo recuperar la rutina:\n{error}"
+            )
+            return
+        # deja activo el primer día entrenable de la copia recuperada
+        self.dia_actual = next(
+            (
+                d.get("dia") or "Lunes"
+                for d in dias
+                if d.get("sesion") and d.get("ejercicios")
+            ),
+            DIAS_SEMANA[0],
+        )
+        self._cargar_rutina()
+        self._marcar_rutina_guardada()
+        self._mensaje(
+            f"Rutina recuperada del historial: "
+            f"«{entrada.get('nombre_semana')}» "
+            f"({entrada.get('fecha') or '—'})."
+        )
+
     def _renombrar_semana_paciente(self):
         """Doble clic sobre el nombre de la semana (nodo raíz del árbol
         de la rutina del paciente): pide el nombre nuevo y lo guarda como
@@ -4511,6 +4676,7 @@ class RutinasTab:
         self._recargar_referencias_1rm()
         if hasattr(self, "tree_sem_historial"):
             self._sem_refrescar_historial()
+        self._refrescar_historial_pac()
 
     def refrescar_estado(self):
         paciente_id = getattr(self.app, "id_paciente_antro", None)
