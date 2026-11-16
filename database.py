@@ -985,6 +985,29 @@ def guardar_platillo(datos):
         return cur.lastrowid
 
 
+def actualizar_platillo(id_platillo, datos):
+    """Actualiza un platillo del catálogo por id (edición completa desde
+    el catálogo: nombre, tiempo, ingredientes, totales, modo e imagen)."""
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE platillos SET nombre = ?, tiempo_comida = ?, "
+            "ingredientes = ?, totales = ?, modo_preparacion = ?, "
+            "imagen_nombre = ?, imagen_blob = ?, "
+            "actualizado_en = datetime('now', 'localtime') "
+            "WHERE id_platillo = ?",
+            (
+                datos.get("nombre"),
+                datos.get("tiempo_comida"),
+                datos.get("ingredientes"),
+                datos.get("totales"),
+                datos.get("modo_preparacion"),
+                datos.get("imagen_nombre"),
+                datos.get("imagen_blob"),
+                id_platillo,
+            ),
+        )
+
+
 def get_platillos_resumen():
     """Nombre, tiempo e ingredientes de todo el catálogo (sin imagen), para
     el autocompletado del campo Platillo."""

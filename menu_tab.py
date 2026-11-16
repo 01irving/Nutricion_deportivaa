@@ -1732,6 +1732,12 @@ class MenusTab:
             cursor="hand2",
         ).pack(side=tk.LEFT, padx=3)
         tk.Button(
+            btns, text="✏ EDITAR", command=self._editar_platillo_catalogo,
+            font=("Impact", 9), fg=NEGRO, bg=NEON, activebackground=NARANJA,
+            activeforeground=BLANCO, relief="flat", padx=12, pady=4,
+            cursor="hand2",
+        ).pack(side=tk.LEFT, padx=3)
+        tk.Button(
             btns, text="🗑 ELIMINAR", command=self._eliminar_platillo_catalogo,
             font=("Impact", 9), fg=NEGRO, bg=NARANJA, activebackground=NEON,
             activeforeground=NEGRO, relief="flat", padx=12, pady=4,
@@ -1806,6 +1812,33 @@ class MenusTab:
             )
             return None
         return getattr(self, "_plat_catalogo", {}).get(sel[0])
+
+    def _editar_platillo_catalogo(self):
+        """Abre la captura precargada con el platillo seleccionado para
+        editarlo: nombre, tiempo, ingredientes, modo de preparación e
+        imagen (📷 SUBIR IMAGEN la reemplaza). Al guardar se actualiza
+        el MISMO platillo en la BD, sin crear duplicados."""
+        platillo = self._platillo_seleccionado()
+        if not platillo:
+            return
+        try:
+            ingredientes = json.loads(platillo.get("ingredientes") or "[]")
+        except (json.JSONDecodeError, TypeError):
+            ingredientes = []
+        dialogo = DialogoPlatillo(
+            self,
+            platillo.get("tiempo_comida") or self.tiempo_var.get(),
+            platillo.get("nombre") or "",
+            ingredientes,
+            platillo=platillo,
+        )
+        dialogo.grab_set()
+        dialogo.wait_window()
+        if self._plat_tree.winfo_exists():
+            self._refrescar_arbol_platillos()
+            hijos = self._plat_tree.get_children()
+            if hijos:
+                self._plat_tree.selection_set(hijos[0])
 
     def _ver_detalle_platillo(self):
         platillo = self._platillo_seleccionado()
@@ -3005,9 +3038,11 @@ class DialogoPlatillo(tk.Toplevel):
     preparación y conteo de energía/micronutrientes, para guardarlo
     en el catálogo."""
 
-    def __init__(self, tab, tiempo, nombre, ingredientes):
+    def __init__(self, tab, tiempo, nombre, ingredientes, platillo=None):
         super().__init__(tab.marco)
         self.tab = tab
+        self.platillo_id = None
+        self._edicion = False
         self.title("Guardar platillo en el catálogo")
         self.configure(bg=GRIS_OSCURO)
         self.geometry("840x800")
@@ -3020,8 +3055,20 @@ class DialogoPlatillo(tk.Toplevel):
         self.foto = None
         self.modo_inicial = ""
 
-        # si ya existe un platillo igual guardado, partir de su imagen
-        if nombre:
+        # EDICIÓN: precarga el platillo seleccionado (nombre, tiempo,
+        # modo de preparación e imagen) y guarda sobre el mismo id
+        if platillo is not None:
+            self.platillo_id = platillo.get("id_platillo")
+            self._edicion = True
+            nombre = platillo.get("nombre") or nombre
+            tiempo = platillo.get("tiempo_comida") or tiempo
+            self.imagen_blob = platillo.get("imagen_blob")
+            self.imagen_nombre = platillo.get("imagen_nombre")
+            self.modo_inicial = platillo.get("modo_preparacion") or ""
+            self.title("Editar platillo")
+        elif nombre:
+            self.title("Guardar platillo en el catálogo")
+            # si ya existe un platillo igual guardado, partir de su imagen
             existente = next(
                 (p for p in database.get_platillos(tiempo)
                  if p["nombre"] == nombre),
@@ -3034,7 +3081,10 @@ class DialogoPlatillo(tk.Toplevel):
                 self.modo_inicial = existente.get("modo_preparacion") or ""
 
         tk.Label(
-            self, text="GUARDAR PLATILLO", font=("Impact", 18),
+            self,
+            text="EDITAR PLATILLO" if self._edicion
+            else "GUARDAR PLATILLO",
+            font=("Impact", 18),
             fg=NEON, bg=GRIS_OSCURO,
         ).pack(fill="x", pady=(6, 2))
 
@@ -3053,6 +3103,8 @@ class DialogoPlatillo(tk.Toplevel):
         )
         self.tiempo_var = tk.StringVar(value=tiempo)
         valores = list(getattr(tab, "tiempos", []) or []) or [tiempo]
+        if tiempo and tiempo not in valores:
+            valores = valores + [tiempo]
         ttk.Combobox(
             fila, textvariable=self.tiempo_var, values=valores,
             state="readonly", style="Gym.TCombobox", width=18,
@@ -3431,7 +3483,7 @@ class DialogoPlatillo(tk.Toplevel):
             )
             return
         totales = self.tab._sumar(self.ingredientes)
-        database.guardar_platillo({
+        datos = {
             "nombre": nombre,
             "tiempo_comida": tiempo,
             "ingredientes": json.dumps(self.ingredientes, ensure_ascii=False),
@@ -3439,15 +3491,22 @@ class DialogoPlatillo(tk.Toplevel):
             "modo_preparacion": self.txt_prep.get("1.0", "end").strip(),
             "imagen_nombre": self.imagen_nombre,
             "imagen_blob": self.imagen_blob,
-        })
+        }
+        if self._edicion:
+            database.actualizar_platillo(self.platillo_id, datos)
+        else:
+            database.guardar_platillo(datos)
         self.tab._refrescar_platillos()
+        self.tab._refrescar_arbol_platillos()
         if tiempo == self.tab.tiempo_var.get():
             self.tab.platillo_var.set(nombre)
         self.destroy()
         messagebox.showinfo(
             "Platillo",
-            f"«{nombre}» guardado en el catálogo ({tiempo}).\n"
-            f"{len(self.ingredientes)} ingredientes · "
+            (f"«{nombre}» actualizado en el catálogo ({tiempo})."
+             if self._edicion else
+             f"«{nombre}» guardado en el catálogo ({tiempo}).")
+            + f"\n{len(self.ingredientes)} ingredientes · "
             f"{totales['energia_kcal']:.0f} kcal\n\n"
             "Ya puedes seleccionarlo en el campo Platillo de ese tiempo.",
         )
