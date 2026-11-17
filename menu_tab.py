@@ -1739,6 +1739,26 @@ class MenusTab:
             der, text="Sin imagen", bg=GRIS, fg=GRIS_TEXTO,
         )
         self._plat_foto_lbl.pack(fill="x", pady=(0, 4))
+        fila_pers = ttk.Frame(der, style="Gym.TFrame")
+        fila_pers.pack(fill="x", pady=(0, 2))
+        ttk.Label(
+            fila_pers, text="👥 Personas:", style="Gym.TLabel",
+            font=("Segoe UI", 9, "bold"),
+        ).pack(side=tk.LEFT, padx=(0, 4))
+        self._plat_personas_var = tk.StringVar(value="1")
+        self._plat_personas_combo = ttk.Combobox(
+            fila_pers, textvariable=self._plat_personas_var,
+            values=("1", "4", "6"), state="readonly",
+            style="Gym.TCombobox", width=4,
+        )
+        self._plat_personas_combo.pack(side=tk.LEFT)
+        self._plat_personas_combo.bind(
+            "<<ComboboxSelected>>", lambda _e: self._ver_detalle_platillo()
+        )
+        ttk.Label(
+            fila_pers, text="Escala cantidades de la receta",
+            style="Gym.TLabel", font=("Segoe UI", 8),
+        ).pack(side=tk.LEFT, padx=(8, 0))
         det_wrap = ttk.Frame(der, style="Gym.TFrame")
         det_wrap.pack(fill=tk.BOTH, expand=True)
         self._plat_detalle = tk.Text(
@@ -1885,7 +1905,13 @@ class MenusTab:
         except (json.JSONDecodeError, TypeError):
             totales = {}
 
-        lineas = [f"{platillo['nombre']}  ·  {platillo['tiempo_comida']}", ""]
+        try:
+            personas = max(1, int(self._plat_personas_var.get()))
+        except (ValueError, AttributeError):
+            personas = 1
+        etiqueta_personas = "" if personas <= 1 else f"  ·  {personas} personas"
+        lineas = [f"{platillo['nombre']}  ·  {platillo['tiempo_comida']}"
+                  f"{etiqueta_personas}", ""]
         lineas.append("INGREDIENTES")
         for ing in ingredientes:
             sg = ing.get("subgrupo_idx", -1)
@@ -1896,8 +1922,12 @@ class MenusTab:
                 eq = float(ing.get("eq_cantidad") or 0)
             except (ValueError, TypeError):
                 eq = 0.0
+            cantidad = DialogoPlatillo._escalar_cantidad(
+                ing.get("cantidad_txt") or "", personas)
+            trozo_cant = f"{cantidad} — " if cantidad else ""
             lineas.append(
-                f"  • {ing.get('alimento', '?')} — {corto} ({eq:g} eq)"
+                f"  • {ing.get('alimento', '?')} {trozo_cant}"
+                f"{corto} ({eq * personas:g} eq)"
             )
         lineas += ["", "ENERGÍA Y MICRONUTRIENTES"]
         for clave, etiqueta in MICRO_CAMPOS:
@@ -1905,7 +1935,7 @@ class MenusTab:
                 valor = float(totales.get(clave) or 0)
             except (ValueError, TypeError):
                 valor = 0.0
-            lineas.append(f"  • {etiqueta}: {valor:.1f}")
+            lineas.append(f"  • {etiqueta}: {valor * personas:.1f}")
         prep = (platillo.get("modo_preparacion") or "").strip()
         if prep:
             lineas += ["", "MODO DE PREPARACIÓN", prep]
@@ -2352,6 +2382,7 @@ class MenusTab:
             dia: {"platillos": {}, "alimentos": {}} for dia in DIAS_SEMANA
         }
         tiempos_menu = datos.get("tiempos") or []
+        plantillas_alimentos = {}
         for dia in DIAS_SEMANA:
             info = datos.get("dias", {}).get(dia)
             if not info:
@@ -2359,6 +2390,24 @@ class MenusTab:
             mapeo = self._mapear_claves_tiempo(
                 info.get("platillos"), destino_tiempos, tiempos_menu)
             self.datos[dia]["platillos"].update(mapeo)
+            # Renglones originales de la plantilla con el mismo mapeo de
+            # tiempos que los platillos: sirven para rescatar las partes
+            # sin ficha en el catálogo (infusiones, postres antiguos).
+            for k, lista in (info.get("alimentos") or {}).items():
+                try:
+                    idx_menu = int(k)
+                except (TypeError, ValueError):
+                    continue
+                t_obj = None
+                if idx_menu < len(tiempos_menu):
+                    nombre_t = (tiempos_menu[idx_menu] or "").strip().lower()
+                    t_obj = next((i for i, t in enumerate(destino_tiempos)
+                                  if (t or "").strip().lower() == nombre_t),
+                                 None)
+                if t_obj is None and idx_menu < len(destino_tiempos):
+                    t_obj = idx_menu
+                if t_obj is not None:
+                    plantillas_alimentos[(dia, t_obj)] = lista or []
         # Cada platillo (o cada parte de un platillo combinado "A + B")
         # se expande a sus ingredientes reales del catálogo; si no está,
         # se conserva lo que traiga la plantilla.
@@ -2371,6 +2420,7 @@ class MenusTab:
                     self.datos[dia]["platillos"].items()):
                 ings = []
                 partes = []
+                plantilla = plantillas_alimentos.get((dia, t_idx), [])
                 for parte in [x.strip() for x in re.split(
                         r"\s+\+\s+", nombre_comb or "") if x.strip()]:
                     ing_p = self._ingredientes_de_catalogo(parte, catalogo)
@@ -2378,10 +2428,19 @@ class MenusTab:
                         partes.append({"nombre": parte,
                                        "ingredientes": [dict(x) for x in ing_p]})
                         ings.extend(ing_p)
+                    else:
+                        # Platillo de la plantilla sin ficha en el catálogo
+                        # (infusiones, postres antiguos): conservar sus
+                        # renglones de la plantilla para no perderlo al cargar.
+                        ing_t = [dict(r) for r in plantilla
+                                 if (r.get("alimento") or "") == parte]
+                        if ing_t:
+                            partes.append({"nombre": parte,
+                                           "ingredientes": ing_t})
+                            ings.extend(ing_t)
                 if partes:
                     self.platillos_partes[(dia, t_idx)] = partes
                 if not ings:
-                    plantilla = self.datos[dia]["alimentos"].get(t_idx, [])
                     # solo ingredientes reales; los registros portadores de
                     # los precargados (subgrupo_idx None) no se muestran
                     ings = [r for r in plantilla
@@ -3081,6 +3140,10 @@ class DialogoPlatillo(tk.Toplevel):
 
         # copia local editable de los ingredientes del tiempo
         self.ingredientes = [dict(ing) for ing in ingredientes]
+        # numero de personas para escalar la PRESENTACION de cantidades
+        # (1, 4 o 6, como en los PDF del sitio); los datos guardados
+        # siempre quedan por 1 porcion
+        self.personas = 1
         self.imagen_blob = None
         self.imagen_nombre = None
         self.foto = None
@@ -3253,14 +3316,36 @@ class DialogoPlatillo(tk.Toplevel):
             cursor="hand2",
         ).pack(side=tk.LEFT, padx=2)
 
-        cols = ("alimento", "subgrupo", "eq", "kcal")
+        # selector de personas (1, 4 o 6): escala las cantidades mostradas
+        fila_p = ttk.Frame(izq, style="Gym.TFrame")
+        fila_p.pack(fill="x", pady=(4, 0))
+        ttk.Label(
+            fila_p, text="👥 Personas:",
+            style="Gym.TLabel", font=("Segoe UI", 9, "bold"),
+        ).pack(side=tk.LEFT, padx=(2, 4))
+        self.personas_var = tk.StringVar(value="1")
+        self.personas_combo = ttk.Combobox(
+            fila_p, textvariable=self.personas_var, values=("1", "4", "6"),
+            state="readonly", style="Gym.TCombobox", width=4,
+        )
+        self.personas_combo.pack(side=tk.LEFT, padx=2)
+        self.personas_combo.bind(
+            "<<ComboboxSelected>>", lambda _e: self._cambiar_personas()
+        )
+        ttk.Label(
+            fila_p, text="Solo presenta las cantidades en grande; lo guardado",
+            style="Gym.TLabel", font=("Segoe UI", 8),
+        ).pack(side=tk.LEFT, padx=(8, 0))
+
+        cols = ("alimento", "subgrupo", "cant", "eq", "kcal")
         self.tree = ttk.Treeview(
             izq, columns=cols, show="headings", height=9,
             selectmode="browse", style="Gym.Treeview",
         )
         for col, texto, ancho in (
-            ("alimento", "Ingrediente", 180),
+            ("alimento", "Ingrediente", 160),
             ("subgrupo", "Subgrupo", 100),
+            ("cant", "Cantidad", 90),
             ("eq", "Eq.", 40),
             ("kcal", "kcal", 55),
         ):
@@ -3457,31 +3542,59 @@ class DialogoPlatillo(tk.Toplevel):
         ing["eq_cantidad"] = eq
         self._refrescar_arbol()
 
+    def _cambiar_personas(self):
+        """Cambia el factor de presentacion 1/4/6 personas y re-dibuja."""
+        try:
+            self.personas = max(1, int(self.personas_var.get()))
+        except ValueError:
+            self.personas = 1
+        self._refrescar_arbol()
+
+    @staticmethod
+    def _escalar_cantidad(cantidad_txt, personas):
+        """Multiplica el numero al inicio de 'cantidad_txt' por personas
+        ('0.5 cdita' x4 -> '2 cdita'); sin cambio si no trae numero."""
+        texto = (cantidad_txt or "").strip()
+        m = re.match(r"^(\d+(?:[.,]\d+)?)\s*(.*)$", texto)
+        if not m or personas <= 1:
+            return texto or ""
+        numero = float(m.group(1).replace(",", "."))
+        escalado = numero * personas
+        s = f"{escalado:g}"
+        return (s + (" " + m.group(2) if m.group(2) else "")).strip()
+
     def _refrescar_arbol(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
+        personas = getattr(self, "personas", 1)
         for i, reg in enumerate(self.ingredientes):
             sg = reg.get("subgrupo_idx", -1)
             corto = (
                 SUBGRUPOS_CORTO[sg] if 0 <= sg < len(SUBGRUPOS_CORTO) else ""
             )
+            eq = reg["eq_cantidad"] * personas
             self.tree.insert(
                 "", tk.END, iid=str(i),
                 values=(
-                    reg["alimento"], corto, f"{reg['eq_cantidad']:g}",
-                    f"{(reg.get('energia_kcal') or 0) * reg['eq_cantidad']:.1f}",
+                    reg["alimento"], corto,
+                    self._escalar_cantidad(
+                        reg.get("cantidad_txt") or "", personas),
+                    f"{eq:g}",
+                    f"{(reg.get('energia_kcal') or 0) * eq:.1f}",
                 ),
             )
         self._actualizar_totales()
 
     def _actualizar_totales(self):
+        personas = getattr(self, "personas", 1)
         totales = self.tab._sumar(self.ingredientes)
-        self.lbl_kcal.configure(text=f"{totales['energia_kcal']:.0f} kcal")
+        self.lbl_kcal.configure(text=f"{totales['energia_kcal'] * personas:.0f} kcal")
         lineas = []
         for clave, etiqueta in MICRO_CAMPOS:
             if clave == "energia_kcal":
                 continue
-            lineas.append(f"  • {etiqueta}: {totales[clave]:.1f}")
+            lineas.append(
+                f"  • {etiqueta}: {totales[clave] * personas:.1f}")
         self.txt_totales.configure(state="normal")
         self.txt_totales.delete("1.0", tk.END)
         self.txt_totales.insert("1.0", "\n".join(lineas))
