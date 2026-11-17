@@ -10,6 +10,7 @@ import io
 import json
 import os
 import re
+import sys
 import tkinter as tk
 import unicodedata
 from tkinter import filedialog, messagebox, simpledialog, ttk
@@ -80,6 +81,35 @@ def _es_bebida(nombre):
 
 def _es_smoothie(nombre):
     return bool(_SMOOTHIE_RE.search(_texto_normal(nombre)))
+
+
+def _ventana_con_minimizar_maximizar(ventana):
+    """Agrega a un Toplevel de Windows los botones minimizar y maximizar
+    (Tk solo dibuja el cerrar en sus ventanas; pedido del autor para el
+    cuadro EDITAR PLATILLO). Reintenta si la ventana aún no tiene el
+    identificador de Windows."""
+    if sys.platform != "win32":
+        return
+
+    def aplicar():
+        try:
+            import ctypes
+
+            GWL_STYLE = -16
+            WS_MINIMIZEBOX = 0x00020000
+            WS_MAXIMIZEBOX = 0x00010000
+            hwnd = ctypes.windll.user32.GetParent(ventana.winfo_id())
+            if not hwnd:
+                ventana.after(200, aplicar)
+                return
+            estilo = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_STYLE)
+            ctypes.windll.user32.SetWindowLongW(
+                hwnd, GWL_STYLE, estilo | WS_MINIMIZEBOX | WS_MAXIMIZEBOX
+            )
+        except Exception:
+            pass
+
+    aplicar()
 
 DIAS_SEMANA = [
     "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo",
@@ -3092,6 +3122,8 @@ class DialogoPlatillo(tk.Toplevel):
             font=("Impact", 18),
             fg=NEON, bg=GRIS_OSCURO,
         ).pack(fill="x", pady=(6, 2))
+        # botones minimizar y maximizar (Tk solo dibuja cerrar)
+        _ventana_con_minimizar_maximizar(self)
 
         # --- nombre y tiempo de comida ---
         fila = ttk.Frame(self, style="Gym.TFrame")
