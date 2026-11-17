@@ -234,23 +234,42 @@ def parse_ingredientes(texto, reg):
     for f in filas:
         if f['alimento'] not in existentes:
             reg['ingredientes'].append(f)
-    # preparacion: pasos numerados + lineas de continuacion, sin duplicados
+    # preparacion: pasos numerados + lineas de continuacion, sin duplicados.
+    # La continuacion se corta cuando empieza otra tabla (Continuacion,
+    # Alimento/Unidad o renglones '1 4 6' con cantidades).
     vistos = set(reg['preparacion'])
-    paso_actual = None
+    en_pasos = False
     for linea in texto.splitlines():
         l = linea.strip()
         m = re.match(r'^(\d+)\.\s+(.*)$', l)
         if m:
-            paso_actual = m.group(2).strip()
-            if paso_actual and paso_actual not in vistos:
-                reg['preparacion'].append(paso_actual)
-                vistos.add(paso_actual)
-        elif l and paso_actual is not None and not PASO.match(l.split()[0]
-                                                           if l.split() else ''):
-            # continuacion del paso en la linea siguiente
-            if not re.match(r'^(Alimento|No\. de personas|Unidad|'
-                            r'Continuaci|Menú |Clásico)', l):
-                reg['preparacion'][-1] += ' ' + l
+            en_pasos = True
+            paso = m.group(2).strip()
+            if paso and paso not in vistos:
+                reg['preparacion'].append(paso)
+                vistos.add(paso)
+            continue
+        if not l or not en_pasos:
+            continue
+        if (re.match(r'^(Alimento|No\. de personas|Unidad|Continuaci|'
+                     r'Menú |Clásico)', l)
+                or re.fullmatch(r'\d+(\.\d+)?', l)
+                or re.match(r'^\d+(\.\d+)?\s+4\s+6', l)):
+            en_pasos = False
+            continue
+        if reg['preparacion']:
+            reg['preparacion'][-1] += ' ' + l
+    # deduplicar al final: los textos completos (con sus continuaciones)
+    # pueden repetirse entre menus con distintos puntos de corte de linea
+    vistos_final = set()
+    limpia = []
+    for s in reg['preparacion']:
+        clave_s = unicodedata.normalize('NFC', s).strip()
+        if clave_s in vistos_final:
+            continue
+        vistos_final.add(clave_s)
+        limpia.append(s.strip())
+    reg['preparacion'] = limpia
     return reg['ingredientes']
 
 # ---------------------------------------------------------------- main

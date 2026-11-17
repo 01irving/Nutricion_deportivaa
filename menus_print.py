@@ -805,26 +805,32 @@ def generar_pdf_menus(ruta, paciente, tiempos, dias, momento_impresion=None,
     elementos.append(Spacer(1, 8))
     elementos.extend(_nota_pie(estilos, fecha))
 
-    # Fichas de platillo (una por platillo único del menú)
+    # Fichas de platillo: los combos «A + B» se parten y cada platillo
+    # lleva su propia ficha (foto, ingredientes 1/4/6 y SU preparación
+    # del catálogo), como en el recetario SMAE.
     vistos = set()
     for info in (dias or {}).values():
         platillos = info.get("platillos") or {}
         alimentos = info.get("alimentos") or {}
         for t_idx, platillo in platillos.items():
-            if not platillo or platillo in vistos:
+            if not platillo:
                 continue
-            vistos.add(platillo)
             registros = alimentos.get(t_idx) or alimentos.get(str(t_idx)) or []
             tiempo = tiempos[t_idx] if isinstance(t_idx, int) and tiempos \
                 and t_idx < len(tiempos) else (
                 tiempos[int(t_idx)] if str(t_idx).isdigit()
                 and tiempos and int(t_idx) < len(tiempos) else ""
             )
-            elementos.append(PageBreak())
-            elementos.extend(
-                _ficha_platillo(estilos, nombre, platillo, tiempo, registros,
-                                subgrupos)
-            )
+            for parte in [x.strip() for x in re.split(
+                    r"\s+\+\s+", platillo) if x.strip()]:
+                if parte in vistos:
+                    continue
+                vistos.add(parte)
+                elementos.append(PageBreak())
+                elementos.extend(
+                    _ficha_platillo(estilos, nombre, parte, tiempo, registros,
+                                    subgrupos)
+                )
 
     doc.build(elementos, onFirstPage=_pie_pagina, onLaterPages=_pie_pagina)
     return ruta
