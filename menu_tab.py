@@ -3075,7 +3075,8 @@ class DialogoPlatillo(tk.Toplevel):
         self._edicion = False
         self.title("Guardar platillo en el catálogo")
         self.configure(bg=GRIS_OSCURO)
-        self.geometry("840x800")
+        alto = max(520, min(800, self.winfo_screenheight() - 160))
+        self.geometry(f"840x{alto}")
         self.transient(tab.marco.winfo_toplevel())
 
         # copia local editable de los ingredientes del tiempo
@@ -3125,8 +3126,55 @@ class DialogoPlatillo(tk.Toplevel):
         # botones minimizar y maximizar (Tk solo dibuja cerrar)
         _ventana_con_minimizar_maximizar(self)
 
+        # contenido con scroll vertical: el cuadro mide ~800-900px y en
+        # pantallas normales los botones finales quedan fuera de vista
+        lienzo = tk.Canvas(self, bg=GRIS_OSCURO, highlightthickness=0,
+                           yscrollincrement=48)
+        scroll_plat = ttk.Scrollbar(
+            self, orient="vertical", command=lienzo.yview
+        )
+        lienzo.configure(yscrollcommand=scroll_plat.set)
+        lienzo.pack(side="left", fill="both", expand=True)
+        scroll_plat.pack(side="right", fill="y")
+        interior = ttk.Frame(lienzo, style="Gym.TFrame")
+        self.interior_plat = interior
+        ventana_int = lienzo.create_window((0, 0), window=interior,
+                                           anchor="nw")
+
+        def _ajustar_region(_evento=None):
+            lienzo.configure(scrollregion=lienzo.bbox("all"))
+
+        def _ajustar_ancho(evento):
+            lienzo.itemconfigure(ventana_int, width=evento.width)
+
+        def _rueda(evento):
+            bajo = self.winfo_toplevel().winfo_containing(
+                evento.x_root, evento.y_root
+            )
+            if bajo is None:
+                return
+            dentro = False
+            w = bajo
+            while w is not None:
+                if w is lienzo:
+                    dentro = True
+                    break
+                w = getattr(w, "master", None)
+            if not dentro:
+                return
+            if isinstance(bajo, (ttk.Treeview, tk.Text)):
+                return   # los widgets con scroll propio mandan
+            paso = -1 * (evento.delta // 120)
+            if paso:
+                lienzo.yview_scroll(paso, "units")
+                return "break"
+
+        interior.bind("<Configure>", _ajustar_region)
+        lienzo.bind("<Configure>", _ajustar_ancho)
+        self.bind_all("<MouseWheel>", _rueda, add="+")
+
         # --- nombre y tiempo de comida ---
-        fila = ttk.Frame(self, style="Gym.TFrame")
+        fila = ttk.Frame(interior, style="Gym.TFrame")
         fila.pack(fill="x", padx=8, pady=4)
         ttk.Label(fila, text="Nombre:", style="Gym.TLabel").pack(
             side=tk.LEFT, padx=2
@@ -3147,8 +3195,8 @@ class DialogoPlatillo(tk.Toplevel):
             state="readonly", style="Gym.TCombobox", width=18,
         ).pack(side=tk.LEFT, padx=2)
 
-        cuerpo = ttk.Frame(self, style="Gym.TFrame")
-        cuerpo.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
+        cuerpo = ttk.Frame(interior, style="Gym.TFrame")
+        cuerpo.pack(fill="x", padx=8, pady=4)
 
         # --- izquierda: captura de ingredientes ---
         izq = ttk.LabelFrame(cuerpo, text="Ingredientes", padding=4)
@@ -3261,7 +3309,7 @@ class DialogoPlatillo(tk.Toplevel):
         self.txt_totales.pack(fill=tk.BOTH, expand=True, pady=2)
 
         # --- modo de preparación ---
-        prep = ttk.LabelFrame(self, text="Modo de preparación", padding=4)
+        prep = ttk.LabelFrame(interior, text="Modo de preparación", padding=4)
         prep.pack(fill="x", padx=8, pady=4)
         self.txt_prep = tk.Text(
             prep, height=5, bg=GRIS, fg=BLANCO, font=("Segoe UI", 9),
@@ -3282,7 +3330,7 @@ class DialogoPlatillo(tk.Toplevel):
             self.txt_prep.insert("1.0", self.modo_inicial)
 
         # --- botones finales ---
-        fin = ttk.Frame(self, style="Gym.TFrame")
+        fin = ttk.Frame(interior, style="Gym.TFrame")
         fin.pack(fill="x", padx=8, pady=6)
         tk.Button(
             fin, text="💾 GUARDAR AL CATÁLOGO", command=self._guardar,
