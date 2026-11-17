@@ -3065,6 +3065,11 @@ class DialogoPlatillo(tk.Toplevel):
             self.imagen_blob = platillo.get("imagen_blob")
             self.imagen_nombre = platillo.get("imagen_nombre")
             self.modo_inicial = platillo.get("modo_preparacion") or ""
+            # originales para poder guardar cambios sin tocar los
+            # ingredientes (platillos como aguas y tés no llevan)
+            self._ingredientes_originales = (
+                platillo.get("ingredientes") or "[]")
+            self._totales_originales = platillo.get("totales") or "{}"
             self.title("Editar platillo")
         elif nombre:
             self.title("Guardar platillo en el catálogo")
@@ -3477,17 +3482,33 @@ class DialogoPlatillo(tk.Toplevel):
                 "Platillo", "Selecciona el tiempo de comida.", parent=self
             )
             return
-        if not self.ingredientes:
+        # en EDICIÓN se permite guardar sin ingredientes (se conservan
+        # los originales del platillo: aguas, tés y frutas no llevan)
+        if not self.ingredientes and not self._edicion:
             messagebox.showwarning(
                 "Platillo", "Añade al menos un ingrediente.", parent=self
             )
             return
         totales = self.tab._sumar(self.ingredientes)
+        if not self.ingredientes and self._edicion:
+            # edición sin ingredientes (p. ej. aguas, tés y frutas que
+            # no los llevan): se conservan los originales del platillo
+            ingredientes_json = self._ingredientes_originales
+            totales_json = self._totales_originales
+            try:
+                n_ingredientes = len(json.loads(ingredientes_json))
+            except (json.JSONDecodeError, TypeError):
+                n_ingredientes = 0
+        else:
+            ingredientes_json = json.dumps(
+                self.ingredientes, ensure_ascii=False)
+            totales_json = json.dumps(totales, ensure_ascii=False)
+            n_ingredientes = len(self.ingredientes)
         datos = {
             "nombre": nombre,
             "tiempo_comida": tiempo,
-            "ingredientes": json.dumps(self.ingredientes, ensure_ascii=False),
-            "totales": json.dumps(totales, ensure_ascii=False),
+            "ingredientes": ingredientes_json,
+            "totales": totales_json,
             "modo_preparacion": self.txt_prep.get("1.0", "end").strip(),
             "imagen_nombre": self.imagen_nombre,
             "imagen_blob": self.imagen_blob,
@@ -3506,7 +3527,7 @@ class DialogoPlatillo(tk.Toplevel):
             (f"«{nombre}» actualizado en el catálogo ({tiempo})."
              if self._edicion else
              f"«{nombre}» guardado en el catálogo ({tiempo}).")
-            + f"\n{len(self.ingredientes)} ingredientes · "
+            + f"\n{n_ingredientes} ingredientes · "
             f"{totales['energia_kcal']:.0f} kcal\n\n"
             "Ya puedes seleccionarlo en el campo Platillo de ese tiempo.",
         )
