@@ -479,13 +479,15 @@ unilateral.
 }
 
 REGLAS_GENERALES_PROGRESION = (
-    "Reglas generales (todos los niveles): sube la carga 2-10% al "
-    "completar 1-2 reps más que el objetivo · grandes músculos antes "
-    "que pequeños y multiarticulares antes que unilaterales · "
-    "hipertrofia: 6-12 RM con 1-2 min de descanso y varias series · "
-    "resistencia muscular: 40-60% de 1RM, >15 reps, descanso <90 s · "
-    "potencia: cargas ligeras a máxima velocidad con 3-5 min de "
-    "descanso · intermedios y avanzados entrenan en forma periodizada."
+    "Reglas generales (todos los niveles): progresa por ciclos de 4 "
+    "semanas con deloading en la cuarta (sub-pestaña Ciclos), subiendo "
+    "la carga ~2.5-5% al completar 1-2 reps más que el objetivo · "
+    "grandes músculos antes que pequeños y multiarticulares antes que "
+    "unilaterales · hipertrofia: 6-12 RM con 1-2 min de descanso y "
+    "varias series · resistencia muscular: 40-60% de 1RM, >15 reps, "
+    "descanso <90 s · potencia: cargas ligeras a máxima velocidad con "
+    "3-5 min de descanso · intermedios y avanzados entrenan en forma "
+    "periodizada."
 )
 
 
