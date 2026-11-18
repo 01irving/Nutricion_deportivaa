@@ -3296,8 +3296,12 @@ class RutinasTab:
 
     def _al_cambiar_subpestana(self, event=None):
         """En Estiramientos y Progresión el título y el filtro cambian;
-        al entrar a Ciclos se refrescan las semanas base disponibles."""
+        al entrar a Ciclos se refrescan las semanas base disponibles y al
+        cambiar de sub-pestaña se restablece la barra de estado para que
+        no queden mensajes viejos pegados."""
         sub = self._subpestana_actual()
+        self.lbl_estado.configure(
+            text=getattr(self, "_estado_base", "") or "Rutinas")
         if sub == 2:
             self.titulo.configure(text="ESTIRAMIENTOS")
             self._cargar_est_paciente()
