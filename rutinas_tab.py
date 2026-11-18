@@ -1910,6 +1910,8 @@ class RutinasTab:
         self._sem_nombre = nombre
         self._sem_origen = "guardada"
         self._sem_refrescar_selector()
+        # la semana recien guardada aparece como base en Ciclos
+        self._cic_refrescar_bases()
         # guarda para el paciente: aplica la semana de las tablas
         if self._sem_aplicar_al_paciente(nombre):
             self.dia_actual = next(
@@ -3293,13 +3295,17 @@ class RutinasTab:
             return 1
 
     def _al_cambiar_subpestana(self, event=None):
-        """En Estiramientos y Progresión el título y el filtro cambian."""
+        """En Estiramientos y Progresión el título y el filtro cambian;
+        al entrar a Ciclos se refrescan las semanas base disponibles."""
         sub = self._subpestana_actual()
         if sub == 2:
             self.titulo.configure(text="ESTIRAMIENTOS")
             self._cargar_est_paciente()
         elif sub == 3:
             self.titulo.configure(text="PROGRESIÓN · MODELO ACSM 2009")
+        elif sub == 4:
+            self.titulo.configure(text="RUTINAS · CICLOS")
+            self._cic_refrescar_bases()
         else:
             self.titulo.configure(text="RUTINAS")
 
@@ -4864,7 +4870,8 @@ class RutinasTab:
         self._cic_refrescar_bases()
 
     def _cic_refrescar_bases(self):
-        """Llena el arbol de bases: semana actual + semanales guardadas."""
+        """Llena el arbol de bases: semana actual, plantillas del estudio
+        (PLANTILLAS_SEMANA) y semanales guardadas por el usuario."""
         self.tree_cic_base.delete(*self.tree_cic_base.get_children())
         n_sem = sum(len(d.get("ejercicios") or [])
                     for d in (self._sem_datos or {}).values())
@@ -4874,6 +4881,14 @@ class RutinasTab:
             self.tree_cic_base.insert(
                 "", tk.END, iid="__actual__",
                 values=("Semana actual", "Semana", dias_con, n_sem))
+        for idx, p in enumerate(PLANTILLAS_SEMANA):
+            dias = sum(1 for s in p["semana"].values() if s)
+            ejercicios = sum(
+                len(p["sesiones"].get(s, ())) for s in p["semana"].values()
+                if s)
+            self.tree_cic_base.insert(
+                "", tk.END, iid=f"fija:{idx}",
+                values=(p["nombre"], "Estudio", dias, ejercicios))
         for g in self._semanales_guardadas():
             self.tree_cic_base.insert(
                 "", tk.END, iid=str(g["id_rutina_guardada"]),
@@ -4887,6 +4902,9 @@ class RutinasTab:
         iid = sel[0]
         if iid == "__actual__":
             self._cic_nombre_base = "Semana actual"
+        elif iid.startswith("fija:"):
+            idx = int(iid.split(":", 1)[1])
+            self._cic_nombre_base = f"fija:{idx}"
         else:
             guardada = next((g for g in self._semanales_guardadas()
                              if str(g["id_rutina_guardada"]) == iid), None)
@@ -4895,11 +4913,24 @@ class RutinasTab:
         self._mensaje(f"Base del ciclo: {self._cic_nombre_base}")
 
     def _cic_obtener_base(self):
-        """{dia: [ficha]} de la semana base elegida (actual o guardada)."""
+        """{dia: [ficha]} de la semana base elegida (actual, plantilla
+        del estudio o guardada)."""
         if self._cic_nombre_base == "Semana actual":
             return {dia: list(d.get("ejercicios") or [])
                     for dia, d in (self._sem_datos or {}).items()
                     if d.get("ejercicios")}
+        if self._cic_nombre_base.startswith("fija:"):
+            clave = int(self._cic_nombre_base.split(":", 1)[1])
+            plantilla = PLANTILLAS_SEMANA[clave]
+            sesiones, _faltan = self._fichas_plantilla(plantilla)
+            base = {}
+            for dia in DIAS_SEMANA:
+                sesion = plantilla["semana"].get(dia)
+                if not sesion:
+                    continue
+                base[dia] = [self._sem_ficha_con_prescripcion(f, plantilla)
+                             for f in sesiones.get(sesion, [])]
+            return base
         guardadas = {g["nombre"]: g for g in self._semanales_guardadas()}
         guardada = guardadas.get(self._cic_nombre_base)
         if not guardada:
