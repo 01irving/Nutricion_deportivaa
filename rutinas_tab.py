@@ -2,6 +2,7 @@ import io
 import json
 import os
 import sqlite3
+import re
 import unicodedata
 from datetime import datetime
 import tkinter as tk
@@ -2509,6 +2510,7 @@ class RutinasTab:
         self._crear_panel_semana()
         self._crear_tab_estiramiento()
         self._crear_tab_progresion()
+        self._crear_tab_ciclos()
         self.notebook_rut.bind("<<NotebookTabChanged>>", self._al_cambiar_subpestana)
         self.cargar(getattr(self.app, "id_paciente_antro", None))
 
@@ -4742,3 +4744,606 @@ class RutinasTab:
         # Mismo paciente: refresca la selección de estiramientos por si cambió
         # desde la pestaña Estiramientos.
         self._cargar_est_paciente()
+
+
+    def _crear_tab_ciclos(self):
+        """Sub-pestaña Ciclos: mesociclos de 4 semanas (3 de carga
+        progresiva + deloading en la cuarta) y macrociclos de 1 a 3
+        bloques encadenados a partir de una semana base."""
+        marco = ttk.Frame(self.notebook_rut, style="Gym.TFrame")
+        self.notebook_rut.add(marco, text="  Ciclos  ")
+        self.marco_cic = marco
+
+        self._cic_datos = None
+        self._cic_nombre_base = ""
+        self._cic_guardada_id = None
+
+        contenedor = ttk.Frame(marco, style="Gym.TFrame")
+        contenedor.pack(fill="both", expand=True, padx=8, pady=(4, 2))
+
+        izquierdo = ttk.LabelFrame(
+            contenedor, text="Semana base (doble clic = elegir)", padding=4)
+        izquierdo.pack(side="left", fill="y", padx=(0, 6))
+        cols_base = ("nombre", "origen", "dias", "ejercicios")
+        self.tree_cic_base = ttk.Treeview(
+            izquierdo, columns=cols_base, show="headings", height=13,
+            selectmode="browse", style="Gym.Treeview")
+        for col, texto, ancho in (
+            ("nombre", "Rutina", 170), ("origen", "Origen", 78),
+            ("dias", "Días", 40), ("ejercicios", "Ejerc.", 48)):
+            self.tree_cic_base.heading(col, text=texto)
+            self.tree_cic_base.column(col, width=ancho, minwidth=ancho,
+                anchor="w" if col == "nombre" else "center")
+        self.tree_cic_base.pack(side="top", fill="both", expand=True)
+        self.tree_cic_base.bind("<Double-1>",
+                                lambda _e: self._cic_elegir_base())
+        tk.Label(izquierdo, text="La semana elegida siembra el ciclo; "
+                 "las semanas generadas se aplican al historial de Semana.",
+                 font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+                 wraplength=290, justify="left").pack(
+            side="bottom", fill="x", pady=(4, 0))
+        self._cic_refrescar_bases()
+
+        derecho = ttk.Frame(contenedor, style="Gym.TFrame")
+        derecho.pack(side="left", fill="both", expand=True)
+
+        fila_ctrl = ttk.Frame(derecho, style="Gym.TFrame")
+        fila_ctrl.pack(fill="x", pady=(0, 3))
+        tk.Label(fila_ctrl, text="Nombre:", font=("Segoe UI", 8),
+                 fg=GRIS_TEXTO, bg=GRIS_OSCURO).pack(side="left")
+        self.entrada_cic_nombre = tk.Entry(fila_ctrl, width=26,
+                                           font=("Segoe UI", 9))
+        self.entrada_cic_nombre.pack(side="left", padx=(4, 10))
+        tk.Label(fila_ctrl, text="Objetivo:", font=("Segoe UI", 8),
+                 fg=GRIS_TEXTO, bg=GRIS_OSCURO).pack(side="left")
+        self.cic_objetivo_var = tk.StringVar(value="Hipertrofia")
+        ttk.Combobox(fila_ctrl, textvariable=self.cic_objetivo_var,
+                     values=tuple(CIC_SECUENCIAS), state="readonly",
+                     width=12, style="Gym.TCombobox").pack(
+            side="left", padx=(4, 10))
+        tk.Label(fila_ctrl, text="Mesociclos:", font=("Segoe UI", 8),
+                 fg=GRIS_TEXTO, bg=GRIS_OSCURO).pack(side="left")
+        self.cic_n_var = tk.StringVar(value="2")
+        ttk.Spinbox(fila_ctrl, from_=1, to=3, width=3,
+                    textvariable=self.cic_n_var,
+                    style="Gym.TSpinbox").pack(side="left", padx=(4, 10))
+        tk.Button(fila_ctrl, text="⚙ GENERAR", command=self._cic_generar,
+                  font=("Impact", 10), fg=NEGRO, bg=NEON,
+                  activebackground=NARANJA, activeforeground=BLANCO,
+                  relief="flat", padx=12, pady=3, cursor="hand2").pack(
+            side="left", padx=(0, 8))
+
+        fila_acciones = ttk.Frame(derecho, style="Gym.TFrame")
+        fila_acciones.pack(fill="x", pady=(0, 4))
+        tk.Label(fila_acciones, text="Ver mesociclo:", font=("Segoe UI", 8),
+                 fg=GRIS_TEXTO, bg=GRIS_OSCURO).pack(side="left")
+        self.cic_ver_var = tk.StringVar()
+        self.cic_ver_combo = ttk.Combobox(fila_acciones,
+            textvariable=self.cic_ver_var, state="disabled", width=30,
+            style="Gym.TCombobox")
+        self.cic_ver_combo.pack(side="left", padx=(4, 6))
+        self.cic_ver_combo.bind("<<ComboboxSelected>>",
+                                lambda _e: self._cic_pintar())
+        for texto, comando in (
+            ("💾 GUARDAR", self._cic_guardar),
+            ("📂 CARGAR", self._cic_cargar_guardada),
+            ("🗑 ELIMINAR", self._cic_eliminar),
+            ("➡ APLICAR AL PACIENTE", self._cic_aplicar),
+            ("🖨 IMPRIMIR PDF", self._cic_imprimir)):
+            tk.Button(fila_acciones, text=texto, command=comando,
+                      font=("Segoe UI", 8, "bold"), fg=NEON, bg=GRIS,
+                      activebackground=NARANJA, activeforeground=BLANCO,
+                      relief="flat", padx=8, pady=2, cursor="hand2").pack(
+                side="left", padx=(4, 0))
+
+        self.lbl_cic_info = tk.Label(derecho, text="Genera un ciclo desde "
+            "una semana base: cada mesociclo son 4 semanas (3 de carga "
+            "progresiva y la semana 4 de deloading: mitad de series y "
+            "carga -10 %).", font=("Segoe UI", 8), fg=GRIS_TEXTO,
+            bg=GRIS_OSCURO, wraplength=620, justify="left", anchor="w")
+        self.lbl_cic_info.pack(fill="x", pady=(0, 3))
+
+        cols = ("dia", "ejercicio", "s1", "s2", "s3", "s4")
+        self.tree_cic = ttk.Treeview(derecho, columns=cols, show="headings",
+            height=16, selectmode="browse", style="Gym.Treeview")
+        for col, texto, ancho in (
+            ("dia", "Día", 78), ("ejercicio", "Ejercicio", 218),
+            ("s1", "Semana 1", 118), ("s2", "Semana 2", 118),
+            ("s3", "Semana 3", 118), ("s4", "Semana 4 · deload", 118)):
+            self.tree_cic.heading(col, text=texto)
+            self.tree_cic.column(col, width=ancho, minwidth=ancho,
+                anchor="w" if col in ("dia", "ejercicio") else "center")
+        barra_cic = ttk.Scrollbar(derecho, orient="vertical",
+                                  command=self.tree_cic.yview)
+        self.tree_cic.configure(yscrollcommand=barra_cic.set)
+        barra_cic.pack(side="right", fill="y")
+        self.tree_cic.pack(side="left", fill="both", expand=True)
+        self.tree_cic.tag_configure("deload", background="#3A2410",
+                                    foreground="#FFB74D")
+        self.tree_cic.tag_configure("dia", background=GRIS)
+        self._cic_refrescar_bases()
+
+    def _cic_refrescar_bases(self):
+        """Llena el arbol de bases: semana actual + semanales guardadas."""
+        self.tree_cic_base.delete(*self.tree_cic_base.get_children())
+        n_sem = sum(len(d.get("ejercicios") or [])
+                    for d in (self._sem_datos or {}).values())
+        if n_sem:
+            dias_con = sum(1 for d in (self._sem_datos or {}).values()
+                           if d.get("ejercicios"))
+            self.tree_cic_base.insert(
+                "", tk.END, iid="__actual__",
+                values=("Semana actual", "Semana", dias_con, n_sem))
+        for g in self._semanales_guardadas():
+            self.tree_cic_base.insert(
+                "", tk.END, iid=str(g["id_rutina_guardada"]),
+                values=(g["nombre"], "Guardada", g.get("dias") or 0,
+                        g.get("ejercicios") or 0))
+
+    def _cic_elegir_base(self):
+        sel = self.tree_cic_base.selection()
+        if not sel:
+            return
+        iid = sel[0]
+        if iid == "__actual__":
+            self._cic_nombre_base = "Semana actual"
+        else:
+            guardada = next((g for g in self._semanales_guardadas()
+                             if str(g["id_rutina_guardada"]) == iid), None)
+            self._cic_nombre_base = guardada["nombre"] if guardada else ""
+        self._cic_guardada_id = None
+        self._mensaje(f"Base del ciclo: {self._cic_nombre_base}")
+
+    def _cic_obtener_base(self):
+        """{dia: [ficha]} de la semana base elegida (actual o guardada)."""
+        if self._cic_nombre_base == "Semana actual":
+            return {dia: list(d.get("ejercicios") or [])
+                    for dia, d in (self._sem_datos or {}).items()
+                    if d.get("ejercicios")}
+        guardadas = {g["nombre"]: g for g in self._semanales_guardadas()}
+        guardada = guardadas.get(self._cic_nombre_base)
+        if not guardada:
+            return {}
+        conv = self._plantilla_de_guardada(guardada)
+        base = {}
+        for dia, sesion in conv["semana"].items():
+            if not sesion:
+                continue
+            base[dia] = [self._sem_ficha_con_prescripcion(f)
+                         for f in conv["sesiones"].get(sesion, [])]
+        return base
+
+    @staticmethod
+    def _cic_num_peso(texto):
+        """Kg numericos del texto de peso ('50 kg' -> 50.0); None si no hay."""
+        m = re.search(r"(\d+(?:[.,]\d+)?)", str(texto or ""))
+        return float(m.group(1).replace(",", ".")) if m else None
+
+    def _cic_peso_texto(self, peso_base, mult):
+        """Peso escalado por mult y redondeado a discos de 2.5 kg."""
+        kg = self._cic_num_peso(peso_base)
+        if kg is None or kg <= 0:
+            return str(peso_base or "")
+        escalado = _discos_2_5(kg * mult)
+        return f"{escalado:g} kg"
+
+    def _cic_generar(self):
+        if not self._cic_nombre_base:
+            messagebox.showwarning(
+                "Ciclos", "Elige primero una semana base (doble clic en la "
+                "lista de la izquierda).", parent=self.marco_cic)
+            return
+        try:
+            n_mesos = max(1, min(3, int(self.cic_n_var.get())))
+        except ValueError:
+            n_mesos = 2
+        objetivo = self.cic_objetivo_var.get()
+        base = self._cic_obtener_base()
+        if not base:
+            messagebox.showwarning("Ciclos", "La semana base no tiene "
+                                   "ejercicios.", parent=self.marco_cic)
+            return
+        secuencia = CIC_SECUENCIAS[objetivo][:n_mesos]
+        bloques = []
+        for spec in secuencia:
+            ramp = spec["ramp"]
+            semanas = []
+            for wi, mult in enumerate(ramp, start=1):
+                semanas.append({"n": wi, "tipo": "Carga", "peso_mult": mult,
+                                "series_extra": 1 if wi == 3 else 0})
+            semanas.append({"n": 4, "tipo": "Deload",
+                            "peso_mult": CIC_DELOAD_PESO, "series_extra": 0})
+            dias = {}
+            for dia, fichas in base.items():
+                filas = []
+                for f in fichas:
+                    filas.append({
+                        "nombre": f.get("nombre") or "",
+                        "equipo": f.get("equipo") or "",
+                        "grupo": f.get("grupo"),
+                        "num": f.get("num"),
+                        "series_base": str(f.get("series") or "3"),
+                        "reps_base": str(f.get("repeticiones") or "12"),
+                        "descanso_rep": f.get("descanso_rep") or "",
+                        "descanso_series": spec["descanso"],
+                        "peso_base": str(f.get("peso") or ""),
+                    })
+                if filas:
+                    dias[dia] = filas
+            bloques.append({
+                "objetivo": spec["objetivo"], "reps": spec["reps"],
+                "descanso": spec["descanso"], "semanas": semanas,
+                "dias": dias,
+            })
+        nombre = (self.entrada_cic_nombre.get() or "").strip() or (
+            f"Ciclo {objetivo} · {self._cic_nombre_base}")
+        self._cic_datos = {
+            "base": self._cic_nombre_base, "objetivo": objetivo,
+            "mesociclos": n_mesos, "notas": list(CIC_NOTAS),
+            "bloques": bloques,
+        }
+        self._cic_guardada_id = None
+        opciones = [f"Mesociclo {i + 1} · {b['objetivo']}"
+                    for i, b in enumerate(bloques)]
+        self.cic_ver_combo.configure(state="readonly", values=opciones)
+        self.cic_ver_var.set(opciones[0])
+        self.lbl_cic_info.configure(text=(
+            f"Ciclo generado: {n_mesos} mesociclos × 4 semanas "
+            f"({sum(len(b['semanas']) for b in bloques)} semanas totales). "
+            "Semana 4 = deloading (mitad de series, carga -10 %). "
+            "APLICAR AL PACIENTE deja cada semana en el historial de Semana."))
+        self._cic_pintar()
+
+    def _cic_bloque_actual(self):
+        if not self._cic_datos:
+            return None
+        texto = self.cic_ver_var.get()
+        for i, b in enumerate(self._cic_datos["bloques"]):
+            if texto == f"Mesociclo {i + 1} · {b['objetivo']}":
+                return b
+        return (self._cic_datos["bloques"] or [None])[0]
+
+    def _cic_pintar(self):
+        bloque = self._cic_bloque_actual()
+        self.tree_cic.delete(*self.tree_cic.get_children())
+        if not bloque:
+            return
+        semanas = bloque["semanas"]
+        for dia in DIAS_SEMANA:
+            fichas = bloque["dias"].get(dia) or []
+            if not fichas:
+                continue
+            self.tree_cic.insert("", tk.END,
+                values=(dia, "", "", "", "", ""), tags=("dia",))
+            for f in fichas:
+                m = re.search(r"\d+", f["series_base"] or "")
+                series = int(m.group()) if m else 3
+                celdas = [dia, f["nombre"]]
+                tags = ()
+                for s in semanas:
+                    if s["tipo"] == "Deload":
+                        series_d = max(1, round(series * CIC_DELOAD_SERIES))
+                    elif s.get("series_extra"):
+                        series_d = series + s["series_extra"]
+                    else:
+                        series_d = series
+                    peso = self._cic_peso_texto(f["peso_base"],
+                                                s["peso_mult"])
+                    celdas.append(f"{series_d}×{bloque['reps']} · {peso}")
+                self.tree_cic.insert("", tk.END, values=tuple(celdas),
+                                     tags=tags)
+
+    def _cic_guardar(self):
+        if not self._cic_datos:
+            messagebox.showwarning("Ciclos", "Genera o carga un ciclo antes "
+                                   "de guardar.", parent=self.marco_cic)
+            return
+        nombre = (self.entrada_cic_nombre.get() or "").strip()
+        if not nombre:
+            messagebox.showwarning("Ciclos", "Ponle nombre al ciclo.",
+                                   parent=self.marco_cic)
+            return
+        id_ciclo = database.guardar_rutina_ciclo(
+            nombre, self._cic_datos,
+            self.paciente_id if self.paciente_id else None)
+        self._cic_guardada_id = id_ciclo
+        self._mensaje(f"Ciclo guardado: {nombre}")
+
+    def _cic_cargar_guardada(self):
+        lista = database.get_rutinas_ciclos(
+            self.paciente_id if self.paciente_id else None)
+        if not lista:
+            messagebox.showinfo("Ciclos", "Todavía no hay ciclos guardados.",
+                                parent=self.marco_cic)
+            return
+        ventana = tk.Toplevel(self.marco_cic)
+        ventana.title("Ciclos guardados")
+        ventana.configure(bg=GRIS_OSCURO)
+        ventana.transient(self.marco.winfo_toplevel())
+        ventana.geometry("560x360")
+        tree = ttk.Treeview(ventana, columns=("nombre", "objetivo", "bloques",
+                                              "semanas", "base"),
+                            show="headings", height=12, style="Gym.Treeview")
+        for col, texto, ancho in (
+            ("nombre", "Ciclo", 190), ("objetivo", "Objetivo", 118),
+            ("bloques", "Mesos", 44), ("semanas", "Semanas", 56),
+            ("base", "Base", 120)):
+            tree.heading(col, text=texto)
+            tree.column(col, width=ancho, anchor="w" if col in
+                        ("nombre", "base") else "center")
+        tree.pack(fill="both", expand=True, padx=8, pady=8)
+        for c in lista:
+            tree.insert("", tk.END, iid=str(c["id_ciclo"]), values=(
+                c["nombre"], c["objetivo"], c["bloques"], c["semanas"],
+                c["base"]))
+
+        def abrir(_e=None):
+            sel = tree.selection()
+            if not sel:
+                return
+            ciclo = database.get_rutina_ciclo(int(sel[0]))
+            self._cic_datos = ciclo["detalle"]
+            self._cic_guardada_id = ciclo["id_ciclo"]
+            self.entrada_cic_nombre.delete(0, tk.END)
+            self.entrada_cic_nombre.insert(0, ciclo["nombre"])
+            opciones = [f"Mesociclo {i + 1} · {b['objetivo']}"
+                        for i, b in enumerate(
+                            self._cic_datos.get("bloques") or [])]
+            self.cic_ver_combo.configure(state="readonly", values=opciones)
+            if opciones:
+                self.cic_ver_var.set(opciones[0])
+            self._cic_pintar()
+            ventana.destroy()
+
+        tree.bind("<Double-1>", abrir)
+        tk.Button(ventana, text="CARGAR", command=abrir,
+                  font=("Impact", 10), fg=NEGRO, bg=NEON,
+                  activebackground=NARANJA, activeforeground=BLANCO,
+                  relief="flat", padx=14, pady=3, cursor="hand2").pack(
+            pady=(0, 8))
+
+    def _cic_eliminar(self):
+        lista = database.get_rutinas_ciclos(
+            self.paciente_id if self.paciente_id else None)
+        if not lista:
+            messagebox.showinfo("Ciclos", "No hay ciclos guardados.",
+                                parent=self.marco_cic)
+            return
+        ventana = tk.Toplevel(self.marco_cic)
+        ventana.title("Eliminar ciclo")
+        ventana.configure(bg=GRIS_OSCURO)
+        ventana.transient(self.marco.winfo_toplevel())
+        ventana.geometry("520x320")
+        tree = ttk.Treeview(ventana, columns=("nombre", "objetivo"),
+                            show="headings", height=11, style="Gym.Treeview")
+        tree.heading("nombre", text="Ciclo")
+        tree.heading("objetivo", text="Objetivo")
+        tree.column("nombre", width=280, anchor="w")
+        tree.column("objetivo", width=180, anchor="center")
+        tree.pack(fill="both", expand=True, padx=8, pady=8)
+        for c in lista:
+            tree.insert("", tk.END, iid=str(c["id_ciclo"]),
+                        values=(c["nombre"], c["objetivo"]))
+
+        def borrar(_e=None):
+            sel = tree.selection()
+            if not sel:
+                return
+            database.delete_rutina_ciclo(int(sel[0]))
+            ventana.destroy()
+            self._mensaje("Ciclo eliminado.")
+
+        tree.bind("<Double-1>", borrar)
+        tk.Button(ventana, text="🗑 ELIMINAR", command=borrar,
+                  font=("Impact", 10), fg=BLANCO, bg=GRIS,
+                  activebackground=NARANJA, activeforeground=BLANCO,
+                  relief="flat", padx=14, pady=3, cursor="hand2").pack(
+            pady=(0, 8))
+
+    def _cic_aplicar(self):
+        """Deja cada semana del ciclo en el historial de Semana del
+        paciente (semanas reales, cargables una a una)."""
+        if not self._cic_datos:
+            messagebox.showwarning("Ciclos", "Genera o carga un ciclo antes "
+                                   "de aplicar.", parent=self.marco_cic)
+            return
+        if not self.paciente_id:
+            messagebox.showwarning("Ciclos", "Selecciona un paciente antes "
+                                   "de aplicar.", parent=self.marco_cic)
+            return
+        nombre = (self.entrada_cic_nombre.get() or "").strip() or "Ciclo"
+        semanas = 0
+        for bi, bloque in enumerate(self._cic_datos["bloques"], start=1):
+            for s in bloque["semanas"]:
+                dias = []
+                for dia, fichas in (bloque["dias"] or {}).items():
+                    ejercicios = []
+                    for f in fichas:
+                        m = re.search(r"\d+", f["series_base"] or "")
+                        series = int(m.group()) if m else 3
+                        if s["tipo"] == "Deload":
+                            series = max(1, round(series * CIC_DELOAD_SERIES))
+                        elif s.get("series_extra"):
+                            series += s["series_extra"]
+                        ejercicios.append({
+                            "dia": dia, "sesion": (
+                                f"{bloque['objetivo']} · Semana {s['n']}"),
+                            "nombre": f["nombre"], "equipo": f["equipo"],
+                            "grupo": f.get("grupo"), "num": f.get("num"),
+                            "series": str(series),
+                            "repeticiones": bloque["reps"],
+                            "descanso_rep": f.get("descanso_rep") or "",
+                            "descanso_series": f.get("descanso_series") or "",
+                            "peso": self._cic_peso_texto(f["peso_base"],
+                                                         s["peso_mult"]),
+                            "notas": "",
+                        })
+                    dias.append({"dia": dia,
+                                 "sesion": (f"{bloque['objetivo']} · "
+                                            f"Semana {s['n']}"),
+                                 "ejercicios": ejercicios})
+                database.guardar_rutina_historial(
+                    self.paciente_id,
+                    f"{nombre} · Mesociclo {bi} ({bloque['objetivo']}) · "
+                    f"Semana {s['n']} ({s['tipo']})",
+                    json.dumps(dias, ensure_ascii=False))
+                semanas += 1
+        self._mensaje(f"Ciclo aplicado: {semanas} semanas en el historial "
+                      "de Semana.")
+
+    def _cic_imprimir(self):
+        """PDF del ciclo: una tabla por dia con las 4 semanas del
+        mesociclo (la de deloading sombreada) y notas cientificas."""
+        if not self._cic_datos:
+            messagebox.showwarning("Ciclos", "Genera o carga un ciclo antes "
+                                   "de imprimir.", parent=self.marco_cic)
+            return
+        from reportlab.lib import colors as rl_colors
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import inch
+        from reportlab.platypus import (PageBreak, Paragraph,
+                                        SimpleDocTemplate, Spacer, Table,
+                                        TableStyle)
+        nombre = (self.entrada_cic_nombre.get() or "").strip() or "Ciclo"
+        ruta = rutina_print.ruta_temporal_pdf(nombre)
+        base_est = getSampleStyleSheet()
+        h1 = ParagraphStyle("ciclo_h1", parent=base_est["Heading1"],
+                            textColor=rl_colors.HexColor("#7A1F1F"),
+                            fontSize=15)
+        h2 = ParagraphStyle("ciclo_h2", parent=base_est["Heading2"],
+                            textColor=rl_colors.HexColor("#7A1F1F"),
+                            fontSize=12)
+        normal = ParagraphStyle("ciclo_n", parent=base_est["Normal"],
+                                fontSize=8.5)
+        chico = ParagraphStyle("ciclo_c", parent=base_est["Normal"],
+                               fontSize=7.2,
+                               textColor=rl_colors.HexColor("#444444"))
+        elementos = [
+            Paragraph("CICLO DE ENTRENAMIENTO", h1),
+            Paragraph(f"{nombre} · objetivo {self._cic_datos['objetivo']} · "
+                      f"{self._cic_datos.get('mesociclos', 1)} mesociclos × "
+                      "4 semanas (3 de carga progresiva + deloading en la "
+                      "4.ª semana)", normal),
+            Spacer(1, 8),
+        ]
+        ancho_ej = 3.3 * inch
+        ancho_sem = (7.2 * inch - ancho_ej) / 4.0
+        deload_bg = rl_colors.HexColor("#FDEBD0")
+        for bi, bloque in enumerate(self._cic_datos["bloques"], start=1):
+            if bi > 1:
+                elementos.append(PageBreak())
+            else:
+                elementos.append(Spacer(1, 2))
+            elementos.append(Paragraph(
+                f"MESOCICLO {bi} · {bloque['objetivo']} "
+                f"({bloque['reps']} reps · descanso {bloque['descanso']} s)",
+                h2))
+            for dia in DIAS_SEMANA:
+                fichas = bloque["dias"].get(dia) or []
+                if not fichas:
+                    continue
+                elementos.append(Spacer(1, 6))
+                elementos.append(Paragraph(dia, normal))
+                fila_head = [Paragraph("<b>Ejercicio</b>", normal),
+                             Paragraph("<b>S1 · carga</b>", normal),
+                             Paragraph("<b>S2 · carga</b>", normal),
+                             Paragraph("<b>S3 · carga</b>", normal),
+                             Paragraph("<b>S4 · deload</b>", normal)]
+                tabla_filas = [fila_head]
+                estilos_extra = []
+                for fi, f in enumerate(fichas, start=1):
+                    m = re.search(r"\d+", f["series_base"] or "")
+                    n_series = int(m.group()) if m else 3
+                    celdas = [Paragraph(f["nombre"], normal)]
+                    for s in bloque["semanas"]:
+                        if s["tipo"] == "Deload":
+                            series = max(1,
+                                         round(n_series * CIC_DELOAD_SERIES))
+                        elif s.get("series_extra"):
+                            series = n_series + s["series_extra"]
+                        else:
+                            series = n_series
+                        celdas.append(Paragraph(
+                            f"{series}×{bloque['reps']}<br/>"
+                            f"{self._cic_peso_texto(f['peso_base'],
+                                                    s['peso_mult'])}", normal))
+                    tabla_filas.append(celdas)
+                tabla = Table(tabla_filas, colWidths=[
+                    ancho_ej, ancho_sem, ancho_sem, ancho_sem, ancho_sem])
+                tabla.setStyle(TableStyle([
+                    ("GRID", (0, 0), (-1, -1), 0.5,
+                     rl_colors.HexColor("#BBBBBB")),
+                    ("BACKGROUND", (0, 0), (-1, 0),
+                     rl_colors.HexColor("#F2D7D5")),
+                    ("BACKGROUND", (4, 1), (4, -1), deload_bg),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ]))
+                elementos.append(tabla)
+        elementos.append(Spacer(1, 10))
+        elementos.append(Paragraph("BASE CIENTÍFICA DEL DISEÑO", h2))
+        for nota in self._cic_datos.get("notas") or CIC_NOTAS:
+            elementos.append(Paragraph("• " + nota, chico))
+        doc = SimpleDocTemplate(
+            ruta, pagesize=letter, rightMargin=0.55 * inch,
+            leftMargin=0.55 * inch, topMargin=0.5 * inch,
+            bottomMargin=0.55 * inch, title=f"Ciclo — {nombre}",
+            author="Nutrición Deportiva")
+        doc.build(elementos)
+        os.startfile(ruta)
+# ----------------------------------------------------------------------
+# Ciclos de entrenamiento (mesociclos y macrociclos). Diseno con base
+# cientifica: mesociclo de 4 semanas = 3 de carga progresiva + 1 de
+# deloading (Issurin 2010; Lorenz 2015); el deloading reduce el VOLUMEN
+# ~50 % (mitad de series) manteniendo intensidad y frecuencia, la
+# reduccion optima documentada es 41-60 % del volumen (Bosquet et al.
+# 2007, meta-analisis de tapering; Rogerson et al. 2024, practicas de
+# atletas: mismos sesiones, menos series/repeticiones). La carga progresiva
+# suma ~2.5-5 % por semana (sobrecarga progresiva). El macrociclo encadena
+# bloques Hipertrofia -> Fuerza (secuencia de Bompa; potentiation de
+# bloques y efectos residuales de Issurin). Las semanas generadas son
+# semanas REALES de la app: APLICAR AL PACIENTE las deja en el historial
+# de la pestana Semana listas para cargar una a una.
+# ----------------------------------------------------------------------
+CIC_SECUENCIAS = {
+    "Hipertrofia": [
+        {"objetivo": "Hipertrofia · volumen", "reps": "10-12",
+         "descanso": "60-90", "ramp": (1.00, 1.025, 1.05)},
+        {"objetivo": "Hipertrofia · intensiva", "reps": "8-10",
+         "descanso": "90", "ramp": (1.00, 1.025, 1.05)},
+        {"objetivo": "Fuerza", "reps": "4-6",
+         "descanso": "150-180", "ramp": (1.00, 1.05, 1.10)},
+    ],
+    "Fuerza": [
+        {"objetivo": "Hipertrofia · base", "reps": "8-12",
+         "descanso": "90", "ramp": (1.00, 1.025, 1.05)},
+        {"objetivo": "Fuerza", "reps": "4-6",
+         "descanso": "150-180", "ramp": (1.00, 1.05, 1.10)},
+        {"objetivo": "Fuerza · pesada", "reps": "3-5",
+         "descanso": "180-210", "ramp": (1.00, 1.05, 1.10)},
+    ],
+    "General": [
+        {"objetivo": "General · adaptación", "reps": "8-12",
+         "descanso": "90", "ramp": (1.00, 1.025, 1.05)},
+        {"objetivo": "General · progresión", "reps": "8-12",
+         "descanso": "90", "ramp": (1.025, 1.05, 1.075)},
+    ],
+}
+CIC_DELOAD_SERIES = 0.5     # mitad de series (volumen -50 %)
+CIC_DELOAD_PESO = 0.90      # carga -10 % por prudencia (intensidad similar)
+CIC_NOTAS = (
+    "Mesociclo de 4 semanas: 3 de carga progresiva + 1 de deloading "
+    "(Issurin 2010; Lorenz 2015).",
+    "Deloading: se reduce el volumen ~50 % (mitad de series) y la carga "
+    "-10 %, manteniendo sesiones y ejercicios; la reduccion optima "
+    "documentada es 41-60 % del volumen con intensidad estable "
+    "(Bosquet et al. 2007, meta-analisis).",
+    "Progresion de carga ~2.5-5 % por semana dentro del bloque "
+    "(sobrecarga progresiva; redondeo a discos de 2.5 kg).",
+    "Macrociclo: bloques encadenados Hipertrofia -> Fuerza; el bloque "
+    "previo potencia al siguiente (efectos residuales, Issurin 2010).",
+    "El deloading cada 4-8 semanas es la practica habitual; Coleman et "
+    "al. 2024 sugiere autorregularlo segun fatiga y rendimiento.",
+)

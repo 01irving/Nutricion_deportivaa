@@ -469,6 +469,22 @@ def init_db():
             """
         )
 
+        # ciclos de entrenamiento (mesociclos y macrociclos): cada ciclo
+        # guarda el detalle completo en JSON (bloques de 4 semanas con
+        # progresion de carga y deloading en la semana 4); paciente_id
+        # NULL = ciclo de la biblioteca del entrenador, comun a todos
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rutinas_ciclos (
+                id_ciclo INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT UNIQUE,
+                paciente_id INTEGER REFERENCES pacientes(id),
+                detalle TEXT,
+                creado_en TEXT DEFAULT (datetime('now', 'localtime'))
+            )
+            """
+        )
+
         # rutinas guardadas con nombre (biblioteca del entrenador, común a
         # todos los pacientes): semanal=0 rutina simple (lista de ejercicios
         # con prescripción), semanal=1 rutina semanal (la semana completa,
@@ -1793,6 +1809,124 @@ def delete_antecedentes_paciente(paciente_id):
         conn.execute(
             "DELETE FROM antecedentes WHERE paciente_id = ?", (paciente_id,)
         )
+
+
+def guardar_rutina_ciclo(nombre, detalle, paciente_id=None):
+    """Guarda un ciclo (mesociclo o macrociclo) con nombre (upsert por
+    nombre). detalle = JSON con bloques de 4 semanas y notas. Si el ciclo
+    se genera para un paciente se guarda con su paciente_id (la biblioteca
+    del entrenador usa paciente_id NULL); al re-guardar se conserva el
+    paciente_id que ya tuviera si no se pasa uno nuevo."""
+    nombre = (nombre or "").strip()
+    conn = get_connection()
+    try:
+        fila = conn.execute(
+            "SELECT id_ciclo, paciente_id FROM rutinas_ciclos WHERE nombre = ?",
+            (nombre,),
+        ).fetchone()
+        if fila:
+            conn.execute(
+                "UPDATE rutinas_ciclos SET detalle = ?, paciente_id = ? "
+                "WHERE id_ciclo = ?",
+                (
+                    json.dumps(detalle, ensure_ascii=False),
+                    paciente_id if paciente_id else fila[1],
+                    fila[0],
+                ),
+            )
+            id_ciclo = fila[0]
+        else:
+            cur = conn.execute(
+                "INSERT INTO rutinas_ciclos (nombre, paciente_id, detalle) "
+                "VALUES (?, ?, ?)",
+                (
+                    nombre,
+                    paciente_id,
+                    json.dumps(detalle, ensure_ascii=False),
+                ),
+            )
+            id_ciclo = cur.lastrowid
+        conn.commit()
+        return id_ciclo
+    finally:
+        conn.close()
+
+
+def get_rutinas_ciclos(paciente_id=None):
+    """Lista de ciclos guardados: los de la biblioteca (paciente_id NULL)
+    y, si se pasa paciente_id, también los suyos. Con resumen del detalle
+    (bloques y semanas) para el selector."""
+    conn = get_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        if paciente_id:
+            filas = conn.execute(
+                "SELECT * FROM rutinas_ciclos "
+                "WHERE paciente_id IS NULL OR paciente_id = ? "
+                "ORDER BY nombre",
+                (paciente_id,),
+            ).fetchall()
+        else:
+            filas = conn.execute(
+                "SELECT * FROM rutinas_ciclos WHERE paciente_id IS NULL "
+                "ORDER BY nombre"
+            ).fetchall()
+    finally:
+        conn.close()
+    salida = []
+    for f in filas:
+        try:
+            detalle = json.loads(f["detalle"] or "{}")
+        except (json.JSONDecodeError, TypeError):
+            detalle = {}
+        bloques = detalle.get("bloques") or []
+        salida.append({
+            "id_ciclo": f["id_ciclo"],
+            "nombre": f["nombre"],
+            "paciente_id": f["paciente_id"],
+            "creado_en": f["creado_en"],
+            "base": detalle.get("base", ""),
+            "objetivo": detalle.get("objetivo", ""),
+            "bloques": len(bloques),
+            "semanas": sum(len(b.get("semanas") or []) for b in bloques),
+        })
+    return salida
+
+
+def get_rutina_ciclo(id_ciclo):
+    """Un ciclo con su detalle ya parseado (bloques, semanas y notas)."""
+    conn = get_connection()
+    try:
+        conn.row_factory = sqlite3.Row
+        f = conn.execute(
+            "SELECT * FROM rutinas_ciclos WHERE id_ciclo = ?", (id_ciclo,)
+        ).fetchone()
+        if not f:
+            return None
+    finally:
+        conn.close()
+    try:
+        detalle = json.loads(f["detalle"] or "{}")
+    except (json.JSONDecodeError, TypeError):
+        detalle = {}
+    return {
+        "id_ciclo": f["id_ciclo"],
+        "nombre": f["nombre"],
+        "paciente_id": f["paciente_id"],
+        "creado_en": f["creado_en"],
+        "detalle": detalle,
+    }
+
+
+def delete_rutina_ciclo(id_ciclo):
+    conn = get_connection()
+    try:
+        conn.execute(
+            "DELETE FROM rutinas_ciclos WHERE id_ciclo = ?", (id_ciclo,)
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":
