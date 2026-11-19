@@ -406,13 +406,16 @@ def ejercicios_catalogo():
     return nombres, tren
 
 
-def abrir_dialogo_1rm(parent, app=None, ejercicio=None):
+def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None):
     """Ventana con ramas de árbol: métodos de 1RM para cualquier
     ejercicio (selector con todo el catálogo de rutinas).
 
     `app` es la ventana principal: se usa para tomar el paciente activo
     al guardar el resultado. `ejercicio` preselecciona el ejercicio (el
-    de la fila elegida en la rutina semanal).
+    de la fila elegida en la rutina semanal). `al_guardar` es una
+    función que se invoca con los datos guardados (dict con ejercicio y
+    resultado = 1RM) cuando el usuario pulsa 💾 GUARDAR: la pestaña
+    Rutinas la usa para aplicar el 1RM al ejercicio en la rutina.
     """
     import tkinter as tk
     from tkinter import messagebox, ttk
@@ -916,6 +919,13 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None):
                 fecha=datetime.now().strftime("%Y-%m-%d"),
             )
         )
+        # la pestaña Rutinas aplica el 1RM al ejercicio en la rutina
+        # (pesos por semana con deloading) al momento de guardarlo
+        if al_guardar:
+            try:
+                al_guardar(dict(datos))
+            except Exception:
+                pass
         if datos["metodo"].startswith("Peso por objetivo"):
             texto = (
                 f"Registro de {datos['ejercicio']} guardado para el "

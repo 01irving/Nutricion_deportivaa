@@ -9,13 +9,16 @@ Chequea lo dejado pendiente de la sesión del 17:
     de 2 mesociclos -> GUARDAR -> APLICAR AL PACIENTE -> PDF;
   - barra de estado se restablece al cambiar de sub-pestaña.
 Y lo nuevo de la sesión del 19 (1RM → pesos de la rutina semanal):
-  - % del 1RM por repeticiones (cuadro 18.8 NSCA / ACSM 2009) y catálogo
-    completo de ejercicios en la calculadora;
+  - % del 1RM por NIVEL del paciente (ACSM 2009: principiante 65 % con
+    +2,5 % semanal, intermedio 75 % y avanzado 85 % con +5 %), limitado
+    por el cuadro 18.8 NSCA, catálogo completo en la calculadora;
+  - al GUARDAR un 1RM se aplica al ejercicio en las 4 semanas (Semana 1
+    = % del nivel, rampa semanal y deloading -10 % en la 4.ª);
   - llenado de la columna Peso desde el 1RM (semana actual y mesociclo
     Semana 1-4 con su rampa semanal), sobrescribiendo y sin tocar lo que
     no tiene 1RM registrado;
   - GENERAR en Ciclos toma el peso base del 1RM cuando el ejercicio no
-    tiene peso manual (y respeta el manual), con nota nueva en CIC_NOTAS.
+    tiene peso manual (y respeta el manual), con nota nueva en CIC_NOTAS;
   - APLICAR MESOCICLO: las semanas EDITADAS de las ranuras Semana 1-4
     al paciente (Semana 1 como rutina activa y las 4 al historial).
 """
@@ -122,11 +125,20 @@ chequear("1RM: el selector trae TODO el catálogo (presets + rutinas_ejercicios)
 chequear("1RM: el tren del catálogo se infiere (piernas/glúteos inferior)",
          tren_cat["Sentadilla"] == "inferior"
          and tren_cat["Press de banca"] == "superior")
-chequear("rampa semanal: hipertrofia +2,5 % y fuerza +5 %; deloading -10 %",
-         rutinas_tab._sem_rampa_reps("10-12")
-         == (1.00, 1.025, 1.05, CIC_DELOAD_PESO)
-         and rutinas_tab._sem_rampa_reps("4-6")
-         == (1.00, 1.05, 1.10, CIC_DELOAD_PESO))
+chequear("niveles ACSM: principiante 65 % +2,5 %; intermedio 75 % y avanzado 85 % +5 %; S4 deloading",
+         rutinas_tab._sem_rampa_nivel("Principiante")
+         == (65, (1.00, 1.025, 1.025 ** 2, CIC_DELOAD_PESO))
+         and rutinas_tab._sem_rampa_nivel("Intermedio")
+         == (75, (1.00, 1.05, 1.05 ** 2, CIC_DELOAD_PESO))
+         and rutinas_tab._sem_rampa_nivel("Avanzado")
+         == (85, (1.00, 1.05, 1.05 ** 2, CIC_DELOAD_PESO)))
+chequear("niveles ACSM: el % de la Semana 1 queda limitado por el cuadro 18.8",
+         rutinas_tab._sem_pct_reps("10-12") == 65
+         and rutinas_tab._sem_pct_reps("10-12", "Intermedio") == 75
+         and rutinas_tab._sem_pct_reps("10-12", "Avanzado") == 75
+         and rutinas_tab._sem_pct_reps("8-12", "Avanzado") == 80
+         and rutinas_tab._sem_pct_reps("15-20", "Avanzado") == 65
+         and rutinas_tab._sem_pct_reps("al fallo") is None)
 
 # 3) Cargar plantilla del estudio en Semana (misma vía que la app)
 rt._sem_refrescar_selector()
@@ -320,13 +332,14 @@ chequear("referencia: el modo Doble cita Plotkin/Chaves y ACSM",
          and "Chaves" in rt._cic_datos.get("base_cientifica", "")
          and "ACSM" in rt._cic_datos.get("base_cientifica", ""))
 
-# 5e) Pesos desde 1RM en la rutina semanal (menú «🏋 1RM ▾»): botón y
-# menú presentes; con un 1RM de sesión para la primera ficha, el llenado
-# del mesociclo sobrescribe el peso de las 4 ranuras y deja intactos los
-# ejercicios sin 1RM registrado
-chequear("menú 1RM: botón con 3 opciones en la pestaña Rutina",
+# 5e) Pesos desde 1RM en la rutina semanal (menú «🏋 1RM ▾»): menú con
+# el selector de nivel (ACSM 2009), botón y opciones; con un 1RM de
+# sesión para la primera ficha, el llenado del mesociclo sobrescribe el
+# peso de las 4 ranuras y deja intactos los ejercicios sin 1RM registrado
+chequear("menú 1RM: nivel del paciente (3 niveles) + opciones y rutinas del nivel",
          hasattr(rt, "btn_sem_1rm") and hasattr(rt, "menu_sem_1rm")
-         and rt.menu_sem_1rm.index("end") == 3)
+         and rt.menu_sem_1rm.index("end") == 11
+         and rt._sem_nivel_var.get() == "Principiante")
 chequear("nota nueva: base del % del 1RM citada en CIC_NOTAS",
          any("cuadro 18.8" in n and "ACSM 2009" in n
              for n in rt._cic_datos["notas"]))
@@ -353,27 +366,72 @@ rt._sem_pesos_desde_1rm(True)
 raiz.update()
 chequear("pesos desde 1RM: sobrescribe el peso que había en la ranura",
          _ficha_ranura(1)["peso"] != peso_antes)
-chequear("pesos desde 1RM: Semana 1 = 75 % de un 1RM de 100 kg "
-         "(10-11 reps, cuadro 18.8)",
-         _ficha_ranura(1)["peso"] == "75 kg")
+chequear("pesos desde 1RM: Semana 1 = 65 % de un 1RM de 100 kg "
+         "(nivel principiante, cuadro 18.8)",
+         _ficha_ranura(1)["peso"] == "65 kg")
 ok_rampas = True
 for n in (1, 2, 3, 4):
     ficha_n = _ficha_ranura(n)
-    kg_n, _pct = calculadora_1rm.carga_desde_1rm(
-        100.0, ficha_n["repeticiones"])
-    rampa_n = rutinas_tab._sem_rampa_reps(ficha_n["repeticiones"])
-    esperado = f"{_discos_2_5(kg_n * rampa_n[n - 1]):g} kg"
+    _base, mults_n = rutinas_tab._sem_rampa_nivel(
+        rt._sem_nivel_var.get())
+    pct_n = rutinas_tab._sem_pct_reps(
+        ficha_n["repeticiones"], rt._sem_nivel_var.get())
+    esperado = f"{_discos_2_5(100.0 * pct_n / 100.0 * mults_n[n - 1]):g} kg"
     if ficha_n["peso"] != esperado:
         ok_rampas = False
         print("   ranura", n, ficha_n["repeticiones"],
               "->", ficha_n["peso"], "≠", esperado)
 chequear("pesos desde 1RM: cada ranura con su rampa semanal "
-         "(+2,5/+5 % y deloading -10 %)", ok_rampas)
+         "(+2,5 % semanal y deloading -10 %)", ok_rampas)
 chequear("pesos desde 1RM: los ejercicios sin 1RM quedan con su peso previo",
          len(_ejercicios_ranura(1)) < 2
          or not _ejercicios_ranura(1)[1]["peso"])
-chequear("pesos desde 1RM: la barra de estado reporta el llenado",
-         "Pesos desde 1RM" in rt.lbl_estado.cget("text"))
+chequear("pesos desde 1RM: la barra de estado reporta el llenado y el nivel",
+         "Pesos desde 1RM" in rt.lbl_estado.cget("text")
+         and "nivel Principiante" in rt.lbl_estado.cget("text"))
+
+# 5f) Al GUARDAR un 1RM en la calculadora se aplica AL EJERCICIO en las
+# 4 semanas: Semana 1 = % del nivel, rampa semanal y deloading en la 4.ª
+rt._sem_nivel_var.set("Principiante")
+rt._sem_aplicar_rm_guardado({
+    "ejercicio": nombre_1rm, "metodo": "Baechle (NSCA 2000)",
+    "peso": 60.0, "rpe": None, "repeticiones": 8, "resultado": 100.0,
+})
+raiz.update()
+pesos_5f = [_ficha_ranura(n)["peso"] for n in (1, 2, 3, 4)]
+chequear("1RM guardado: aplicado a las 4 semanas (65 · 67.5 · 67.5 kg "
+         "y deloading 57.5 kg)",
+         pesos_5f == ["65 kg", "67.5 kg", "67.5 kg", "57.5 kg"])
+chequear("1RM guardado: barra de estado con el detalle por semana",
+         "GUARDADO y aplicado" in rt.lbl_estado.cget("text")
+         and "S4 deloading" in rt.lbl_estado.cget("text"))
+apariciones = [e for d in rt._sem_semanas[1].values()
+               for e in d.get("ejercicios") or []
+               if rutinas_tab._normalizar(e.get("nombre"))
+               == rutinas_tab._normalizar(nombre_1rm)]
+chequear("1RM guardado: aplicado a TODAS las apariciones (Lunes y Jueves)",
+         len(apariciones) >= 2
+         and all(e["peso"] == "65 kg" for e in apariciones))
+rt._sem_nivel_var.set("Intermedio")
+rt._sem_aplicar_rm_guardado({
+    "ejercicio": nombre_1rm, "metodo": "Baechle (NSCA 2000)",
+    "peso": 60.0, "rpe": None, "repeticiones": 8, "resultado": 100.0,
+})
+raiz.update()
+chequear("1RM guardado: nivel intermedio aplica 75 % en la Semana 1",
+         _ficha_ranura(1)["peso"] == "75 kg")
+rt._sem_aplicar_rm_guardado({
+    "ejercicio": "Ejercicio inexistente", "metodo": "x", "peso": 1,
+    "rpe": None, "repeticiones": 1, "resultado": 50.0,
+})
+chequear("1RM guardado: ejercicio fuera de las ranuras solo informa",
+         "no está en las ranuras" in rt.lbl_estado.cget("text"))
+chequear("1RM guardado: GUARDAR dispara la aplicación desde la calculadora",
+         "al_guardar(dict(datos))"
+         in Path(calculadora_1rm.__file__).read_text(encoding="utf-8")
+         and "al_guardar=self._sem_aplicar_rm_guardado" in fuente)
+# el nivel intermedio se queda activo para las expectativas de 7b/7c
+# (base del 1RM al 75 %, igual que el cuadro 18.8 para 10-12 reps)
 
 # 6) GUARDAR ciclo
 rt._cic_guardar()
@@ -411,6 +469,7 @@ chequear("APLICAR: semana deload con peso -10 %",
          peso_deload == f"{_discos_2_5(kg_base * 0.90):g} kg")
 
 # 7b) GENERAR y pesos desde 1RM guardados en la BD del paciente
+rt._sem_nivel_var.set("Intermedio")   # base 75 %: 140 kg → 105 kg con 10-12 reps
 nombre_pend = _ejercicios_ranura(1)[1]["nombre"]
 database.insert_uno_rm({
     "paciente_id": id_pac, "fecha": "2026-11-19",
@@ -510,6 +569,80 @@ rt._sem_aplicar_mesociclo()
 chequear("mesociclo: sin semanas diseñadas avisa",
          "están vacías" in rt.lbl_estado.cget("text"))
 rt._sem_semanas = _semanas_originales
+
+# 7e) Rutinas por nivel: 11 plantillas del estudio etiquetadas (3
+# principiante, 5 intermedio, 3 avanzado) y, al elegir la avanzada
+# (Helms 2018), la app arma el mesociclo desde los 1RM del paciente
+# (Semana 4 = deloading)
+niveles_plantillas = [p.get("nivel") for p in PLANTILLAS_SEMANA]
+chequear("rutinas por nivel: 11 plantillas etiquetadas (3 principiante / 5 intermedio / 3 avanzado)",
+         len(niveles_plantillas) == 11
+         and (niveles_plantillas.count("Principiante"),
+              niveles_plantillas.count("Intermedio"),
+              niveles_plantillas.count("Avanzado")) == (3, 5, 3))
+helms = next(p for p in PLANTILLAS_SEMANA if "Helms" in p["nombre"])
+chequear("rutinas por nivel: prescripciones por sesión (8/6/4 reps en Helms)",
+         helms["prescripciones"]["Completo pesado (8 reps)"]["repeticiones"]
+         == "8"
+         and helms["prescripciones"]["Completo medio (6 reps)"]
+         ["repeticiones"] == "6"
+         and helms["prescripciones"]["Completo ligero (4 reps)"]
+         ["repeticiones"] == "4")
+rt._sem_nivel_var.set("Avanzado")
+rt._sem_llenar_rutinas_nivel()
+chequear("rutinas por nivel: el submenú avanzado lista 3 rutinas",
+         rt.menu_rutinas_nivel.index("end") == 2)
+rt._sem_cargar_plantilla_mesociclo(PLANTILLAS_SEMANA.index(helms))
+raiz.update()
+
+
+def _ficha_semana(n, dia_txt):
+    """Ficha de la sesión pesada (Lunes) de la ranura n."""
+    return next(e for d in rt._sem_semanas[n].values()
+                for e in d.get("ejercicios") or []
+                if dia_txt in rutinas_tab._normalizar(e.get("nombre")))
+
+
+chequear("rutina avanzada: mesociclo armado en las 4 ranuras con su etiqueta",
+         rt._sem_n == 1
+         and "Helms" in rt.entrada_sem_nombre.get()
+         and all(any(f"Semana {n}" in (d["sesion"] or "")
+                     for d in rt._sem_semanas[n].values()
+                     if d.get("sesion"))
+                 for n in (1, 2, 3, 4))
+         and any("Deload" in (d["sesion"] or "")
+                 for d in rt._sem_semanas[4].values() if d.get("sesion")))
+banca_s1 = _ficha_semana(1, "bench")
+chequear("rutina avanzada: banca pesada 8 reps al 80 % del 1RM de la BD "
+         "(140 kg → 112.5 kg)",
+         banca_s1["repeticiones"] == "8"
+         and banca_s1["peso"] == "112.5 kg")
+banca_s3 = _ficha_semana(3, "bench")
+banca_s4 = _ficha_semana(4, "bench")
+chequear("rutina avanzada: rampa semanal en la banca (S3 +5 % compuesto)",
+         banca_s3["peso"] == f"{_discos_2_5(112 * 1.05 ** 2):g} kg")
+chequear("rutina avanzada: deloading en la Semana 4 (mitad de series, "
+         "-10 % de carga)",
+         banca_s4["series"] == "1"
+         and banca_s4["peso"] == f"{_discos_2_5(112 * 0.90):g} kg")
+chequear("rutina avanzada: la barra de estado reporta el armado",
+         "Mesociclo armado" in rt.lbl_estado.cget("text")
+         and "nivel Avanzado" in rt.lbl_estado.cget("text"))
+# armar de nuevo desde la semana cargada (ítem del menú) es estable
+rt._sem_armar_mesociclo_1rm()
+raiz.update()
+chequear("armar mesociclo: re-ejecutar sobre la semana cargada conserva el mesociclo",
+         _ficha_semana(1, "bench")["peso"] == "112.5 kg"
+         and any("Deload" in (d["sesion"] or "")
+                 for d in rt._sem_semanas[4].values() if d.get("sesion")))
+# cambiar de nivel = recargar la rutina del nivel: la plantilla trae
+# fichas sin peso y el armado recalcula desde los 1RM con el % del nivel
+rt._sem_nivel_var.set("Principiante")
+rt._sem_cargar_plantilla_mesociclo(0)
+raiz.update()
+chequear("armar mesociclo: nivel principiante carga la plantilla del nivel al 65 %",
+         "Principiante" in rt.lbl_estado.cget("text")
+         and _ficha_semana(1, "bench")["peso"] == "90 kg")
 
 # 8) PDF del ciclo (sin abrirlo en pantalla: se intercepta os.startfile)
 rutas_pdf = []

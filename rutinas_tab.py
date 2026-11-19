@@ -67,6 +67,7 @@ PLANTILLAS_SEMANA = (
         # Rehabilitation 14:87 — Tabla 1, grupo SPLIT: 4 sesiones
         # (2 superiores + 2 inferiores), 3 series de 8-12 RM con
         # ~1 min de descanso entre series.
+        "nivel": "Principiante",
         "nombre": "Split 4 días · Tren superior / inferior (Pedersen 2022)",
         "series": "3",
         "repeticiones": "8-12",
@@ -103,6 +104,7 @@ PLANTILLAS_SEMANA = (
         # (mínimo 48 h entre sesiones). 3 series con periodización
         # lineal: 12-RM sem. 1-4, 10-RM sem. 5-8 y 8-RM sem. 9-12;
         # ~1 min de descanso entre series.
+        "nivel": "Principiante",
         "nombre": "Cuerpo completo 2 días · Mujeres no entrenadas (Pedersen 2022)",
         "series": "3",
         "repeticiones": "12-10-8",
@@ -138,6 +140,7 @@ PLANTILLAS_SEMANA = (
         # entre series y 120 s entre ejercicios. Fue el grupo con mayor
         # ganancia de espesor muscular (flexores del codo y vasto
         # lateral) frente a la rutina dividida 1 día/semana.
+        "nivel": "Intermedio",
         "nombre": "Total-body 5 días · Alta frecuencia (Zaroni 2019)",
         "series": "3",
         "repeticiones": "10-12",
@@ -198,6 +201,7 @@ PLANTILLAS_SEMANA = (
         # rota semanalmente). Bloques de 3 semanas: 12-RM (sem. 1-3),
         # 10-RM (sem. 4-6) y 8-RM (sem. 7-9), 70% 1RM la primera sesión
         # y 4 min de descanso entre series.
+        "nivel": "Avanzado",
         "nombre": "Cuerpo completo pesado 4 días · 2 vs 4 sesiones (Hamarsland 2022)",
         "series": "1-2",
         "repeticiones": "12-10-8",
@@ -236,6 +240,7 @@ PLANTILLAS_SEMANA = (
         # con 4 series y 2 min de descanso (sem. 1-4) a 6-RM con 5
         # series y 3 min de descanso (sem. 5-8). Ganó más fuerza máxima
         # (1-RM sentadilla) que el mismo volumen en una sola sesión.
+        "nivel": "Intermedio",
         "nombre": "Piernas 4 días · Alta frecuencia (Pedersen 2024)",
         "series": "4-5",
         "repeticiones": "12RM a 6RM",
@@ -273,6 +278,7 @@ PLANTILLAS_SEMANA = (
         # → 72% (8 reps) → 78% (6-8 reps); descanso de 1 a 2 min. Ambas
         # estructuras mejoraron fuerza y composición corporal sin
         # diferencias entre ellas.
+        "nivel": "Principiante",
         "nombre": "Cuerpo completo 2 días · Principiantes (Prieto-González 2020)",
         "series": "3",
         "repeticiones": "12-6",
@@ -322,6 +328,7 @@ PLANTILLAS_SEMANA = (
         # lumbar; una serie para press de piernas, sentadilla, curl con
         # barra, tríceps y elevaciones laterales. Perdió más grasa total
         # y regional (DXA) que la rutina dividida.
+        "nivel": "Intermedio",
         "nombre": "Cuerpo completo 5 días · Pérdida de grasa (Carneiro 2024)",
         "series": "1-2",
         "repeticiones": "8-12",
@@ -346,6 +353,206 @@ PLANTILLAS_SEMANA = (
             "Miércoles": "Cuerpo completo",
             "Jueves": "Cuerpo completo",
             "Viernes": "Cuerpo completo",
+            "Sábado": None,
+            "Domingo": None,
+        },
+    },
+    {
+        # Rotación ondulante semanal (DUP): el ACSM 2009 (Position Stand,
+        # Med Sci Sports Exerc 41(3):687-708, p. 689) propone rotar cargas
+        # pesadas/moderadas/ligeras — "3-5 RM, 8-10 RM y 12-15 RM en la
+        # rotación" — y el modelo DUP superó a la periodización lineal en
+        # fuerza en hombres entrenados (Prestes et al. 2009, J Strength
+        # Cond Res, PubMed 19910831). 3 series por ejercicio, cuerpo
+        # completo 3 días con los básicos; descansos según la carga.
+        "nivel": "Intermedio",
+        "nombre": "DUP 3 días · Pesado/Medio/Ligero (ACSM ondulante · Prestes 2009)",
+        "series": "3",
+        "repeticiones": "4-15",
+        "descanso_series": "90-150",
+        "prescripciones": {
+            "Completo pesado (4-6 reps)": {
+                "repeticiones": "4-6", "descanso_series": "150-180",
+            },
+            "Completo medio (8-10 reps)": {
+                "repeticiones": "8-10", "descanso_series": "90-120",
+            },
+            "Completo ligero (12-15 reps)": {
+                "repeticiones": "12-15", "descanso_series": "60-90",
+            },
+        },
+        "sesiones": {
+            "Completo pesado (4-6 reps)": (
+                ("piernas", "06", ""),        # Leg press
+                ("pectorales", "02", ""),     # Bench press
+                ("espalda", "03", ""),        # Lat pulldown
+                ("espalda", "06", ""),        # Cable seated row
+                ("brazos", "07", ""),         # Biceps curl (barra)
+                ("brazos", "13", ""),         # Triceps extension (polea)
+            ),
+            "Completo medio (8-10 reps)": (
+                ("piernas", "06", ""),
+                ("pectorales", "02", ""),
+                ("espalda", "03", ""),
+                ("espalda", "06", ""),
+                ("brazos", "07", ""),
+                ("brazos", "13", ""),
+            ),
+            "Completo ligero (12-15 reps)": (
+                ("piernas", "06", ""),
+                ("pectorales", "02", ""),
+                ("espalda", "03", ""),
+                ("espalda", "06", ""),
+                ("brazos", "07", ""),
+                ("brazos", "13", ""),
+            ),
+        },
+        "semana": {
+            "Lunes": "Completo pesado (4-6 reps)",
+            "Martes": None,
+            "Miércoles": "Completo medio (8-10 reps)",
+            "Jueves": None,
+            "Viernes": "Completo ligero (12-15 reps)",
+            "Sábado": None,
+            "Domingo": None,
+        },
+    },
+    {
+        # ACSM 2009 (Position Stand, p. 693-695): para intermedios se
+        # recomienda 4 días/semana con rutina dividida (tren superior /
+        # tren inferior, cada músculo 2 d/semana, evidencia B) y carga de
+        # hipertrofia 70-85 % del 1RM con 8-12 reps y 1-3 series (cat. A);
+        # descanso 1-2 min (cat. C).
+        "nivel": "Intermedio",
+        "nombre": "Superior/Inferior 4 días · Intermedio (ACSM 2009)",
+        "series": "3",
+        "repeticiones": "8-12",
+        "descanso_series": "60-90",
+        "sesiones": {
+            "Tren superior": (
+                ("pectorales", "02", ""),     # Bench press
+                ("espalda", "03", ""),        # Lat pulldown
+                ("espalda", "06", ""),        # Cable seated row
+                ("hombros", "02", ""),        # Military press (barra)
+                ("hombros", "06", ""),        # Lateral raises (mancuernas)
+                ("brazos", "13", ""),         # Triceps extension (polea)
+                ("brazos", "07", ""),         # Biceps curl (barra)
+            ),
+            "Tren inferior": (
+                ("piernas", "04", ""),        # Back squat
+                ("piernas", "06", ""),        # Leg press
+                ("espalda", "14", ""),        # Stiff-legged deadlift
+                ("piernas", "10", ""),        # Lying leg curl
+                ("piernas", "09", ""),        # Leg extension
+                ("gluteos", "06", ""),        # Hip thrust
+            ),
+        },
+        "semana": {
+            "Lunes": "Tren superior",
+            "Martes": "Tren inferior",
+            "Miércoles": None,
+            "Jueves": "Tren superior",
+            "Viernes": "Tren inferior",
+            "Sábado": None,
+            "Domingo": None,
+        },
+    },
+    {
+        # Helms et al. 2018, Frontiers in Physiology 9:247 (PubMed
+        # 29556315) — grupo % 1RM: hombres entrenados, 3 sesiones/semana
+        # (lunes-miércoles-viernes) con sentadilla y press de banca en
+        # cada sesión (rotación diaria ondulante: 8 → 6 → 4 reps),
+        # 2-3 series y 5-7 min de descanso. La carga sube cada semana:
+        # sem. 1 = 65/70/75 % → sem. 7 = 82.5/87.5/92.5 % del 1RM, y la
+        # semana 8 es taper. La app arma las 4 semanas con el % del
+        # nivel avanzado (ACSM) desde los 1RM del paciente.
+        "nivel": "Avanzado",
+        "nombre": "DUP 3 días · Sentadilla y banca al % 1RM (Helms 2018)",
+        "series": "2-3",
+        "repeticiones": "8-4",
+        "descanso_series": "300",
+        "prescripciones": {
+            "Completo pesado (8 reps)": {
+                "repeticiones": "8", "series": "2-3",
+            },
+            "Completo medio (6 reps)": {
+                "repeticiones": "6", "series": "2-3",
+            },
+            "Completo ligero (4 reps)": {
+                "repeticiones": "4", "series": "2-3",
+            },
+        },
+        "sesiones": {
+            "Completo pesado (8 reps)": (
+                ("piernas", "04", ""),        # Back squat
+                ("pectorales", "02", ""),     # Bench press
+            ),
+            "Completo medio (6 reps)": (
+                ("piernas", "04", ""),
+                ("pectorales", "02", ""),
+            ),
+            "Completo ligero (4 reps)": (
+                ("piernas", "04", ""),
+                ("pectorales", "02", ""),
+            ),
+        },
+        "semana": {
+            "Lunes": "Completo pesado (8 reps)",
+            "Martes": None,
+            "Miércoles": "Completo medio (6 reps)",
+            "Jueves": None,
+            "Viernes": "Completo ligero (4 reps)",
+            "Sábado": None,
+            "Domingo": None,
+        },
+    },
+    {
+        # Schoenfeld et al. 2015, J Strength Cond Res 29(7):1821-1829
+        # (PubMed 25932981) — grupo SPLIT (hombres bien entrenados, 8
+        # semanas, 3 días/semana): pecho-hombros-tríceps (lunes),
+        # tren inferior (miércoles) y espalda-bíceps (viernes), 7
+        # ejercicios por sesión con 3 series de 8-12 RM. La estructura
+        # dividida es la clásica de avanzados (cada músculo 1 d/semana
+        # con volumen alto por sesión; el volumen se igualó con el grupo
+        # de cuerpo completo).
+        "nivel": "Avanzado",
+        "nombre": "Split 3 días · Pecho-Hombro-Tríceps / Inferior / Espalda-Bíceps (Schoenfeld 2015)",
+        "series": "3",
+        "repeticiones": "8-12",
+        "descanso_series": "90-120",
+        "sesiones": {
+            "Pecho-Hombro-Tríceps": (
+                ("pectorales", "02", ""),     # Bench press
+                ("pectorales", "01", ""),     # Incline bench press
+                ("hombros", "02", ""),        # Military press (barra)
+                ("pectorales", "09", ""),     # Dumbbell fly
+                ("hombros", "06", ""),        # Lateral raises (mancuernas)
+                ("brazos", "13", ""),         # Triceps extension (polea)
+                ("brazos", "17", ""),         # Close-grip press / nosebreaker
+            ),
+            "Tren inferior": (
+                ("piernas", "06", ""),        # Leg press
+                ("piernas", "07", ""),        # Hack squat
+                ("espalda", "14", ""),        # Stiff-legged deadlift
+                ("piernas", "09", ""),        # Leg extension
+                ("piernas", "10", ""),        # Lying leg curl
+                ("piernas", "17", ""),        # Calf raise (máquina)
+            ),
+            "Espalda-Bíceps": (
+                ("espalda", "03", ""),        # Lat pulldown
+                ("espalda", "01", ""),        # Dominadas (pull-ups)
+                ("espalda", "06", ""),        # Cable seated row
+                ("espalda", "11", ""),        # Barbell row (remo horizontal)
+                ("brazos", "07", ""),         # Biceps curl (barra)
+                ("brazos", "03", ""),         # Incline dumbbell curl
+            ),
+        },
+        "semana": {
+            "Lunes": "Pecho-Hombro-Tríceps",
+            "Martes": None,
+            "Miércoles": "Tren inferior",
+            "Jueves": None,
+            "Viernes": "Espalda-Bíceps",
             "Sábado": None,
             "Domingo": None,
         },
@@ -449,10 +656,15 @@ class RutinasTab:
 
     def _fichas_plantilla(self, plantilla):
         """Fichas del catálogo por sesión de la plantilla (copia editable
-        para la tabla) y lista de entradas sin ficha en el catálogo."""
+        para la tabla) y lista de entradas sin ficha en el catálogo. Las
+        plantillas pueden traer «prescripciones» por sesión (series,
+        repeticiones, descanso) que pisan los valores generales: así la
+        DUP de Helms 2018 da 8/6/4 reps según la sesión."""
         sesiones = {}
         faltan = []
+        prescripciones = plantilla.get("prescripciones") or {}
         for sesion, ejercicios in plantilla["sesiones"].items():
+            extra = prescripciones.get(sesion) or {}
             filas = []
             for grupo, num, marca in ejercicios:
                 try:
@@ -464,6 +676,9 @@ class RutinasTab:
                     ficha = {"nombre": f"{grupo} #{num}", "equipo": ""}
                 ficha = dict(ficha)
                 ficha["marca"] = marca
+                for campo in ("series", "repeticiones", "descanso_series"):
+                    if extra.get(campo):
+                        ficha[campo] = str(extra[campo])
                 filas.append(ficha)
             sesiones[sesion] = filas
         return sesiones, faltan
@@ -664,9 +879,19 @@ class RutinasTab:
 
         # pesos desde 1RM (recomendación bibliográfica por semana):
         # llenar la semana en curso o el mesociclo completo, o abrir la
-        # calculadora con el ejercicio de la fila elegida
+        # calculadora con el ejercicio de la fila elegida. El nivel del
+        # paciente fija con qué % del 1RM empieza (ACSM 2009)
         self.menu_sem_1rm = tk.Menu(derecho, tearoff=0,
                                     font=("Segoe UI", 9))
+        self._sem_nivel_var = tk.StringVar(value="Principiante")
+        self.menu_sem_1rm.add_command(
+            label="Nivel del paciente (ACSM 2009):", state="disabled",
+        )
+        for nivel in SEM_NIVELES_ACSM:
+            self.menu_sem_1rm.add_radiobutton(
+                label=nivel, variable=self._sem_nivel_var, value=nivel,
+            )
+        self.menu_sem_1rm.add_separator()
         self.menu_sem_1rm.add_command(
             label="Pesos desde 1RM · Semana actual",
             command=lambda: self._sem_pesos_desde_1rm(False),
@@ -679,6 +904,21 @@ class RutinasTab:
         self.menu_sem_1rm.add_command(
             label="Abrir calculadora 1RM…",
             command=self._sem_abrir_1rm_fila,
+        )
+        self.menu_sem_1rm.add_separator()
+        # rutinas del estudio filtradas por el nivel elegido: elegir una
+        # carga la rutina Y arma el mesociclo (Semana 1-4) desde los 1RM
+        self.menu_rutinas_nivel = tk.Menu(
+            self.menu_sem_1rm, tearoff=0, font=("Segoe UI", 9),
+            postcommand=self._sem_llenar_rutinas_nivel,
+        )
+        self.menu_sem_1rm.add_cascade(
+            label="Rutina del estudio del nivel ▶",
+            menu=self.menu_rutinas_nivel,
+        )
+        self.menu_sem_1rm.add_command(
+            label="Armar mesociclo desde 1RM · Semana 1-4",
+            command=self._sem_armar_mesociclo_1rm,
         )
         self.btn_sem_1rm = tk.Menubutton(
             fila_acciones, text="🏋 1RM ▾", menu=self.menu_sem_1rm,
@@ -1010,7 +1250,8 @@ class RutinasTab:
             iid = f"f{idx}"
             self.tree_sem_selector.insert(
                 "", "end", iid=iid,
-                values=(p["nombre"], "Estudio", dias, ejercicios),
+                values=(f"[{p.get('nivel') or '—'}] {p['nombre']}",
+                        "Estudio", dias, ejercicios),
             )
             self._sem_selector_map[iid] = ("fija", idx)
         for r in self._semanales_guardadas():
@@ -1258,8 +1499,9 @@ class RutinasTab:
             mapa[etiqueta] = ("simple", r["id_rutina_guardada"])
         # sesiones de las plantillas del estudio (◆)
         for idx, p in enumerate(PLANTILLAS_SEMANA):
+            nivel = p.get("nivel") or "—"
             for sesion in p["sesiones"]:
-                etiqueta = f"◆ {sesion} — {p['nombre']}"
+                etiqueta = f"◆ [{nivel}] {sesion} — {p['nombre']}"
                 valores.append(etiqueta)
                 mapa[etiqueta] = ("fija", idx, sesion)
         # sesiones de las rutinas semanales guardadas (◆)
@@ -1709,14 +1951,14 @@ class RutinasTab:
         return mapa
 
     def _sem_pesos_desde_1rm(self, todas_las_semanas=False):
-        """Llena la columna Peso desde el 1RM registrado del paciente:
-        peso = % del 1RM para las repeticiones del ejercicio (cuadro 18.8
-        NSCA; ACSM 2009: hipertrofia 70-85 % con 8-12 reps, fuerza
-        80-100 %, resistencia 40-60 % con 15+ reps) por el multiplicador
-        de la semana del mesociclo (+2,5 % semanal en bloques de
-        hipertrofia y +5 % en fuerza, dentro del 2-10 % del ACSM 2009;
-        Semana 4 deloading con la carga -10 %), redondeado a discos de
-        2.5 kg. Recalculo explícito: sobrescribe los pesos existentes.
+        """Llena la columna Peso desde el 1RM registrado del paciente
+        según su NIVEL (menú 🏋 1RM ▾: principiante 65 %, intermedio
+        75 %, avanzado 85 % — ACSM 2009), limitado por el cuadro 18.8
+        del NSCA para las repeticiones del ejercicio, y ajustado por
+        semana del mesociclo: Semana 1 = % base del nivel, Semanas 2-3
+        +2,5 %/+5 % semanal (regla ACSM 2-10 %) y Semana 4 deloading
+        con la carga -10 %, redondeado a discos de 2.5 kg. Recalculo
+        explícito: sobrescribe los pesos existentes.
         `todas_las_semanas` extiende el llenado a las 4 ranuras del
         mesociclo; si no, solo la ranura que se está diseñando."""
         import calculadora_1rm
@@ -1731,6 +1973,8 @@ class RutinasTab:
                 parent=self.marco_sem,
             )
             return
+        nivel = self._sem_nivel_var.get()
+        pct_base, mults = _sem_rampa_nivel(nivel)
         semanas = (1, 2, 3, 4) if todas_las_semanas else (self._sem_n,)
         llenados = 0
         sin_rm = []
@@ -1741,14 +1985,13 @@ class RutinasTab:
                 for ej in datos[dia]["ejercicios"]:
                     nombre = _normalizar(ej.get("nombre"))
                     rm = mapa.get(nombre)
-                    kg, pct = (None, None)
-                    if rm:
-                        kg, pct = calculadora_1rm.carga_desde_1rm(
-                            rm, ej.get("repeticiones"))
-                    if kg:
-                        mult = _sem_rampa_reps(
-                            ej.get("repeticiones"))[n - 1]
-                        ej["peso"] = f"{_discos_2_5(kg * mult):g} kg"
+                    pct_cuadro = calculadora_1rm.pct_para_reps(
+                        ej.get("repeticiones"))
+                    if rm and pct_cuadro:
+                        pct = min(float(pct_base), pct_cuadro)
+                        peso = _discos_2_5(
+                            rm * pct / 100.0 * mults[n - 1])
+                        ej["peso"] = f"{peso:g} kg"
                         llenados += 1
                     elif ej.get("nombre") and ej.get("nombre") not in sin_rm:
                         sin_rm.append(ej.get("nombre"))
@@ -1762,16 +2005,203 @@ class RutinasTab:
                        + ("…" if len(sin_rm) > 5 else "")
                        + ". Regístralos con 🏋 1RM ▾.")
         self._mensaje(
-            f"Pesos desde 1RM · {alcance}: {llenados} ejercicios con el "
-            "% del 1RM para sus repeticiones (cuadro 18.8 NSCA / ACSM "
-            "2009; Semanas 2-3 +2,5/+5 % y Semana 4 deloading -10 %)."
+            f"Pesos desde 1RM · {alcance} · nivel {nivel}: {llenados} "
+            f"ejercicios; Semana 1 al {pct_base:g} % del 1RM "
+            f"({SEM_NIVELES_ACSM[nivel]['base']}), Semana 4 deloading "
+            "-10 % (cuadro 18.8 NSCA)." + detalle
+        )
+
+    def _sem_aplicar_rm_guardado(self, datos):
+        """Al GUARDAR un 1RM en la calculadora (abierta desde la rutina
+        semanal) se aplica AL EJERCICIO en las ranuras Semana 1-4:
+        peso = % del 1RM del nivel del paciente para sus repeticiones
+        (limitado por el cuadro 18.8 NSCA) ajustado por semana — Semana
+        1 = % base del nivel, Semanas 2-3 con el paso semanal y Semana
+        4 deloading con la carga -10 % — redondeado a discos de 2.5 kg.
+        Llena todas las apariciones del ejercicio (mismo nombre) en
+        todos los días."""
+        import calculadora_1rm
+
+        nombre = _normalizar(datos.get("ejercicio"))
+        rm = datos.get("resultado")
+        if not nombre or not rm:
+            return
+        nivel = self._sem_nivel_var.get()
+        pct_base, mults = _sem_rampa_nivel(nivel)
+        llenadas = 0
+        pesos_sem = None
+        reps_ref = pct_ref = None
+        for n in (1, 2, 3, 4):
+            datos_n = self._sem_semanas.get(n)
+            if not datos_n:
+                continue
+            for dia in DIAS_SEMANA:
+                for ej in datos_n[dia]["ejercicios"]:
+                    if _normalizar(ej.get("nombre")) != nombre:
+                        continue
+                    pct_cuadro = calculadora_1rm.pct_para_reps(
+                        ej.get("repeticiones"))
+                    if not pct_cuadro:
+                        continue
+                    pct = min(float(pct_base), pct_cuadro)
+                    peso = _discos_2_5(rm * pct / 100.0 * mults[n - 1])
+                    ej["peso"] = f"{peso:g} kg"
+                    llenadas += 1
+                    if pesos_sem is None:
+                        reps_ref = ej.get("repeticiones")
+                        pct_ref = pct
+                        pesos_sem = [
+                            f"{_discos_2_5(rm * pct / 100.0 * m):g} kg"
+                            for m in mults
+                        ]
+        if not llenadas:
+            self._mensaje(
+                f"1RM de {datos.get('ejercicio')} ({rm:g} kg) guardado "
+                "para el paciente: el ejercicio no está en las ranuras "
+                "Semana 1-4 de la rutina."
+            )
+            return
+        self._sem_pintar_ejercicios()
+        self._mensaje(
+            f"{datos.get('ejercicio')}: 1RM de {rm:g} kg GUARDADO y "
+            f"aplicado (nivel {nivel}, {pct_ref:g} % para "
+            f"{reps_ref} reps, cuadro 18.8 NSCA) — S1 {pesos_sem[0]} · "
+            f"S2 {pesos_sem[1]} · S3 {pesos_sem[2]} · S4 deloading "
+            f"{pesos_sem[3]}."
+        )
+
+    def _sem_llenar_rutinas_nivel(self):
+        """Submenú «Rutina del estudio del nivel»: las plantillas del
+        estudio del nivel elegido (principiante/intermedio/avanzado).
+        Elegir una carga la rutina Y arma el mesociclo desde los 1RM."""
+        self.menu_rutinas_nivel.delete(0, "end")
+        nivel = self._sem_nivel_var.get()
+        hay = False
+        for idx, p in enumerate(PLANTILLAS_SEMANA):
+            if (p.get("nivel") or "Principiante") != nivel:
+                continue
+            hay = True
+            self.menu_rutinas_nivel.add_command(
+                label=p["nombre"],
+                command=lambda i=idx: self._sem_cargar_plantilla_mesociclo(i),
+            )
+        if not hay:
+            self.menu_rutinas_nivel.add_command(
+                label=f"(sin rutinas de nivel {nivel})", state="disabled",
+            )
+
+    def _sem_cargar_plantilla_mesociclo(self, idx):
+        """Carga la plantilla del estudio `idx` (del nivel elegido) como
+        semana base y ARMA el mesociclo: Semana 1-4 con la progresión del
+        nivel y los pesos desde los 1RM del paciente."""
+        plantilla = PLANTILLAS_SEMANA[idx]
+        self._sem_definir_datos(self._sem_semana_vacia())
+        sesiones, _faltan = self._fichas_plantilla(plantilla)
+        for dia in DIAS_SEMANA:
+            sesion = plantilla["semana"].get(dia)
+            if not sesion:
+                continue
+            self._sem_datos[dia]["sesion"] = sesion
+            self._sem_datos[dia]["ejercicios"] = [
+                self._sem_ficha_con_prescripcion(f, plantilla)
+                for f in sesiones.get(sesion, [])
+            ]
+        self._sem_nombre = plantilla["nombre"]
+        self._sem_origen = "fija"
+        self._sem_guardada_id = None
+        self.entrada_sem_nombre.delete(0, tk.END)
+        self.entrada_sem_nombre.insert(0, plantilla["nombre"])
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+        self._sem_armar_mesociclo_1rm()
+
+    def _sem_armar_mesociclo_1rm(self):
+        """Arma el mesociclo (Semana 1-4) desde la semana diseñada en la
+        ranura actual: clona la semana en las 4 ranuras con la progresión
+        del nivel elegido (ACSM 2009) — Semana 1 = % base del nivel sobre
+        el 1RM del paciente para sus repeticiones (cuadro 18.8 NSCA),
+        Semanas 2-3 con el paso semanal (+2,5 %/+5 %) y +1 serie en la
+        3.ª, Semana 4 deloading (mitad de series y carga -10 %) — y
+        respeta los pesos ya escritos como base cuando existen."""
+        import calculadora_1rm
+
+        base = {
+            dia: list(info["ejercicios"])
+            for dia, info in self._sem_datos.items() if info["ejercicios"]
+        }
+        if not base:
+            self._mensaje(
+                "La semana está vacía: carga una rutina (selector o menú "
+                "«Rutina del estudio del nivel») antes de armar el "
+                "mesociclo."
+            )
+            return
+        nivel = self._sem_nivel_var.get()
+        pct_base, mults = _sem_rampa_nivel(nivel)
+        mapa = self._rm_mapa()
+        con_rm, sin_rm = set(), set()
+        semanas = {}
+        for n in (1, 2, 3, 4):
+            deload = n == 4
+            datos = self._sem_semana_vacia()
+            for dia, fichas in base.items():
+                sesion = self._sem_datos[dia]["sesion"] or dia
+                datos[dia]["sesion"] = (f"{sesion} · Semana {n}"
+                                        + (" · Deload" if deload else ""))
+                for f in fichas:
+                    ficha = dict(f)
+                    m = re.search(r"\d+", ficha.get("series") or "")
+                    series = int(m.group()) if m else 3
+                    if deload:
+                        series = max(1, round(series * CIC_DELOAD_SERIES))
+                    elif n == 3:
+                        series += 1
+                    ficha["series"] = str(series)
+                    nombre = _normalizar(ficha.get("nombre"))
+                    peso_base = self._cic_num_peso(ficha.get("peso") or "")
+                    if peso_base is None or peso_base <= 0:
+                        rm = mapa.get(nombre)
+                        pct_cuadro = calculadora_1rm.pct_para_reps(
+                            ficha.get("repeticiones"))
+                        if rm and pct_cuadro:
+                            peso_base = rm * min(
+                                float(pct_base), pct_cuadro) / 100.0
+                            con_rm.add(nombre)
+                    if peso_base:
+                        peso = _discos_2_5(peso_base * mults[n - 1])
+                        ficha["peso"] = f"{peso:g} kg"
+                    elif nombre:
+                        sin_rm.add(ficha.get("nombre"))
+                    datos[dia]["ejercicios"].append(ficha)
+            semanas[n] = datos
+        self._sem_semanas = semanas
+        self._sem_n = 1
+        self._sem_datos = semanas[1]
+        self._sem_marcar_boton_semana()
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+        detalle = ""
+        if con_rm:
+            detalle = (f" Pesos desde el 1RM en {len(con_rm)} ejercicio(s)"
+                       f" ({SEM_NIVELES_ACSM[nivel]['base']}).")
+        if sin_rm:
+            detalle += (" Sin 1RM (pesos vacíos): " + ", ".join(
+                sorted(sin_rm)[:5]) + ("…" if len(sin_rm) > 5 else "")
+                + ". Regístralos con Abrir calculadora 1RM…")
+        self._mensaje(
+            f"Mesociclo armado (nivel {nivel}): Semana 1 al {pct_base:g} "
+            "% del 1RM, Semanas 2-3 con el paso semanal (+1 serie en la "
+            "3.ª) y Semana 4 deloading (mitad de series, -10 %)."
             + detalle
         )
 
     def _sem_abrir_1rm_fila(self):
         """Calculadora de 1RM preseleccionada con el ejercicio de la fila
-        elegida de la tabla del día; al cerrar, deja en esa fila el peso
-        recomendado para sus repeticiones (% del 1RM, cuadro 18.8)."""
+        elegida de la tabla del día. Al GUARDAR, `_sem_aplicar_rm_guardado`
+        deja el ejercicio con su peso en las 4 semanas (Semana 1 = % del
+        nivel, rampa semanal y deloading en la 4.ª); si solo calcula sin
+        guardar, al cerrar queda el peso recomendado en esa fila con el
+        multiplicador de la semana que se está diseñando."""
         import calculadora_1rm
 
         sel = self.tree_sem_ej.selection()
@@ -1783,7 +2213,8 @@ class RutinasTab:
             if 0 <= idx < len(ejercicios):
                 ejercicio = ejercicios[idx].get("nombre")
         resultado = calculadora_1rm.abrir_dialogo_1rm(
-            self.marco, self.app, ejercicio=ejercicio)
+            self.marco, self.app, ejercicio=ejercicio,
+            al_guardar=self._sem_aplicar_rm_guardado)
         if not resultado:
             return
         self.rm_sesion = resultado
@@ -1802,20 +2233,24 @@ class RutinasTab:
             # el 1RM calculado es de otro ejercicio: no toca la fila
             self._mensaje(activo)
             return
-        kg, pct = calculadora_1rm.carga_desde_1rm(
-            resultado["resultado"], ej.get("repeticiones"))
-        if not kg:
+        nivel = self._sem_nivel_var.get()
+        pct = _sem_pct_reps(ej.get("repeticiones"), nivel)
+        if not pct:
             self._mensaje(
                 activo + " (la fila no tiene repeticiones "
                 "interpretables para el % del 1RM)."
             )
             return
-        ej["peso"] = f"{_discos_2_5(kg):g} kg"
+        _pct_base, mults = _sem_rampa_nivel(nivel)
+        peso = _discos_2_5(
+            resultado["resultado"] * pct / 100.0 * mults[self._sem_n - 1])
+        ej["peso"] = f"{peso:g} kg"
         self._sem_pintar_ejercicios()
         self._mensaje(
             f"{ej.get('nombre')}: 1RM {resultado['resultado']:g} kg × "
             f"{pct:g} % para {ej.get('repeticiones')} reps → "
-            f"{ej['peso']} (cuadro 18.8 NSCA)."
+            f"{ej['peso']} en la Semana {self._sem_n} (nivel {nivel}; "
+            "al GUARDAR se aplica a las 4 semanas con deloading)."
         )
 
     # ------------------------------------------------------------------
@@ -5158,10 +5593,11 @@ class RutinasTab:
         modo = (self.cic_modo_var.get() if self.cic_modo_var.get()
                 in CIC_MODOS else CIC_MODOS[0])
         # ejercicios sin carga manual: el peso base sale del 1RM
-        # registrado del paciente con el % para las repeticiones del
-        # bloque (cuadro 18.8 NSCA; ACSM 2009)
-        import calculadora_1rm
+        # registrado del paciente con el % del nivel para las
+        # repeticiones del bloque (ACSM 2009 / cuadro 18.8 NSCA)
         mapa_rm = self._rm_mapa()
+        nivel_cic = self._sem_nivel_var.get() if hasattr(
+            self, "_sem_nivel_var") else "Principiante"
         desde_1rm = set()
         bloques = []
         for spec in secuencia:
@@ -5202,12 +5638,11 @@ class RutinasTab:
                     peso_base = str(f.get("peso") or "")
                     if not self._cic_num_peso(peso_base):
                         rm = mapa_rm.get(_normalizar(f.get("nombre")))
-                        if rm:
-                            kg, _pct = calculadora_1rm.carga_desde_1rm(
-                                rm, spec["reps"])
-                            if kg:
-                                peso_base = f"{_discos_2_5(kg):g} kg"
-                                desde_1rm.add(_normalizar(f.get("nombre")))
+                        pct = _sem_pct_reps(spec["reps"], nivel_cic) if rm \
+                            else None
+                        if rm and pct:
+                            peso_base = f"{_discos_2_5(rm * pct / 100.0):g} kg"
+                            desde_1rm.add(_normalizar(f.get("nombre")))
                     filas.append({
                         "nombre": f.get("nombre") or "",
                         "equipo": f.get("equipo") or "",
@@ -5242,8 +5677,9 @@ class RutinasTab:
         desde = ""
         if desde_1rm:
             desde = (f" Peso base desde el 1RM registrado en "
-                     f"{len(desde_1rm)} ejercicio(s) (% del 1RM para sus "
-                     "repeticiones, cuadro 18.8 NSCA / ACSM 2009).")
+                     f"{len(desde_1rm)} ejercicio(s) (nivel {nivel_cic}, "
+                     "% del 1RM para sus repeticiones: ACSM 2009 / cuadro "
+                     "18.8 NSCA).")
         self.lbl_cic_info.configure(text=(
             f"Ciclo generado: {n_mesos} mesociclos × 4 semanas "
             f"({sum(len(b['semanas']) for b in bloques)} semanas totales) "
@@ -5663,23 +6099,65 @@ CIC_NOTAS = (
     "base es el de la semana elegida o queda vacio para llenarlo a mano.",
 )
 
-# Pesos relativos para llenar la rutina semanal desde el 1RM (menu
-# «🏋 1RM ▾» de la pestaña Rutina): Semana 1 = % del 1RM de las
-# repeticiones del ejercicio (cuadro 18.8 del NSCA); Semanas 2-3
-# progresan +2,5 % (hipertrofia, reps > 6) o +5 % (fuerza, reps <= 6) —
-# el ACSM 2009 admite 2-10 % con mayor incremento en musculatura grande
-# y cargas pesadas — y Semana 4 deloading con la misma reduccion de
-# carga que los ciclos (CIC_DELOAD_PESO).
-SEM_RAMPA = {
-    "hipertrofia": (1.00, 1.025, 1.05, CIC_DELOAD_PESO),
-    "fuerza": (1.00, 1.05, 1.10, CIC_DELOAD_PESO),
+# Pesos desde el 1RM según el NIVEL del paciente (menú «🏋 1RM ▾» de la
+# pestaña Rutina), con base en la bibliografía (ACSM 2009, Position
+# Stand "Progression Models in Resistance Training for Healthy Adults",
+# Med Sci Sports Exerc 41(3):687-708):
+#  · Principiante: el ACSM prescribe 60-70 % del 1RM con 8-12 reps para
+#    principiantes/intermedios (los novatos pueden empezar con 50-60 %
+#    para aprender la técnica): se inicia por el punto medio, 65 %.
+#  · Intermedio: hipertrofia principiantes/intermedios 70-85 % del 1RM
+#    con 8-12 reps: se inicia al entrar al rango, 75 %.
+#  · Avanzado: 70-100 % con mayoría de 6-12 RM (hipertrofia) y fuerza
+#    en ciclos de 80-100 %; el meta-análisis que cita sitúa el mayor
+#    efecto en el 85 % (atletas): se inicia al 85 %.
+# En todos los casos el % de la Semana 1 queda limitado por el cuadro
+# 18.8 del NSCA para las repeticiones del ejercicio (nunca se prescribe
+# un % mayor del que corresponde a esas reps) y la Semana 4 es
+# deloading con la misma reducción de carga que los ciclos
+# (CIC_DELOAD_PESO, Bosquet et al. 2007). La progresión semanal usa la
+# regla ACSM 2-10 % (cat. B): menor incremento en principiantes y
+# musculatura pequeña, mayor en avanzados y musculatura grande.
+SEM_NIVELES_ACSM = {
+    "Principiante": {
+        "pct": 65, "paso": 1.025,
+        "base": "65 % = ACSM 2009: 60-70 % con 8-12 reps en "
+                "principiantes/intermedios (punto medio); +2,5 % "
+                "semanal (2-10 %, menor en principiantes)",
+    },
+    "Intermedio": {
+        "pct": 75, "paso": 1.05,
+        "base": "75 % = ACSM 2009: hipertrofia 70-85 % con 8-12 reps "
+                "(se inicia al entrar al rango); +5 % semanal (2-10 %)",
+    },
+    "Avanzado": {
+        "pct": 85, "paso": 1.05,
+        "base": "85 % = ACSM 2009: avanzados 70-100 % con mayoría de "
+                "6-12 RM y fuerza en ciclos de 80-100 % (mayor efecto "
+                "en atletas); +5 % semanal (2-10 %)",
+    },
 }
 
 
-def _sem_rampa_reps(reps):
-    """Rampa semanal del mesociclo para un texto de repeticiones: los
-    bloques de fuerza (6 reps o menos) suben 5 % semanal y el resto
-    2,5 % (ACSM 2009: 2-10 %, mayor % en musculatura grande)."""
-    m = re.search(r"(\d+)", str(reps or ""))
-    clave = "fuerza" if m and int(m.group(1)) <= 6 else "hipertrofia"
-    return SEM_RAMPA[clave]
+def _sem_rampa_nivel(nivel):
+    """(pct_semana1_base, (mult_s1, mult_s2, mult_s3, mult_s4_deload))
+    del nivel elegido: la Semana 1 parte del % base del nivel, las
+    semanas de carga suben el paso semanal compuesto y la 4.ª es
+    deloading (CIC_DELOAD_PESO)."""
+    cfg = SEM_NIVELES_ACSM.get(nivel) or SEM_NIVELES_ACSM["Principiante"]
+    return cfg["pct"], (1.00, cfg["paso"], cfg["paso"] ** 2,
+                        CIC_DELOAD_PESO)
+
+
+def _sem_pct_reps(reps, nivel="Principiante"):
+    """% del 1RM para la Semana 1 según el nivel del paciente, limitado
+    por el cuadro 18.8 del NSCA para las repeticiones del ejercicio
+    (nunca mayor): min(% nivel, % cuadro). None si las repeticiones no
+    son interpretables."""
+    import calculadora_1rm
+
+    pct_nivel, _mults = _sem_rampa_nivel(nivel)
+    pct_cuadro = calculadora_1rm.pct_para_reps(reps)
+    if pct_cuadro is None:
+        return None
+    return min(float(pct_nivel), pct_cuadro)
