@@ -34,6 +34,10 @@ PROTOCOLOS NSCA (Baechle & Earle, cap. 18; archivo impreso):
 Todo método termina en la tabla de pesos (porcentajes del 1RM o
 repeticiones objetivo), con peso exacto y redondeado a discos de
 2.5 kg, y el resultado se puede GUARDAR en la BD del paciente activo.
+Bajo los métodos, una tabla «📚 1RM guardados del paciente» muestra
+los registros guardados (fecha, ejercicio, método, 1RM, prueba, reps,
+RPE): doble clic carga el ejercicio en el selector y hay eliminado con
+confirmación; la tabla se refresca al GUARDAR.
 
 Además, `pct_para_reps` y `carga_desde_1rm` traducen las repeticiones
 de la rutina semanal al % del 1RM recomendado (cuadro 18.8; rangos del
@@ -712,6 +716,135 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None):
         wraplength=640, justify="left",
     ).pack(anchor="w", padx=14, pady=(0, 8))
 
+    # --------------------------------------- 1RM guardados del paciente
+    # tabla con los registros guardados del paciente activo (get_uno_rm):
+    # doble clic carga el ejercicio en el selector y hay eliminado con
+    # confirmación; se refresca sola al GUARDAR
+    marco_guardados = tk.LabelFrame(
+        dialogo, bg=GRIS_OSCURO, fg=NEON,
+        text=" 📚 1RM guardados del paciente ",
+        font=("Segoe UI", 9, "bold"), padx=8, pady=4,
+    )
+
+    def _llenar_guardados():
+        """Llena la tabla con los registros del paciente activo (el más
+        reciente primero)."""
+        for item in guardados_tabla.get_children():
+            guardados_tabla.delete(item)
+        paciente_id = (getattr(app, "id_paciente_antro", None) if app
+                       else None)
+        registros = []
+        if paciente_id is not None:
+            try:
+                registros = database.get_uno_rm(paciente_id)
+            except Exception:
+                registros = []
+        if not registros:
+            guardados_tabla.insert("", "end", values=(
+                "—", "Sin 1RM guardados para el paciente activo",
+                "", "", "", "", ""))
+            return
+        for reg in registros:
+            fecha = str(reg.get("fecha") or "—")
+            if len(fecha) == 10 and fecha[4] == "-":
+                fecha = f"{fecha[8:10]}/{fecha[5:7]}/{fecha[0:4]}"
+            reps = reg.get("repeticiones")
+            rpe = reg.get("rpe")
+            peso = reg.get("peso")
+            guardados_tabla.insert("", "end", iid=str(reg.get("id")),
+                values=(
+                    fecha,
+                    reg.get("ejercicio") or "—",
+                    reg.get("metodo") or "—",
+                    f"{reg['resultado']:g}" if reg.get("resultado") else "—",
+                    f"{peso:g} kg" if peso not in (None, "") else "—",
+                    str(reps) if reps not in (None, "") else "—",
+                    str(rpe) if rpe not in (None, "") else "—",
+                ))
+
+    def _eliminar_guardado():
+        """Elimina con confirmación el registro seleccionado."""
+        sel = guardados_tabla.selection()
+        if not sel or not sel[0].isdigit():
+            messagebox.showwarning(
+                "1RM", "Elige en la tabla el registro que quieras eliminar.",
+                parent=dialogo,
+            )
+            return
+        if not messagebox.askyesno(
+                "Eliminar 1RM",
+                "¿Eliminar del paciente este registro de 1RM?",
+                parent=dialogo):
+            return
+        try:
+            database.delete_uno_rm(int(sel[0]))
+        except Exception as error:
+            messagebox.showerror(
+                "1RM", f"No se pudo eliminar:\n{error}", parent=dialogo
+            )
+            return
+        _llenar_guardados()
+
+    def _cargar_guardado(_evento=None):
+        """Doble clic en un registro: carga su ejercicio en el selector."""
+        sel = guardados_tabla.selection()
+        if not sel or not sel[0].isdigit():
+            return
+        valores = guardados_tabla.item(sel[0], "values")
+        if len(valores) > 1 and valores[1] not in ("—", ""):
+            combo_ejercicio.set(valores[1])
+            _al_cambiar_ejercicio()
+
+    columnas_g = ("fecha", "ejercicio", "metodo", "rm", "peso", "reps",
+                  "rpe")
+    guardados_tabla = ttk.Treeview(
+        marco_guardados, columns=columnas_g, show="headings", height=4)
+    estilo.configure("R4.Treeview", background=GRIS_OSCURO,
+                     fieldbackground=GRIS_OSCURO, foreground=BLANCO,
+                     rowheight=20, borderwidth=0)
+    estilo.configure("R4.Treeview.Heading", background=GRIS, fg=NEON,
+                     font=("Segoe UI", 8, "bold"))
+    guardados_tabla.configure(style="R4.Treeview")
+    for col, texto, ancho, ancla in (
+        ("fecha", "Fecha", 72, "center"),
+        ("ejercicio", "Ejercicio", 200, "w"),
+        ("metodo", "Método", 148, "w"),
+        ("rm", "1RM (kg)", 62, "center"),
+        ("peso", "Peso prueba", 82, "center"),
+        ("reps", "Reps", 42, "center"),
+        ("rpe", "RPE", 42, "center"),
+    ):
+        guardados_tabla.heading(col, text=texto, anchor=ancla)
+        guardados_tabla.column(col, width=ancho, anchor=ancla,
+                               minwidth=ancho)
+    fila_g = tk.Frame(marco_guardados, bg=GRIS_OSCURO)
+    fila_g.pack(side="bottom", fill="x", pady=(3, 0))
+    tk.Button(
+        fila_g, text="🗑 ELIMINAR", command=_eliminar_guardado,
+        font=("Segoe UI", 8, "bold"), fg=BLANCO, bg=GRIS,
+        activebackground=NARANJA, activeforeground=BLANCO,
+        relief="flat", padx=8, pady=2, cursor="hand2",
+    ).pack(side="left")
+    tk.Label(
+        fila_g,
+        text="Doble clic: carga el ejercicio en el selector. La tabla se "
+             "refresca al GUARDAR.",
+        font=("Segoe UI", 7, "italic"), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+    ).pack(side="left", padx=(8, 0))
+    barra_g = ttk.Scrollbar(marco_guardados, orient="vertical",
+                            command=guardados_tabla.yview)
+    guardados_tabla.configure(yscrollcommand=barra_g.set)
+    barra_g.pack(side="right", fill="y")
+    guardados_tabla.pack(side="left", fill="both", expand=True)
+    guardados_tabla.bind("<Double-1>", _cargar_guardado)
+    marco_guardados.pack(fill="x", padx=12, pady=(10, 0))
+
+    # cita del artículo
+    tk.Label(
+        dialogo, text=CITA, font=("Segoe UI", 7), fg=GRIS_TEXTO, bg=NEGRO,
+        wraplength=640, justify="left",
+    ).pack(anchor="w", padx=14, pady=(0, 8))
+
     # ------------------------------------------------ lógica
     formularios = {
         "rpe": form_rpe,
@@ -919,6 +1052,7 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None):
                 fecha=datetime.now().strftime("%Y-%m-%d"),
             )
         )
+        _llenar_guardados()   # el registro nuevo aparece en la tabla
         # la pestaña Rutinas aplica el 1RM al ejercicio en la rutina
         # (pesos por semana con deloading) al momento de guardarlo
         if al_guardar:
@@ -971,6 +1105,7 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None):
     # rama inicial
     arbol.selection_set("rpe")
     _mostrar_formulario()
+    _llenar_guardados()
     _al_cambiar_ejercicio()
 
     # centrado, dejando la ventana por encima de la barra de tareas

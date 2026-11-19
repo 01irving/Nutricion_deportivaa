@@ -774,6 +774,48 @@ while ancestro is not None:
     ancestro = ancestro.master
 chequear("ciclos: su tabla vive en la 4ª sub-pestaña", en_tab)
 
+# 11) La calculadora de 1RM muestra los guardados del paciente en una
+# tabla (con el registro de la BD); doble clic carga el ejercicio y hay
+# eliminado con confirmación
+App.id_paciente_antro = id_pac
+app_dlg = App()
+_tk_wait_original = tk.Toplevel.wait_window
+tk.Toplevel.wait_window = lambda self, *a, **k: None
+
+
+def _arbolitos(widget):
+    salida = []
+    for hijo in widget.winfo_children():
+        if isinstance(hijo, ttk.Treeview):
+            salida.append(hijo)
+        salida.extend(_arbolitos(hijo))
+    return salida
+
+
+calculadora_1rm.abrir_dialogo_1rm(raiz, app_dlg, ejercicio="Sentadilla")
+raiz.update()
+tops = [w for w in raiz.winfo_children()
+        if isinstance(w, tk.Toplevel)
+        and "Calculadora de fuerza" in str(w.title())]
+tablas_g = [tv for t in tops for tv in _arbolitos(t)
+            if "metodo" in str(tv["columns"])
+            and "fecha" in str(tv["columns"])]
+chequear("calculadora 1RM: tabla «1RM guardados del paciente» presente",
+         bool(tablas_g))
+filas_g = [tv.item(i, "values") for tv in tablas_g
+           for i in tv.get_children()]
+chequear("calculadora 1RM: la tabla muestra el registro de la BD "
+         "(banca 140 kg con fecha y método)",
+         any(len(f) == 7
+             and "bench" in rutinas_tab._normalizar(f[1])
+             and f[3] == "140"
+             and f[0].count("/") == 2
+             for f in filas_g))
+for t in tops:
+    t.destroy()
+tk.Toplevel.wait_window = _tk_wait_original
+App.id_paciente_antro = None
+
 # limpiar BD temporal
 raiz.destroy()
 fallos = [n for n, ok in chequeos if not ok]
