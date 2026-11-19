@@ -8,6 +8,16 @@ Chequea lo dejado pendiente de la sesión del 17:
   - flujo completo: cargar plantilla -> guardar semanal -> generar ciclo
     de 2 mesociclos -> GUARDAR -> APLICAR AL PACIENTE -> PDF;
   - barra de estado se restablece al cambiar de sub-pestaña.
+Y lo nuevo de la sesión del 19 (1RM → pesos de la rutina semanal):
+  - % del 1RM por repeticiones (cuadro 18.8 NSCA / ACSM 2009) y catálogo
+    completo de ejercicios en la calculadora;
+  - llenado de la columna Peso desde el 1RM (semana actual y mesociclo
+    Semana 1-4 con su rampa semanal), sobrescribiendo y sin tocar lo que
+    no tiene 1RM registrado;
+  - GENERAR en Ciclos toma el peso base del 1RM cuando el ejercicio no
+    tiene peso manual (y respeta el manual), con nota nueva en CIC_NOTAS.
+  - APLICAR MESOCICLO: las semanas EDITADAS de las ranuras Semana 1-4
+    al paciente (Semana 1 como rutina activa y las 4 al historial).
 """
 import json
 import os
@@ -27,6 +37,7 @@ TMP = Path(tempfile.mkdtemp(prefix="humo_verificacion_"))
 database.DB_PATH = TMP / "prueba.db"
 database.init_db()
 
+import calculadora_1rm  # noqa: E402
 import rutinas_tab  # noqa: E402
 from rutinas_tab import (  # noqa: E402
     CIC_BASE_MODEO, CIC_DELOAD_PESO, CIC_DELOAD_SERIES, CIC_MODOS,
@@ -87,6 +98,35 @@ chequear("sub-pestaña 3: es Ciclos (título RUTINAS · CICLOS)",
 # 2) Bases de Ciclos: vacías sin semana cargada ni semanales guardadas
 chequear("bases Ciclos: lista vacía al inicio (BD sin semanales)",
          len(rt.tree_cic_base.get_children()) == 0)
+
+# 2b) 1RM → pesos: % del 1RM por repeticiones (cuadro 18.8 NSCA dentro
+# de los rangos del ACSM 2009) y catálogo completo en el selector
+chequear("1RM: % por reps del cuadro 18.8 (4-6→90, 8-12→80, 10-12→75, 12→67)",
+         calculadora_1rm.pct_para_reps("4-6") == 90
+         and calculadora_1rm.pct_para_reps("8-12") == 80
+         and calculadora_1rm.pct_para_reps("10-12") == 75
+         and calculadora_1rm.pct_para_reps("12") == 67)
+chequear("1RM: el extremo bajo manda en el rango y '12-10-8' toma el 12",
+         calculadora_1rm.pct_para_reps("12-10-8") == 67
+         and calculadora_1rm.pct_para_reps("8-10") == 80)
+chequear("1RM: más de 15 reps → 60 % (ACSM resistencia) y sin reps → None",
+         calculadora_1rm.pct_para_reps("16-20") == 60
+         and calculadora_1rm.pct_para_reps("al fallo") is None
+         and calculadora_1rm.pct_para_reps("") is None)
+chequear("1RM: carga = % del 1RM para las reps (100 kg y 10-12 → 75 kg)",
+         calculadora_1rm.carga_desde_1rm(100, "10-12") == (75.0, 75.0))
+nombres_cat, tren_cat = calculadora_1rm.ejercicios_catalogo()
+chequear("1RM: el selector trae TODO el catálogo (presets + rutinas_ejercicios)",
+         len(nombres_cat) >= 126
+         and all(p in nombres_cat for p in calculadora_1rm.EJERCICIOS))
+chequear("1RM: el tren del catálogo se infiere (piernas/glúteos inferior)",
+         tren_cat["Sentadilla"] == "inferior"
+         and tren_cat["Press de banca"] == "superior")
+chequear("rampa semanal: hipertrofia +2,5 % y fuerza +5 %; deloading -10 %",
+         rutinas_tab._sem_rampa_reps("10-12")
+         == (1.00, 1.025, 1.05, CIC_DELOAD_PESO)
+         and rutinas_tab._sem_rampa_reps("4-6")
+         == (1.00, 1.05, 1.10, CIC_DELOAD_PESO))
 
 # 3) Cargar plantilla del estudio en Semana (misma vía que la app)
 rt._sem_refrescar_selector()
@@ -280,6 +320,61 @@ chequear("referencia: el modo Doble cita Plotkin/Chaves y ACSM",
          and "Chaves" in rt._cic_datos.get("base_cientifica", "")
          and "ACSM" in rt._cic_datos.get("base_cientifica", ""))
 
+# 5e) Pesos desde 1RM en la rutina semanal (menú «🏋 1RM ▾»): botón y
+# menú presentes; con un 1RM de sesión para la primera ficha, el llenado
+# del mesociclo sobrescribe el peso de las 4 ranuras y deja intactos los
+# ejercicios sin 1RM registrado
+chequear("menú 1RM: botón con 3 opciones en la pestaña Rutina",
+         hasattr(rt, "btn_sem_1rm") and hasattr(rt, "menu_sem_1rm")
+         and rt.menu_sem_1rm.index("end") == 3)
+chequear("nota nueva: base del % del 1RM citada en CIC_NOTAS",
+         any("cuadro 18.8" in n and "ACSM 2009" in n
+             for n in rt._cic_datos["notas"]))
+
+
+def _ficha_ranura(n):
+    """Primera ficha de la ranura Semana n."""
+    return next((e for d in rt._sem_semanas[n].values()
+                 for e in d.get("ejercicios") or []), None)
+
+
+def _ejercicios_ranura(n):
+    dia = next((d for d in rt._sem_semanas[n].values()
+                if d.get("ejercicios")), None)
+    return dia.get("ejercicios") if dia else []
+
+
+nombre_1rm = _ficha_ranura(1)["nombre"]
+rt.rm_sesion = {"ejercicio": nombre_1rm, "metodo": "Baechle (NSCA 2000)",
+                "peso": 60.0, "rpe": None, "repeticiones": 8,
+                "resultado": 100.0}
+peso_antes = _ficha_ranura(1)["peso"]
+rt._sem_pesos_desde_1rm(True)
+raiz.update()
+chequear("pesos desde 1RM: sobrescribe el peso que había en la ranura",
+         _ficha_ranura(1)["peso"] != peso_antes)
+chequear("pesos desde 1RM: Semana 1 = 75 % de un 1RM de 100 kg "
+         "(10-11 reps, cuadro 18.8)",
+         _ficha_ranura(1)["peso"] == "75 kg")
+ok_rampas = True
+for n in (1, 2, 3, 4):
+    ficha_n = _ficha_ranura(n)
+    kg_n, _pct = calculadora_1rm.carga_desde_1rm(
+        100.0, ficha_n["repeticiones"])
+    rampa_n = rutinas_tab._sem_rampa_reps(ficha_n["repeticiones"])
+    esperado = f"{_discos_2_5(kg_n * rampa_n[n - 1]):g} kg"
+    if ficha_n["peso"] != esperado:
+        ok_rampas = False
+        print("   ranura", n, ficha_n["repeticiones"],
+              "->", ficha_n["peso"], "≠", esperado)
+chequear("pesos desde 1RM: cada ranura con su rampa semanal "
+         "(+2,5/+5 % y deloading -10 %)", ok_rampas)
+chequear("pesos desde 1RM: los ejercicios sin 1RM quedan con su peso previo",
+         len(_ejercicios_ranura(1)) < 2
+         or not _ejercicios_ranura(1)[1]["peso"])
+chequear("pesos desde 1RM: la barra de estado reporta el llenado",
+         "Pesos desde 1RM" in rt.lbl_estado.cget("text"))
+
 # 6) GUARDAR ciclo
 rt._cic_guardar()
 raiz.update()
@@ -314,6 +409,107 @@ chequear("APLICAR: semana deload guardada con mitad de series",
 peso_deload = detalle_deload[0]["ejercicios"][0]["peso"]
 chequear("APLICAR: semana deload con peso -10 %",
          peso_deload == f"{_discos_2_5(kg_base * 0.90):g} kg")
+
+# 7b) GENERAR y pesos desde 1RM guardados en la BD del paciente
+nombre_pend = _ejercicios_ranura(1)[1]["nombre"]
+database.insert_uno_rm({
+    "paciente_id": id_pac, "fecha": "2026-11-19",
+    "ejercicio": nombre_pend, "metodo": "1RM directo (NSCA)",
+    "peso": 140.0, "rpe": None, "repeticiones": 1, "resultado": 140.0,
+})
+# el peso manual de la semana manda sobre el 1RM al generar
+_ficha_ranura(1)["peso"] = "50 kg"
+rt.tree_cic_base.selection_set("__actual__")
+rt._cic_elegir_base()
+rt.cic_modo_var.set("Por carga")
+rt._cic_generar()
+raiz.update()
+bloque_rm = rt._cic_datos["bloques"][0]
+# el chequeo mira el PRIMER día: la plantilla repite la sesión Tren
+# superior en Lunes y Jueves, y el dict completo mezclaría ambas
+pesos_base = {f["nombre"]: f["peso_base"]
+              for f in bloque_rm["dias"][next(iter(bloque_rm["dias"]))]}
+kg_pend_base, _pct_pend = calculadora_1rm.carga_desde_1rm(
+    140.0, bloque_rm["reps"])
+chequear("GENERAR con 1RM: el peso manual de la semana manda",
+         pesos_base.get(nombre_1rm) == "50 kg")
+chequear("GENERAR con 1RM: peso base desde el registro BD "
+         "(140 kg al 75 % para 10-12 reps → 105 kg)",
+         pesos_base.get(nombre_pend)
+         == f"{_discos_2_5(kg_pend_base):g} kg"
+         and pesos_base.get(nombre_pend) == "105 kg")
+chequear("GENERAR con 1RM: sin registro el peso base queda vacío (como antes)",
+         all(v == "" for n, v in pesos_base.items()
+             if n not in (nombre_1rm, nombre_pend)))
+chequear("GENERAR con 1RM: el letrero cuenta los pesos tomados del 1RM",
+         "1RM registrado en 1 ejercicio(s)" in rt.lbl_cic_info.cget("text"))
+
+# 7c) El llenado de la semana usa también los 1RM de la BD del paciente
+rt._sem_pesos_desde_1rm(False)
+raiz.update()
+chequear("pesos desde 1RM: registro de la BD aplicado a la semana "
+         "(140 kg → 105 kg en Semana 1)",
+         _ejercicios_ranura(1)[1]["peso"] == "105 kg")
+chequear("pesos desde 1RM: los sin registro siguen intactos",
+         not _ejercicios_ranura(1)[2]["peso"]
+         if len(_ejercicios_ranura(1)) > 2 else True)
+avisos = []
+_showinfo_original = rutinas_tab.messagebox.showinfo
+rutinas_tab.messagebox.showinfo = lambda *a, **k: avisos.append(a)
+try:
+    rt.rm_sesion = None
+    rt.paciente_id = None
+    rt._sem_pesos_desde_1rm(False)
+finally:
+    rutinas_tab.messagebox.showinfo = _showinfo_original
+    rt.paciente_id = id_pac
+chequear("pesos desde 1RM: sin ningún 1RM avisa y no llena nada",
+         len(avisos) == 1)
+
+# 7d) APLICAR MESOCICLO: las semanas EDITADAS de las ranuras Semana 1-4
+# al paciente (la Semana 1 activa y las 4 al historial, respetando
+# las ediciones hechas sobre lo cargado por Ciclos)
+chequear("mesociclo: botón APLICAR MESOCICLO en la fila de Semanas",
+         hasattr(rt, "btn_sem_mesociclo")
+         and str(rt.btn_sem_mesociclo.cget("text")) == "✔ APLICAR MESOCICLO")
+# edición manual sobre la Semana 2 cargada por el ciclo (peso y series)
+_f2 = _ficha_ranura(2)
+_f2["peso"] = "90 kg"
+_f2["series"] = "4"
+rt._sem_aplicar_mesociclo()
+raiz.update()
+historial = database.get_rutinas_historial(id_pac)
+nombres_hist = [h["nombre_semana"] for h in historial]
+chequear("mesociclo: 4 semanas en el historial con el nombre de la rutina",
+         all(f"Verificación Semanal · Semana {n}" in nombres_hist
+             for n in (1, 2, 3, 4)))
+id_sem2 = next(h["id_historial"] for h in historial
+               if h["nombre_semana"] == "Verificación Semanal · Semana 2")
+detalle_sem2 = database.get_rutina_historial(id_sem2)["dias"]
+ej_sem2 = next(d["ejercicios"] for d in detalle_sem2 if d["ejercicios"])
+chequear("mesociclo: la Semana 2 guarda las EDICIONES (peso 90 kg, 4 series)",
+         ej_sem2[0]["peso"] == "90 kg" and ej_sem2[0]["series"] == "4")
+rutina_activa = database.get_rutinas_paciente(id_pac)
+lunes = [r for r in rutina_activa if r["dia"] == "Lunes"]
+chequear("mesociclo: la Semana 1 quedó como rutina activa del paciente",
+         bool(lunes) and "Semana 1" in (lunes[0].get("notas") or ""))
+chequear("mesociclo: la activa conserva los pesos desde 1RM de la Semana 1",
+         lunes and lunes[0]["peso"] == _ficha_ranura(1)["peso"])
+chequear("mesociclo: el editor queda en la Semana 1",
+         rt._sem_n == 1
+         and "Mesociclo aplicado" in rt.lbl_estado.cget("text"))
+# guardias: sin paciente o sin ranuras, avisa sin romper nada
+rt.paciente_id = None
+rt._sem_aplicar_mesociclo()
+chequear("mesociclo: sin paciente avisa y no aplica",
+         "Selecciona un paciente" in rt.lbl_estado.cget("text"))
+rt.paciente_id = id_pac
+_semanas_originales = rt._sem_semanas
+rt._sem_semanas = {}
+rt._sem_aplicar_mesociclo()
+chequear("mesociclo: sin semanas diseñadas avisa",
+         "están vacías" in rt.lbl_estado.cget("text"))
+rt._sem_semanas = _semanas_originales
 
 # 8) PDF del ciclo (sin abrirlo en pantalla: se intercepta os.startfile)
 rutas_pdf = []

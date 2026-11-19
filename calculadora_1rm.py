@@ -1,8 +1,9 @@
 """Calculadora de 1RM — Fuerza (pestaña Rutinas).
 
-Selector de ejercicio común para TODOS los métodos (se puede escribir
-cualquiera; los preset son press de banca, sentadilla, peso muerto y
-press militar). Diálogo en ramas de árbol con dos grupos:
+Selector de ejercicio común para TODOS los métodos, con TODO el
+catálogo de rutinas (tabla rutinas_ejercicios) además de los preset
+clásicos (press de banca, sentadilla, peso muerto y press militar); se
+puede escribir cualquier otro. Diálogo en ramas de árbol con dos grupos:
 
 ESTIMACIÓN POR FÓRMULA (peso + repeticiones → 1RM):
   · Por RPE — Fashi M., Shah Hosseini J., Ahmadi S. (2024).
@@ -33,8 +34,17 @@ PROTOCOLOS NSCA (Baechle & Earle, cap. 18; archivo impreso):
 Todo método termina en la tabla de pesos (porcentajes del 1RM o
 repeticiones objetivo), con peso exacto y redondeado a discos de
 2.5 kg, y el resultado se puede GUARDAR en la BD del paciente activo.
+
+Además, `pct_para_reps` y `carga_desde_1rm` traducen las repeticiones
+de la rutina semanal al % del 1RM recomendado (cuadro 18.8; rangos del
+ACSM 2009, Med Sci Sports Exerc 41(3):687-708: hipertrofia 70-85 %
+con 8-12 reps, fuerza 80-100 %, resistencia 40-60 % con 15 o más
+reps), y `ejercicios_catalogo` trae el catálogo completo para el
+selector y para llenar los pesos de la rutina desde el 1RM.
 """
 from datetime import datetime
+import re
+import sqlite3
 
 import database
 
@@ -322,14 +332,92 @@ def _redondear_discos(kg, incremento=2.5):
     return round(kg / incremento) * incremento
 
 
-def abrir_dialogo_1rm(parent, app=None):
-    """Ventana con ramas de árbol: métodos de 1RM para press de banca.
+def pct_para_reps(texto):
+    """% del 1RM recomendado para el texto de repeticiones de la rutina
+    ('8-12' → 80, '10' → 75, '12-10-8' → 67): cuadro 18.8 (NSCA) con el
+    extremo bajo del rango como ancla del bloque (la carga con la que
+    se entra al rango). Cuadra con los rangos del ACSM 2009: 8-12 reps
+    → 75-80 % dentro del 70-85 % de hipertrofia; 4-6 reps → 85-90 %
+    dentro del 80-100 % de fuerza. Para repeticiones fuera del cuadro
+    (11, 13, 14) interpola entre los valores vecinos y para más de 15
+    usa 60 % (ACSM 2009: resistencia muscular local, 40-60 % 1RM con
+    15 o más repeticiones). Devuelve None si el texto no tiene
+    repeticiones interpretables."""
+    m = re.search(r"(\d+)", str(texto or ""))
+    if not m:
+        return None
+    reps = int(m.group(1))
+    pct = PCT_POR_REPS.get(reps)
+    if pct is not None:
+        return float(pct)
+    if reps <= 0:
+        return None
+    claves = sorted(PCT_POR_REPS)
+    if reps > claves[-1]:
+        return 60.0
+    inferior = max(c for c in claves if c < reps)
+    superior = min(c for c in claves if c > reps)
+    prop = (reps - inferior) / (superior - inferior)
+    return round(PCT_POR_REPS[inferior] + prop * (
+        PCT_POR_REPS[superior] - PCT_POR_REPS[inferior]))
+
+
+def carga_desde_1rm(uno_rm, texto_reps):
+    """Peso de entrenamiento para las repeticiones del texto según el
+    1RM: carga = %1RM x 1RM (cuadro 18.8). Devuelve (kg, pct), o
+    (None, None) si las repeticiones no son interpretables."""
+    pct = pct_para_reps(texto_reps)
+    if pct is None:
+        return None, None
+    return float(uno_rm) * pct / 100.0, pct
+
+
+def ejercicios_catalogo():
+    """(nombres, tren) con TODO el catálogo de rutinas (tabla
+    rutinas_ejercicios) más los preset clásicos, sin duplicados, para el
+    selector del diálogo y para llenar los pesos de la rutina. El tren
+    (superior/inferior) de los del catálogo se infiere por grupo
+    muscular — piernas y glúteos al tren inferior, el resto al superior
+    — para los incrementos de las pruebas NSCA."""
+    nombres = list(EJERCICIOS)
+    tren = dict(TREN_EJERCICIO)
+    try:
+        conn = database.get_connection()
+        try:
+            conn.row_factory = sqlite3.Row
+            filas = conn.execute(
+                "SELECT nombre, grupo FROM rutinas_ejercicios "
+                "ORDER BY nombre"
+            ).fetchall()
+        finally:
+            conn.close()
+    except Exception:
+        filas = []
+    vistos = {n.casefold() for n in nombres}
+    for f in filas:
+        nombre = (f["nombre"] or "").strip()
+        if not nombre or nombre.casefold() in vistos:
+            continue
+        vistos.add(nombre.casefold())
+        nombres.append(nombre)
+        grupo = (f["grupo"] or "").casefold()
+        tren[nombre] = ("inferior" if grupo in ("piernas", "gluteos")
+                        else "superior")
+    return nombres, tren
+
+
+def abrir_dialogo_1rm(parent, app=None, ejercicio=None):
+    """Ventana con ramas de árbol: métodos de 1RM para cualquier
+    ejercicio (selector con todo el catálogo de rutinas).
 
     `app` es la ventana principal: se usa para tomar el paciente activo
-    al guardar el resultado.
+    al guardar el resultado. `ejercicio` preselecciona el ejercicio (el
+    de la fila elegida en la rutina semanal).
     """
     import tkinter as tk
     from tkinter import messagebox, ttk
+
+    nombres_ejercicios, tren_catalogo = ejercicios_catalogo()
 
     dialogo = tk.Toplevel(parent)
     dialogo.title("1RM · Calculadora de fuerza")
@@ -351,7 +439,7 @@ def abrir_dialogo_1rm(parent, app=None):
     ).pack(side="left")
     lbl_ejercicio = tk.Label(
         encabezado, text=EJERCICIOS[0].upper(), font=("Impact", 16),
-        fg=NARANJA, bg=NEGRO,
+        fg=NARANJA, bg=NEGRO, wraplength=300, justify="left",
     )
     lbl_ejercicio.pack(side="left", padx=(10, 0))
 
@@ -454,9 +542,12 @@ def abrir_dialogo_1rm(parent, app=None):
         font=("Segoe UI", 10, "bold"), fg=BLANCO, bg=GRIS_OSCURO,
     ).pack(side="left")
     combo_ejercicio = ttk.Combobox(
-        selector, values=list(EJERCICIOS), state="normal", width=18,
+        selector, values=nombres_ejercicios, state="normal", width=32,
     )
-    combo_ejercicio.set(EJERCICIOS[0])
+    if ejercicio and str(ejercicio).strip():
+        combo_ejercicio.set(str(ejercicio).strip())
+    else:
+        combo_ejercicio.set(EJERCICIOS[0])
     combo_ejercicio.pack(side="left", padx=(8, 0), ipady=3)
     tk.Label(
         derecha,
@@ -642,7 +733,7 @@ def abrir_dialogo_1rm(parent, app=None):
             formularios[rama].pack(fill="x", before=lbl_1rm)
 
     def _texto_incrementos(prueba):
-        tren = TREN_EJERCICIO.get(combo_ejercicio.get().strip())
+        tren = tren_catalogo.get(combo_ejercicio.get().strip())
         tabla_inc = INCREMENTOS_NSCA[prueba]
         if tren:
             return f"Incrementos NSCA (tren {tren}): {tabla_inc[tren]}"

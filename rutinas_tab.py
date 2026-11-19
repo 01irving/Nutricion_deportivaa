@@ -662,6 +662,33 @@ class RutinasTab:
             if texto == "🖨 IMPRIMIR SEMANA":
                 self.btn_sem_imprimir = boton
 
+        # pesos desde 1RM (recomendación bibliográfica por semana):
+        # llenar la semana en curso o el mesociclo completo, o abrir la
+        # calculadora con el ejercicio de la fila elegida
+        self.menu_sem_1rm = tk.Menu(derecho, tearoff=0,
+                                    font=("Segoe UI", 9))
+        self.menu_sem_1rm.add_command(
+            label="Pesos desde 1RM · Semana actual",
+            command=lambda: self._sem_pesos_desde_1rm(False),
+        )
+        self.menu_sem_1rm.add_command(
+            label="Pesos desde 1RM · Mesociclo (Semana 1-4)",
+            command=lambda: self._sem_pesos_desde_1rm(True),
+        )
+        self.menu_sem_1rm.add_separator()
+        self.menu_sem_1rm.add_command(
+            label="Abrir calculadora 1RM…",
+            command=self._sem_abrir_1rm_fila,
+        )
+        self.btn_sem_1rm = tk.Menubutton(
+            fila_acciones, text="🏋 1RM ▾", menu=self.menu_sem_1rm,
+            direction="below", font=("Segoe UI", 8, "bold"),
+            fg=NEON, bg=GRIS, activebackground=NARANJA,
+            activeforeground=BLANCO, relief="flat", padx=10, pady=3,
+            cursor="hand2",
+        )
+        self.btn_sem_1rm.pack(side="left", padx=(0, 5))
+
         # despliegue de impresión de la semana: solo la tabla, solo las
         # descripciones o ambas, cada una con su versión de Guardar PDF
         # (patrón del menú IMPRIMIR RUTINA)
@@ -720,6 +747,18 @@ class RutinasTab:
             boton_n.pack(side="left", padx=(6, 0))
             self.btns_sem_n[n] = boton_n
         self._sem_marcar_boton_semana()
+        # aplica al paciente las 4 semanas TAL CUAL están diseñadas en
+        # las ranuras (con las ediciones hechas sobre lo cargado por
+        # Ciclos): la Semana 1 queda como rutina activa y cada semana
+        # entra al historial de Semana
+        self.btn_sem_mesociclo = tk.Button(
+            fila_semanas, text="✔ APLICAR MESOCICLO",
+            command=self._sem_aplicar_mesociclo,
+            font=("Segoe UI", 8, "bold"), fg=NEGRO, bg=NEON,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=10, pady=2, cursor="hand2",
+        )
+        self.btn_sem_mesociclo.pack(side="right")
 
         # ---------- tabla de la semana (7 días, Lunes primero) -----------
         marco_semana = ttk.LabelFrame(
@@ -1644,6 +1683,142 @@ class RutinasTab:
             }
 
     # ------------------------------------------------------------------
+    # Pesos desde el 1RM (recomendación bibliográfica por semana)
+    # ------------------------------------------------------------------
+    def _rm_mapa(self):
+        """1RM por ejercicio (nombre normalizado → kg) para calcular los
+        pesos de la rutina: los registros guardados del paciente activo
+        (el más reciente de cada ejercicio, get_uno_rm ordena DESC) y,
+        si no está guardado, el último calculado en la sesión."""
+        mapa = {}
+        paciente_id = self._paciente_actual()
+        if paciente_id is not None:
+            try:
+                registros = database.get_uno_rm(paciente_id)
+            except Exception:
+                registros = []
+            for reg in registros:
+                nombre = _normalizar(reg.get("ejercicio"))
+                if (nombre and reg.get("resultado")
+                        and nombre not in mapa):
+                    mapa[nombre] = float(reg["resultado"])
+        sesion = self.rm_sesion or {}
+        nombre = _normalizar(sesion.get("ejercicio"))
+        if nombre and sesion.get("resultado") and nombre not in mapa:
+            mapa[nombre] = float(sesion["resultado"])
+        return mapa
+
+    def _sem_pesos_desde_1rm(self, todas_las_semanas=False):
+        """Llena la columna Peso desde el 1RM registrado del paciente:
+        peso = % del 1RM para las repeticiones del ejercicio (cuadro 18.8
+        NSCA; ACSM 2009: hipertrofia 70-85 % con 8-12 reps, fuerza
+        80-100 %, resistencia 40-60 % con 15+ reps) por el multiplicador
+        de la semana del mesociclo (+2,5 % semanal en bloques de
+        hipertrofia y +5 % en fuerza, dentro del 2-10 % del ACSM 2009;
+        Semana 4 deloading con la carga -10 %), redondeado a discos de
+        2.5 kg. Recalculo explícito: sobrescribe los pesos existentes.
+        `todas_las_semanas` extiende el llenado a las 4 ranuras del
+        mesociclo; si no, solo la ranura que se está diseñando."""
+        import calculadora_1rm
+
+        mapa = self._rm_mapa()
+        if not mapa:
+            messagebox.showinfo(
+                "Pesos desde 1RM",
+                "El paciente no tiene 1RM registrados: abre la "
+                "calculadora (🏋 1RM ▾ → Abrir calculadora 1RM), "
+                "calcula y GUARDA al menos un ejercicio.",
+                parent=self.marco_sem,
+            )
+            return
+        semanas = (1, 2, 3, 4) if todas_las_semanas else (self._sem_n,)
+        llenados = 0
+        sin_rm = []
+        for n in semanas:
+            datos = (self._sem_semanas.get(n) or self._sem_semana_vacia()
+                     if todas_las_semanas else self._sem_datos)
+            for dia in DIAS_SEMANA:
+                for ej in datos[dia]["ejercicios"]:
+                    nombre = _normalizar(ej.get("nombre"))
+                    rm = mapa.get(nombre)
+                    kg, pct = (None, None)
+                    if rm:
+                        kg, pct = calculadora_1rm.carga_desde_1rm(
+                            rm, ej.get("repeticiones"))
+                    if kg:
+                        mult = _sem_rampa_reps(
+                            ej.get("repeticiones"))[n - 1]
+                        ej["peso"] = f"{_discos_2_5(kg * mult):g} kg"
+                        llenados += 1
+                    elif ej.get("nombre") and ej.get("nombre") not in sin_rm:
+                        sin_rm.append(ej.get("nombre"))
+        self._sem_pintar_ejercicios()
+        alcance = ("Mesociclo Semana 1-4" if todas_las_semanas
+                   else f"Semana {self._sem_n}")
+        detalle = ""
+        if sin_rm:
+            detalle = (" Sin 1RM registrado (quedaron sin peso): "
+                       + ", ".join(sin_rm[:5])
+                       + ("…" if len(sin_rm) > 5 else "")
+                       + ". Regístralos con 🏋 1RM ▾.")
+        self._mensaje(
+            f"Pesos desde 1RM · {alcance}: {llenados} ejercicios con el "
+            "% del 1RM para sus repeticiones (cuadro 18.8 NSCA / ACSM "
+            "2009; Semanas 2-3 +2,5/+5 % y Semana 4 deloading -10 %)."
+            + detalle
+        )
+
+    def _sem_abrir_1rm_fila(self):
+        """Calculadora de 1RM preseleccionada con el ejercicio de la fila
+        elegida de la tabla del día; al cerrar, deja en esa fila el peso
+        recomendado para sus repeticiones (% del 1RM, cuadro 18.8)."""
+        import calculadora_1rm
+
+        sel = self.tree_sem_ej.selection()
+        idx = None
+        ejercicio = None
+        if sel and sel[0].isdigit():
+            idx = int(sel[0])
+            ejercicios = self._sem_datos[self._sem_dia]["ejercicios"]
+            if 0 <= idx < len(ejercicios):
+                ejercicio = ejercicios[idx].get("nombre")
+        resultado = calculadora_1rm.abrir_dialogo_1rm(
+            self.marco, self.app, ejercicio=ejercicio)
+        if not resultado:
+            return
+        self.rm_sesion = resultado
+        activo = (f"1RM activo: {resultado['ejercicio']} "
+                  f"{resultado['resultado']:g} kg")
+        if idx is None:
+            self._mensaje(activo)
+            return
+        ejercicios = self._sem_datos[self._sem_dia]["ejercicios"]
+        if not 0 <= idx < len(ejercicios):
+            self._mensaje(activo)
+            return
+        ej = ejercicios[idx]
+        if _normalizar(ej.get("nombre")) != _normalizar(
+                resultado["ejercicio"]):
+            # el 1RM calculado es de otro ejercicio: no toca la fila
+            self._mensaje(activo)
+            return
+        kg, pct = calculadora_1rm.carga_desde_1rm(
+            resultado["resultado"], ej.get("repeticiones"))
+        if not kg:
+            self._mensaje(
+                activo + " (la fila no tiene repeticiones "
+                "interpretables para el % del 1RM)."
+            )
+            return
+        ej["peso"] = f"{_discos_2_5(kg):g} kg"
+        self._sem_pintar_ejercicios()
+        self._mensaje(
+            f"{ej.get('nombre')}: 1RM {resultado['resultado']:g} kg × "
+            f"{pct:g} % para {ej.get('repeticiones')} reps → "
+            f"{ej['peso']} (cuadro 18.8 NSCA)."
+        )
+
+    # ------------------------------------------------------------------
     # Añadir, quitar, reordenar y traer rutinas guardadas al día
     # ------------------------------------------------------------------
     def _sem_agregar_ejercicio(self):
@@ -1894,50 +2069,16 @@ class RutinasTab:
                 "aplicarla."
             )
 
-    def _sem_aplicar_al_paciente(self, nombre):
-        """Escribe la semana de las tablas en la rutina del paciente:
-        borra su semana actual, inserta ejercicios y descansos y
-        etiqueta la semana aplicada. True si se escribió en la BD.
-        (Núcleo común de GUARDAR y APLICAR AL PACIENTE.)"""
-        paciente_id = self._paciente_actual()
-        if paciente_id is None:
-            return False
-        try:
-            database.delete_rutinas_paciente(paciente_id)
-            for dia in DIAS_SEMANA:
-                info = self._sem_datos[dia]
-                if not info["sesion"] or not info["ejercicios"]:
-                    database.marcar_descanso(paciente_id, dia)
-                    continue
-                for ej in info["ejercicios"]:
-                    database.insert_rutina_paciente(
-                        {
-                            "paciente_id": paciente_id,
-                            "dia": dia,
-                            "grupo": ej.get("grupo"),
-                            "num": ej.get("num"),
-                            "nombre": ej.get("nombre"),
-                            "equipo": ej.get("equipo"),
-                            "series": ej.get("series") or "",
-                            "repeticiones": ej.get("repeticiones") or "",
-                            "descanso_rep": ej.get("descanso_rep") or "",
-                            "descanso_series": ej.get("descanso_series") or "",
-                            "peso": ej.get("peso") or "",
-                            "notas": info["sesion"],
-                        }
-                    )
-            database.marcar_semana_aplicada(paciente_id, nombre)
-        except Exception as error:
-            messagebox.showerror(
-                "Rutinas", f"No se pudo aplicar la rutina semanal:\n{error}"
-            )
-            return False
-        # historial: copia de la semana guardada del paciente con fecha
-        detalle = json.dumps(
+    @staticmethod
+    def _sem_detalle_json(datos):
+        """JSON del historial para una semana `datos`
+        ({dia: {sesion, ejercicios}}): los 7 días con su sesión y la
+        prescripción de cada ejercicio."""
+        return json.dumps(
             [
                 {
                     "dia": dia,
-                    "sesion": self._sem_datos[dia]["sesion"] or "",
+                    "sesion": datos[dia]["sesion"] or "",
                     "ejercicios": [
                         {
                             k: ej.get(k)
@@ -1947,20 +2088,135 @@ class RutinasTab:
                                 "descanso_series", "peso",
                             )
                         }
-                        for ej in self._sem_datos[dia]["ejercicios"]
+                        for ej in datos[dia]["ejercicios"]
                     ],
                 }
                 for dia in DIAS_SEMANA
             ],
             ensure_ascii=False,
         )
+
+    def _sem_escribir_rutina_paciente(self, paciente_id, datos):
+        """Reemplaza la rutina activa del paciente con la semana `datos`:
+        borra sus 7 días, inserta ejercicios y descansos."""
+        database.delete_rutinas_paciente(paciente_id)
+        for dia in DIAS_SEMANA:
+            info = datos[dia]
+            if not info["sesion"] or not info["ejercicios"]:
+                database.marcar_descanso(paciente_id, dia)
+                continue
+            for ej in info["ejercicios"]:
+                database.insert_rutina_paciente(
+                    {
+                        "paciente_id": paciente_id,
+                        "dia": dia,
+                        "grupo": ej.get("grupo"),
+                        "num": ej.get("num"),
+                        "nombre": ej.get("nombre"),
+                        "equipo": ej.get("equipo"),
+                        "series": ej.get("series") or "",
+                        "repeticiones": ej.get("repeticiones") or "",
+                        "descanso_rep": ej.get("descanso_rep") or "",
+                        "descanso_series": ej.get("descanso_series") or "",
+                        "peso": ej.get("peso") or "",
+                        "notas": info["sesion"],
+                    }
+                )
+
+    def _sem_aplicar_al_paciente(self, nombre):
+        """Escribe la semana de las tablas en la rutina del paciente:
+        borra su semana actual, inserta ejercicios y descansos y
+        etiqueta la semana aplicada. True si se escribió en la BD.
+        (Núcleo común de GUARDAR y APLICAR AL PACIENTE.)"""
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            return False
         try:
-            database.guardar_rutina_historial(paciente_id, nombre, detalle)
+            self._sem_escribir_rutina_paciente(paciente_id, self._sem_datos)
+            database.marcar_semana_aplicada(paciente_id, nombre)
+        except Exception as error:
+            messagebox.showerror(
+                "Rutinas", f"No se pudo aplicar la rutina semanal:\n{error}"
+            )
+            return False
+        # historial: copia de la semana guardada del paciente con fecha
+        try:
+            database.guardar_rutina_historial(
+                paciente_id, nombre, self._sem_detalle_json(self._sem_datos)
+            )
             self._sem_refrescar_historial()
             self._refrescar_historial_pac()
         except Exception:
             pass   # el historial no debe impedir la aplicación
         return True
+
+    def _sem_aplicar_mesociclo(self):
+        """Aplica al paciente las semanas de las ranuras Semana 1-4 TAL
+        CUAL están diseñadas (con las ediciones hechas sobre las semanas
+        cargadas por Ciclos: pesos desde 1RM, series, reps, sesiones):
+        la primera con ejercicios queda como su rutina activa (reemplaza
+        los 7 días) y cada semana con ejercicios se guarda en el
+        historial de Semana, lista para cargarla una a una."""
+        paciente_id = self._paciente_actual()
+        if paciente_id is None:
+            self._mensaje(
+                "Selecciona un paciente antes de aplicar el mesociclo."
+            )
+            return
+        semanas_con = []
+        for n in (1, 2, 3, 4):
+            datos = self._sem_semanas.get(n)
+            if datos and any(
+                    datos[dia]["ejercicios"] for dia in DIAS_SEMANA):
+                semanas_con.append(n)
+        if not semanas_con:
+            self._mensaje(
+                "Las ranuras Semana 1-4 están vacías: carga o diseña las "
+                "semanas antes de aplicar el mesociclo."
+            )
+            return
+        base = (
+            self.entrada_sem_nombre.get().strip()
+            or getattr(self, "_sem_nombre", "")
+            or "Mesociclo del paciente"
+        )
+        primera = semanas_con[0]
+        try:
+            self._sem_escribir_rutina_paciente(
+                paciente_id, self._sem_semanas[primera])
+            database.marcar_semana_aplicada(
+                paciente_id, f"{base} · Semana {primera}")
+            for n in semanas_con:
+                database.guardar_rutina_historial(
+                    paciente_id,
+                    f"{base} · Semana {n}",
+                    self._sem_detalle_json(self._sem_semanas[n]),
+                )
+        except Exception as error:
+            messagebox.showerror(
+                "Rutinas", f"No se pudo aplicar el mesociclo:\n{error}"
+            )
+            return
+        # el editor queda en la primera semana con ejercicios (normalmente
+        # la Semana 1): cambia de ranura si el usuario estaba en otra
+        if self._sem_n != primera:
+            self._sem_elegir_semana(primera)
+        self._sem_marcar_boton_semana()
+        self.dia_actual = next(
+            (d for d in DIAS_SEMANA
+             if self._sem_semanas[primera][d]["sesion"]),
+            DIAS_SEMANA[0],
+        )
+        self._cargar_rutina()
+        self._marcar_rutina_guardada()
+        self._sem_refrescar_historial()
+        self._refrescar_historial_pac()
+        self._mensaje(
+            f"Mesociclo aplicado al paciente: {len(semanas_con)} semanas "
+            f"(Semana {', '.join(str(n) for n in semanas_con)}) en el "
+            f"historial de Semana; la Semana {primera} quedó como su "
+            "rutina activa."
+        )
 
     def _sem_aplicar(self):
         """Aplica la semana de las tablas a la rutina del paciente:
@@ -4901,6 +5157,12 @@ class RutinasTab:
         secuencia = CIC_SECUENCIAS[objetivo][:n_mesos]
         modo = (self.cic_modo_var.get() if self.cic_modo_var.get()
                 in CIC_MODOS else CIC_MODOS[0])
+        # ejercicios sin carga manual: el peso base sale del 1RM
+        # registrado del paciente con el % para las repeticiones del
+        # bloque (cuadro 18.8 NSCA; ACSM 2009)
+        import calculadora_1rm
+        mapa_rm = self._rm_mapa()
+        desde_1rm = set()
         bloques = []
         for spec in secuencia:
             ramp = spec["ramp"]
@@ -4937,6 +5199,15 @@ class RutinasTab:
             for dia, fichas in base.items():
                 filas = []
                 for f in fichas:
+                    peso_base = str(f.get("peso") or "")
+                    if not self._cic_num_peso(peso_base):
+                        rm = mapa_rm.get(_normalizar(f.get("nombre")))
+                        if rm:
+                            kg, _pct = calculadora_1rm.carga_desde_1rm(
+                                rm, spec["reps"])
+                            if kg:
+                                peso_base = f"{_discos_2_5(kg):g} kg"
+                                desde_1rm.add(_normalizar(f.get("nombre")))
                     filas.append({
                         "nombre": f.get("nombre") or "",
                         "equipo": f.get("equipo") or "",
@@ -4946,7 +5217,7 @@ class RutinasTab:
                         "reps_base": str(f.get("repeticiones") or "12"),
                         "descanso_rep": f.get("descanso_rep") or "",
                         "descanso_series": spec["descanso"],
-                        "peso_base": str(f.get("peso") or ""),
+                        "peso_base": peso_base,
                     })
                 if filas:
                     dias[dia] = filas
@@ -4968,14 +5239,19 @@ class RutinasTab:
                     for i, b in enumerate(bloques)]
         self.cic_ver_combo.configure(state="readonly", values=opciones)
         self.cic_ver_var.set(opciones[0])
+        desde = ""
+        if desde_1rm:
+            desde = (f" Peso base desde el 1RM registrado en "
+                     f"{len(desde_1rm)} ejercicio(s) (% del 1RM para sus "
+                     "repeticiones, cuadro 18.8 NSCA / ACSM 2009).")
         self.lbl_cic_info.configure(text=(
             f"Ciclo generado: {n_mesos} mesociclos × 4 semanas "
             f"({sum(len(b['semanas']) for b in bloques)} semanas totales) "
             f"· progresión {modo.lower()}. Semana 4 = deloading (mitad de "
             "series, carga -10 %). Las 4 semanas del mesociclo 1 quedaron "
             "cargadas en Semana 1-4 (pestaña Rutina) y APLICAR AL PACIENTE "
-            "deja cada semana en el historial de Semana.\nBase: "
-            + CIC_BASE_MODEO.get(modo, "")))
+            "deja cada semana en el historial de Semana."
+            + desde + "\nBase: " + CIC_BASE_MODEO.get(modo, "")))
         self._cic_pintar()
         # las 4 semanas del primer mesociclo quedan en las ranuras
         # Semana 1-4 de la pestaña Rutina para diseñarlas/editarlas
@@ -5379,4 +5655,31 @@ CIC_NOTAS = (
     "previo potencia al siguiente (efectos residuales, Issurin 2010).",
     "El deloading cada 4-8 semanas es la practica habitual; Coleman et "
     "al. 2024 sugiere autorregularlo segun fatiga y rendimiento.",
+    "Peso de la Semana 1 = % del 1RM para las repeticiones del bloque "
+    "(cuadro 18.8 del NSCA: 8 reps -> 80 %, 10 -> 75 %, 12 -> 67 %, "
+    "15 -> 65 %; en rangos manda el extremo bajo), dentro de los rangos "
+    "del ACSM 2009 (hipertrofia 70-85 % con 8-12 reps; fuerza 80-100 %; "
+    "resistencia 40-60 % con 15+ reps). Sin 1RM registrado, el peso "
+    "base es el de la semana elegida o queda vacio para llenarlo a mano.",
 )
+
+# Pesos relativos para llenar la rutina semanal desde el 1RM (menu
+# «🏋 1RM ▾» de la pestaña Rutina): Semana 1 = % del 1RM de las
+# repeticiones del ejercicio (cuadro 18.8 del NSCA); Semanas 2-3
+# progresan +2,5 % (hipertrofia, reps > 6) o +5 % (fuerza, reps <= 6) —
+# el ACSM 2009 admite 2-10 % con mayor incremento en musculatura grande
+# y cargas pesadas — y Semana 4 deloading con la misma reduccion de
+# carga que los ciclos (CIC_DELOAD_PESO).
+SEM_RAMPA = {
+    "hipertrofia": (1.00, 1.025, 1.05, CIC_DELOAD_PESO),
+    "fuerza": (1.00, 1.05, 1.10, CIC_DELOAD_PESO),
+}
+
+
+def _sem_rampa_reps(reps):
+    """Rampa semanal del mesociclo para un texto de repeticiones: los
+    bloques de fuerza (6 reps o menos) suben 5 % semanal y el resto
+    2,5 % (ACSM 2009: 2-10 %, mayor % en musculatura grande)."""
+    m = re.search(r"(\d+)", str(reps or ""))
+    clave = "fuerza" if m and int(m.group(1)) <= 6 else "hipertrofia"
+    return SEM_RAMPA[clave]
