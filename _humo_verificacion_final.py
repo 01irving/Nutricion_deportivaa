@@ -29,8 +29,8 @@ database.init_db()
 
 import rutinas_tab  # noqa: E402
 from rutinas_tab import (  # noqa: E402
-    CIC_DELOAD_PESO, CIC_DELOAD_SERIES, CIC_MODOS, CIC_SECUENCIAS,
-    DIAS_SEMANA, PLANTILLAS_SEMANA, _discos_2_5,
+    CIC_BASE_MODEO, CIC_DELOAD_PESO, CIC_DELOAD_SERIES, CIC_MODOS,
+    CIC_SECUENCIAS, DIAS_SEMANA, PLANTILLAS_SEMANA, _discos_2_5,
 )
 
 raiz = tk.Tk()
@@ -175,9 +175,19 @@ chequear("deload S4: peso -10 % redondeado a discos",
          celdas[3][1] == _discos_2_5(kg_base * 0.90))
 chequear("tabla Ciclos pintada con filas del mesociclo",
          len(rt.tree_cic.get_children()) > 0)
-chequear("modos disponibles: carga / repeticiones / ambos",
-         CIC_MODOS == ("Por carga", "Por repeticiones", "Ambos")
+chequear("modos disponibles: carga / repeticiones / ambos / doble",
+         CIC_MODOS == ("Por carga", "Por repeticiones", "Ambos", "Doble")
          and rt.cic_modo_var.get() == "Por carga")
+chequear("referencia bibliográfica: cita por cada modo",
+         tuple(CIC_BASE_MODEO) == CIC_MODOS
+         and CIC_BASE_MODEO["Por carga"].startswith("ACSM")
+         and "Plotkin" in CIC_BASE_MODEO["Por repeticiones"]
+         and "Chaves" in CIC_BASE_MODEO["Por repeticiones"]
+         and CIC_BASE_MODEO["Ambos"].startswith("ACSM")
+         and "Plotkin" in CIC_BASE_MODEO["Doble"])
+chequear("referencia: el ciclo Por carga cita ACSM 2009",
+         rt._cic_datos.get("base_cientifica", "").startswith("ACSM")
+         and "ACSM" in rt.lbl_cic_info.cget("text"))
 
 # 5b) GENERAR cargó las 4 semanas del mesociclo 1 en Semana 1-4
 chequear("ranuras: Semana 1 activa tras generar", rt._sem_n == 1)
@@ -235,6 +245,40 @@ fila_a2 = next((e for d in rt._sem_semanas[2].values()
                 for e in d.get("ejercicios") or []), None)
 chequear("modo ambos: ranuras re-cargadas con el modo elegido",
          fila_a2 is not None and fila_a2["repeticiones"] == "11-13")
+
+# 5d) Modo Doble: reps suben dentro del rango y reinician al subir carga
+chequear("rango partido: 8-12 -> ('8-10', '10-12')",
+         rutinas_tab.RutinasTab._cic_rango_partido("8-12")
+         == ("8-10", "10-12"))
+rt.cic_modo_var.set("Doble")
+rt._cic_generar()
+raiz.update()
+sem_doble = rt._cic_datos["bloques"][0]["semanas"]
+chequear("modo doble: S1 mitad baja del rango con carga base",
+         sem_doble[0]["peso_mult"] == 1.00
+         and sem_doble[0]["reps_txt"] == "10-11")
+chequear("modo doble: S2 llega arriba del rango con la misma carga",
+         sem_doble[1]["peso_mult"] == 1.00
+         and sem_doble[1]["reps_txt"] == "11-12")
+chequear("modo doble: S3 sube la carga y reinicia abajo del rango",
+         sem_doble[2]["peso_mult"] == 1.05
+         and sem_doble[2]["reps_txt"] == "10-11")
+chequear("modo doble: deloading S4 con el rango completo",
+         sem_doble[3]["peso_mult"] == CIC_DELOAD_PESO
+         and sem_doble[3]["reps_txt"] == "10-12")
+fila_d3 = next((e for d in rt._sem_semanas[3].values()
+                for e in d.get("ejercicios") or []), None)
+chequear("modo doble: ranura Semana 3 con carga nueva y reps reiniciadas",
+         fila_d3 is not None
+         and fila_d3["repeticiones"] == "10-11"
+         and fila_d3["peso"] == f"{_discos_2_5(kg_base * 1.05):g} kg")
+chequear("notas: doble progresión citada (Plotkin 2022)",
+         any("Doble progresion" in n and "Plotkin" in n
+             for n in rt._cic_datos["notas"]))
+chequear("referencia: el modo Doble cita Plotkin/Chaves y ACSM",
+         "Plotkin" in rt._cic_datos.get("base_cientifica", "")
+         and "Chaves" in rt._cic_datos.get("base_cientifica", "")
+         and "ACSM" in rt._cic_datos.get("base_cientifica", ""))
 
 # 6) GUARDAR ciclo
 rt._cic_guardar()

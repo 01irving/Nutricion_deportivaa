@@ -4829,6 +4829,23 @@ class RutinasTab:
             return str(reps or "")
         return f"{int(m.group(1)) + extra}-{int(m.group(2)) + extra}"
 
+    @staticmethod
+    def _cic_rango_partido(reps):
+        """Mitades del rango de reps para la doble progresión
+        ('8-12' -> ('8-10', '10-12')): la semana sube de la mitad baja a
+        la alta del rango y, al subir la carga, reinicia en la baja
+        (modelo del autor: 10 kg x 12 -> 12 kg x 8). Sin rango
+        interpretable devuelve el texto tal cual en ambas."""
+        texto = str(reps or "")
+        m = re.match(r"^\s*(\d+)\s*-\s*(\d+)\s*$", texto)
+        if not m:
+            return (texto, texto)
+        lo, hi = int(m.group(1)), int(m.group(2))
+        if hi <= lo + 1:
+            return (texto, texto)
+        medio = (lo + hi) // 2
+        return (f"{lo}-{medio}", f"{medio}-{hi}")
+
     def _cic_fila_semana(self, bloque, s, f):
         """Ficha de un ejercicio para la semana `s` del bloque: series
         (deloading = mitad), repeticiones de la semana y peso escalado
@@ -4891,15 +4908,24 @@ class RutinasTab:
             for wi, mult in enumerate(ramp, start=1):
                 # Por carga: sube la carga cada semana (ramp del bloque) con
                 # el rango fijo. Por repeticiones: carga fija y el rango
-                # sube 1 rep por semana (ACSM: 1-2 reps sobre el objetivo).
-                # Ambos: sube la carga Y el rango (doble progresión).
+                # sube 1 rep por semana. Ambos: sube la carga Y el rango.
+                # Doble: las reps suben de la mitad baja a la alta del rango
+                # con carga fija y, al llegar arriba (ACSM: 1-2 reps sobre
+                # el objetivo), S3 sube la carga y reinicia abajo del rango
+                # (10 kg x 12 -> 12 kg x 8; Plotkin et al. 2022).
                 if modo == "Por repeticiones":
                     mult_sem = 1.00
+                    reps_sem = self._cic_reps_ajustadas(spec["reps"],
+                                                        wi - 1)
+                elif modo == "Doble":
+                    abajo, arriba = self._cic_rango_partido(spec["reps"])
+                    mult_sem = 1.00 if wi < 3 else mult
+                    reps_sem = arriba if wi == 2 else abajo
                 else:
                     mult_sem = mult
-                reps_sem = (spec["reps"] if modo == "Por carga"
-                            else self._cic_reps_ajustadas(spec["reps"],
-                                                          wi - 1))
+                    reps_sem = (spec["reps"] if modo == "Por carga"
+                                else self._cic_reps_ajustadas(spec["reps"],
+                                                              wi - 1))
                 semanas.append({"n": wi, "tipo": "Carga",
                                 "peso_mult": mult_sem,
                                 "series_extra": 1 if wi == 3 else 0,
@@ -4933,7 +4959,7 @@ class RutinasTab:
             f"Ciclo {objetivo} · {self._cic_nombre_base}")
         self._cic_datos = {
             "base": self._cic_nombre_base, "objetivo": objetivo,
-            "modo": modo,
+            "modo": modo, "base_cientifica": CIC_BASE_MODEO.get(modo, ""),
             "mesociclos": n_mesos, "notas": list(CIC_NOTAS),
             "bloques": bloques,
         }
@@ -4948,7 +4974,8 @@ class RutinasTab:
             f"· progresión {modo.lower()}. Semana 4 = deloading (mitad de "
             "series, carga -10 %). Las 4 semanas del mesociclo 1 quedaron "
             "cargadas en Semana 1-4 (pestaña Rutina) y APLICAR AL PACIENTE "
-            "deja cada semana en el historial de Semana."))
+            "deja cada semana en el historial de Semana.\nBase: "
+            + CIC_BASE_MODEO.get(modo, "")))
         self._cic_pintar()
         # las 4 semanas del primer mesociclo quedan en las ranuras
         # Semana 1-4 de la pestaña Rutina para diseñarlas/editarlas
@@ -5174,6 +5201,8 @@ class RutinasTab:
                       f"{self._cic_datos.get('mesociclos', 1)} mesociclos × "
                       "4 semanas (3 de carga progresiva + deloading en la "
                       "4.ª semana)", normal),
+            Paragraph(f"Base bibliográfica del modelo: "
+                      f"{self._cic_datos.get('base_cientifica', '')}", chico),
             Spacer(1, 8),
         ]
         ancho_ej = 3.3 * inch
@@ -5290,7 +5319,42 @@ CIC_DELOAD_PESO = 0.90      # carga -10 % por prudencia (intensidad similar)
 # carga actual 1-2 repeticiones por encima de la deseada en dos sesiones
 # consecutivas» (categoría de evidencia B; porcentaje menor en ejercicios
 # de musculatura pequeña y mayor en los de musculatura grande).
-CIC_MODOS = ("Por carga", "Por repeticiones", "Ambos")
+CIC_MODOS = ("Por carga", "Por repeticiones", "Ambos", "Doble")
+
+# Referencia bibliográfica del modelo de progresión, mostrada al generar
+# y citada en el PDF del ciclo. Verificadas en PubMed:
+#  - ACSM 2009: Position Stand "Progression Models in Resistance Training
+#    for Healthy Adults", Med Sci Sports Exerc 41(3):687-708 (el PDF que
+#    acompaña a la app; regla 2-10 % al completar 1-2 reps sobre el
+#    objetivo en dos sesiones consecutivas, evidencia categoría B).
+#  - Plotkin et al. 2022: "Progressive overload without progressing load?
+#    The effects of load or repetition progression on muscular
+#    adaptations", PeerJ 10:e14142 (PubMed 36199287): 8 semanas, progresar
+#    por repeticiones con carga fija produjo adaptaciones similares a
+#    progresar por carga.
+#  - Chaves et al. 2024: "Effects of Resistance Training Overload
+#    Progression Protocols on Strength and Muscle Mass", Int J Sports Med
+#    45(7):504-510 (PubMed 38286426, DOI 10.1055/a-2256-5857): LOADprog vs
+#    REPprog, ambos válidos para fuerza e hipertrofia.
+CIC_BASE_MODEO = {
+    "Por carga":
+        "ACSM 2009, Med Sci Sports Exerc 41(3):687-708 (cat. B): subir la "
+        "carga 2-10 % al completar 1-2 reps sobre el objetivo en dos "
+        "sesiones consecutivas.",
+    "Por repeticiones":
+        "Plotkin et al. 2022, PeerJ 10:e14142 (PubMed 36199287) y Chaves "
+        "et al. 2024, Int J Sports Med 45(7):504-510 (PubMed 38286426): "
+        "progresar por repeticiones con carga fija produjo ganancias "
+        "similares a progresar por carga.",
+    "Ambos":
+        "ACSM 2009, Med Sci Sports Exerc 41(3):687-708: intermedios y "
+        "avanzados progresan manipulando a la vez carga y volumen dentro "
+        "de una programación periodizada.",
+    "Doble":
+        "Plotkin et al. 2022, PeerJ 10:e14142 y Chaves et al. 2024, Int J "
+        "Sports Med 45(7):504-510: primero reps, después carga; disparador "
+        "ACSM 2009 (1-2 reps sobre el objetivo -> subir carga 2-10 %).",
+}
 CIC_NOTAS = (
     "Mesociclo de 4 semanas: 3 de carga progresiva + 1 de deloading "
     "(Issurin 2010; Lorenz 2015).",
@@ -5304,6 +5368,13 @@ CIC_NOTAS = (
     "sesiones consecutivas se sube la carga 2-10 % (menos % en musculatura "
     "pequena, mas % en grande); por eso el ciclo puede progresar por "
     "carga, por repeticiones o por ambas (doble progresion).",
+    "Doble progresion: primero suben las repeticiones dentro del rango con "
+    "la carga fija y, al llegar arriba del rango, sube la carga y se "
+    "reinicia abajo del rango (ej. 10 kg x 12 -> 12 kg x 8). Progresar por "
+    "repeticiones o por carga produce adaptaciones similares (Plotkin et "
+    "al. 2022, PeerJ 10:e14142; Chaves et al. 2024, Int J Sports Med "
+    "45(7):504-510); el disparador para subir la carga es completar 1-2 "
+    "reps sobre el objetivo (ACSM 2009).",
     "Macrociclo: bloques encadenados Hipertrofia -> Fuerza; el bloque "
     "previo potencia al siguiente (efectos residuales, Issurin 2010).",
     "El deloading cada 4-8 semanas es la practica habitual; Coleman et "
