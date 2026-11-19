@@ -1170,6 +1170,24 @@ class RutinasTab:
             self.tree_sem_historial.column(
                 col, width=ancho, minwidth=ancho, anchor=alineacion
             )
+        # eliminar del historial la rutina seleccionada (con confirmación);
+        # la fila va primero para que la tabla quede sobre ella
+        fila_hist_botones = ttk.Frame(marco_hist, style="Gym.TFrame")
+        fila_hist_botones.pack(side="bottom", fill="x", pady=(4, 0))
+        self.btn_sem_eliminar_historial = tk.Button(
+            fila_hist_botones, text="🗑 ELIMINAR DEL HISTORIAL",
+            command=self._sem_eliminar_historial,
+            font=("Segoe UI", 8, "bold"), fg=BLANCO, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=8, pady=2, cursor="hand2",
+        )
+        self.btn_sem_eliminar_historial.pack(side="left")
+        tk.Label(
+            fila_hist_botones,
+            text="Elimina la copia guardada del paciente; la rutina "
+                 "activa no se toca.",
+            font=("Segoe UI", 8, "italic"), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+        ).pack(side="left", padx=(8, 0))
         self.tree_sem_historial.pack(side="left", fill="x", expand=True)
         barra_hist = ttk.Scrollbar(
             marco_hist, orient="vertical",
@@ -2767,6 +2785,40 @@ class RutinasTab:
             f"(guardada {entrada.get('fecha') or '—'})."
         )
 
+    def _sem_eliminar_historial(self):
+        """Elimina del historial del paciente la rutina semanal
+        seleccionada (con confirmación): la copia guardada desaparece de
+        la lista y ya no se puede cargar con doble clic. La rutina activa
+        del paciente no se toca."""
+        sel = self.tree_sem_historial.selection()
+        if not sel or not sel[0].isdigit():
+            self._mensaje(
+                "Elige en el historial la rutina guardada que quieras "
+                "eliminar."
+            )
+            return
+        try:
+            entrada = database.get_rutina_historial(int(sel[0]))
+        except Exception:
+            entrada = None
+        nombre = (entrada or {}).get("nombre_semana") or "rutina guardada"
+        if not messagebox.askyesno(
+                "Eliminar del historial",
+                f"¿Eliminar del historial del paciente la rutina "
+                f"«{nombre}»?",
+                parent=self.marco_sem):
+            return
+        try:
+            database.delete_rutina_historial(int(sel[0]))
+        except Exception as error:
+            messagebox.showerror(
+                "Rutinas", f"No se pudo eliminar del historial:\n{error}"
+            )
+            return
+        self._sem_refrescar_historial()
+        self._refrescar_historial_pac()
+        self._mensaje(f"Eliminada del historial: «{nombre}».")
+
     def _abrir_menu_sem_imprimir(self):
         """Despliega las opciones de impresión de la semana debajo del
         botón IMPRIMIR SEMANA."""
@@ -2878,7 +2930,8 @@ class RutinasTab:
 
     def _sem_eliminar_guardada(self):
         """Elimina de la biblioteca la rutina semanal guardada
-        seleccionada en la tabla (las fijas del estudio no se borran)."""
+        seleccionada en la tabla (las fijas del estudio no se borran),
+        con confirmación."""
         sel = self.tree_sem_selector.selection()
         if not sel or sel[0] not in getattr(self, "_sem_selector_map", {}):
             self._mensaje(
@@ -2892,6 +2945,17 @@ class RutinasTab:
             )
             return
         try:
+            guardada = database.get_rutina_guardada(clave)
+        except Exception:
+            guardada = None
+        nombre = (guardada or {}).get("nombre") or "rutina guardada"
+        if not messagebox.askyesno(
+                "Eliminar rutina guardada",
+                f"¿Eliminar de la biblioteca la rutina semanal "
+                f"«{nombre}»?",
+                parent=self.marco_sem):
+            return
+        try:
             database.delete_rutina_guardada(clave)
         except Exception as error:
             messagebox.showerror(
@@ -2899,7 +2963,7 @@ class RutinasTab:
             )
             return
         self._sem_refrescar_selector()
-        self._mensaje("Rutina semanal guardada eliminada.")
+        self._mensaje(f"Rutina semanal guardada eliminada: «{nombre}».")
     def _recargar_referencias_1rm(self):
         """Llena el combo "1RM de referencia": el último calculado en la
         sesión y los guardados del paciente activo; preselecciona el del

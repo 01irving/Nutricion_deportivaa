@@ -1511,6 +1511,20 @@ def get_rutina_historial(id_historial):
         conn.close()
 
 
+def delete_rutina_historial(id_historial):
+    """Elimina del historial una rutina semanal guardada del paciente
+    (la rutina activa en rutinas_paciente no se toca)."""
+    conn = get_connection()
+    try:
+        conn.execute(
+            "DELETE FROM rutinas_paciente_historial WHERE id_historial = ?",
+            (id_historial,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def guardar_rutina_guardada(nombre, semanal, ejercicios):
     """Guarda una rutina con nombre (upsert por nombre). ejercicios es una
     lista de dicts con las columnas de rutinas_guardadas_ejercicios. En

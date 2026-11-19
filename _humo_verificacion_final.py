@@ -644,6 +644,48 @@ chequear("armar mesociclo: nivel principiante carga la plantilla del nivel al 65
          "Principiante" in rt.lbl_estado.cget("text")
          and _ficha_semana(1, "bench")["peso"] == "90 kg")
 
+# 7f) Eliminar rutinas guardadas con botón: del historial del paciente
+# (con confirmación) y de la biblioteca (el selector también confirma)
+chequear("eliminar: botón ELIMINAR DEL HISTORIAL bajo la tabla",
+         hasattr(rt, "btn_sem_eliminar_historial")
+         and str(rt.btn_sem_eliminar_historial.cget("text"))
+         == "🗑 ELIMINAR DEL HISTORIAL")
+rt._sem_eliminar_historial()
+chequear("eliminar historial: sin selección avisa y no borra",
+         "Elige en el historial" in rt.lbl_estado.cget("text"))
+historial = database.get_rutinas_historial(id_pac)
+id_sem2 = next(h["id_historial"] for h in historial
+               if h["nombre_semana"] == "Verificación Semanal · Semana 2")
+rt.tree_sem_historial.selection_set(str(id_sem2))
+_askyesno_original = rutinas_tab.messagebox.askyesno
+try:
+    rutinas_tab.messagebox.askyesno = lambda *a, **k: False
+    rt._sem_eliminar_historial()
+    chequear("eliminar historial: cancelar la confirmación conserva la rutina",
+             len(database.get_rutinas_historial(id_pac)) == len(historial)
+             and any(h["nombre_semana"] == "Verificación Semanal · Semana 2"
+                     for h in database.get_rutinas_historial(id_pac)))
+    rutinas_tab.messagebox.askyesno = lambda *a, **k: True
+    rt._sem_eliminar_historial()
+    raiz.update()
+    historial_final = database.get_rutinas_historial(id_pac)
+    chequear("eliminar historial: confirmada se borra de la BD (la activa intacta)",
+             len(historial_final) == len(historial) - 1
+             and not any(h["nombre_semana"] == "Verificación Semanal · Semana 2"
+                         for h in historial_final)
+             and len(database.get_rutinas_paciente(id_pac)) > 0
+             and "Eliminada del historial" in rt.lbl_estado.cget("text"))
+    # la semanal guardada del selector también confirma antes de borrar
+    iid_g = next(iid for iid, v in rt._sem_selector_map.items()
+                 if v[0] == "guardada")
+    rt.tree_sem_selector.selection_set(iid_g)
+    rt._sem_eliminar_guardada()
+    chequear("eliminar guardada: con confirmación se borra de la biblioteca",
+             len(database.get_rutinas_guardadas(semanal=1)) == 0
+             and "guardada eliminada" in rt.lbl_estado.cget("text"))
+finally:
+    rutinas_tab.messagebox.askyesno = _askyesno_original
+
 # 8) PDF del ciclo (sin abrirlo en pantalla: se intercepta os.startfile)
 rutas_pdf = []
 os.startfile_original = os.startfile
