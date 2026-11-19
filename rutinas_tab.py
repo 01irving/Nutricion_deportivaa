@@ -364,131 +364,6 @@ def _normalizar(texto):
     texto = unicodedata.normalize("NFD", texto)
     return "".join(c for c in texto if unicodedata.category(c) != "Mn")
 
-# ----------------------------------------------------------------------
-# Pestaña Progresión — Position Stand del ACSM: "Progression Models in
-# Resistance Training for Healthy Adults" (Med Sci Sports Exerc,
-# 2009;41(3):687-708). Tres ramas: principiantes, intermedios, avanzados.
-# ----------------------------------------------------------------------
-CONTENIDO_INTRO_PROGRESION = """TITULO: MODELO DE PROGRESIÓN (ACSM 2009)
-
-Elige tu nivel en el árbol de la izquierda.
-
-◆ Principiantes — sin experiencia o desentrenados por años
-◆ Intermedios — alrededor de 6 meses de entrenamiento constante
-◆ Avanzados — años de entrenamiento con cargas
-
-Regla que atraviesa todos los niveles: cuando el atleta complete
-1-2 repeticiones más que las objetivo con su carga actual, se
-aumenta el peso entre 2% y 10%.
-"""
-
-CONTENIDO_PROGRESION = {
-    "principiantes": """TITULO: 🟢 PRINCIPIANTES
-
-Sin experiencia en pesas o desentrenados durante varios años.
-
-◆ Frecuencia
-2-3 días por semana, entrenando cada grupo muscular en cada
-sesión (rutina de cuerpo completo).
-
-◆ Carga y repeticiones
-Cargas que permitan 8-12 repeticiones máximas (RM) por
-ejercicio.
-
-◆ Series
-1-3 series por ejercicio; empezar conservador y sumar series
-según se adapte.
-
-◆ Velocidad de ejecución
-Moderada: 1-2 segundos la fase concéntrica (subida) y 1-2
-segundos la excéntrica (bajada).
-
-◆ Descanso
-1-2 minutos entre series; 2-3 minutos en multiarticulares
-pesadas.
-
-◆ Selección de ejercicios
-Multiarticulares antes que unilaterales; grandes grupos
-musculares antes que los pequeños.
-
-◆ Progresión
-Al completar 1-2 repeticiones por encima del rango objetivo,
-aumentar la carga 2-10%.
-""",
-    "intermedios": """TITULO: 🟡 INTERMEDIOS
-
-Alrededor de 6 meses de entrenamiento de fuerza constante.
-
-◆ Frecuencia
-3-4 días por semana.
-
-◆ Carga y repeticiones
-Rango más amplio: 1-12 RM usado EN FORMA PERIODIZADA, con
-énfasis en cargas pesadas (1-6 RM).
-
-◆ Series
-Múltiples series por ejercicio; variar el volumen por ciclos.
-
-◆ Velocidad de ejecución
-Moderada: 1-2 segundos concéntrico, 1-2 segundos excéntrico.
-
-◆ Descanso
-3-5 minutos entre series con cargas pesadas multiarticulares;
-1-2 minutos si el objetivo de la serie es hipertrofia.
-
-◆ Periodización
-Entrenar en forma periodizada (lineal u ondulante): alternar
-bloques de volumen e intensidad para seguir progresando.
-
-◆ Progresión
-2-10% de aumento de carga al superar el rango objetivo;
-manipular también series y frecuencia entre microciclos.
-""",
-    "avanzados": """TITULO: 🔴 AVANZADOS
-
-Años de entrenamiento de fuerza sistemático.
-
-◆ Frecuencia
-4-5 días por semana (rutinas divididas por grupos musculares).
-
-◆ Carga y repeticiones
-1-12 RM periodizado, progresando con énfasis hacia 1-6 RM.
-
-◆ Series y volumen
-Alto volumen planificado: múltiples series y ejercicios por
-grupo, manipulados por mesociclo.
-
-◆ Velocidad de ejecución
-Moderada para fuerza; para potencia, cargas ligeras movidas a
-máxima velocidad: 0-60% de 1RM en tren inferior y 30-60% de
-1RM en tren superior, 3-5 series por ejercicio.
-
-◆ Descanso
-3-5 minutos entre series pesadas y de potencia.
-
-◆ Periodización
-Plan anual completo: macrociclo, mesociclos y microciclos,
-alternando fuerza, potencia y picos.
-
-◆ Progresión
-Además del 2-10% de carga, progresar manipulando volumen,
-intensidad, frecuencia y descansos; incluir acciones
-concéntricas, excéntricas e isométricas, trabajo bilateral y
-unilateral.
-""",
-}
-
-REGLAS_GENERALES_PROGRESION = (
-    "Reglas generales (todos los niveles): progresa por ciclos de 4 "
-    "semanas con deloading en la cuarta (sub-pestaña Ciclos), subiendo "
-    "la carga ~2.5-5% al completar 1-2 reps más que el objetivo · "
-    "grandes músculos antes que pequeños y multiarticulares antes que "
-    "unilaterales · hipertrofia: 6-12 RM con 1-2 min de descanso y "
-    "varias series · resistencia muscular: 40-60% de 1RM, >15 reps, "
-    "descanso <90 s · potencia: cargas ligeras a máxima velocidad con "
-    "3-5 min de descanso · intermedios y avanzados entrenan en forma "
-    "periodizada."
-)
 
 
 class RutinasTab:
@@ -617,6 +492,66 @@ class RutinasTab:
             dia: {"sesion": None, "ejercicios": []} for dia in DIAS_SEMANA
         }
 
+    def _sem_definir_datos(self, datos):
+        """Coloca `datos` como Semana 1 y vacía las ranuras 2-4: al cargar
+        una plantilla del estudio, del paciente o del historial, la rutina
+        entra completa en la Semana 1 del mesociclo."""
+        self._sem_n = 1
+        self._sem_semanas = {n: self._sem_semana_vacia() for n in (2, 3, 4)}
+        self._sem_semanas[1] = self._sem_datos = datos
+        self._sem_marcar_boton_semana()
+
+    def _sem_marcar_boton_semana(self):
+        """Ilumina la ranura de semana que se está diseñando."""
+        for n, boton in getattr(self, "btns_sem_n", {}).items():
+            activo = n == getattr(self, "_sem_n", 1)
+            boton.configure(
+                fg=NEGRO if activo else NEON,
+                bg=NEON if activo else GRIS,
+            )
+
+    def _sem_elegir_semana(self, n):
+        """Cambia la ranura de semana que se está diseñando (Semana 1-4);
+        la que estaba queda guardada tal cual en su ranura."""
+        if n == getattr(self, "_sem_n", 1):
+            return
+        self._sem_cerrar_editor()
+        self._sem_semanas[self._sem_n] = self._sem_datos
+        self._sem_n = n
+        self._sem_datos = (self._sem_semanas.get(n)
+                           or self._sem_semana_vacia())
+        self._sem_semanas[n] = self._sem_datos
+        self._sem_dia = next(
+            (d for d in DIAS_SEMANA if self._sem_datos[d]["sesion"]),
+            DIAS_SEMANA[0],
+        )
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+        self._sem_marcar_boton_semana()
+        self._mensaje(f"Editando la Semana {n} del mesociclo.")
+
+    def _sem_cargar_mesociclo(self, bloque):
+        """Deja las 4 semanas del mesociclo `bloque` en las ranuras
+        Semana 1-4 de la pestaña Rutina, listas para diseñarlas/editarlas
+        una a una (al GENERAR en Ciclos se cargan las 4 semanas)."""
+        for si, s in enumerate(bloque["semanas"][:4], start=1):
+            datos = self._sem_semana_vacia()
+            for dia, fichas in (bloque["dias"] or {}).items():
+                if not fichas:
+                    continue
+                datos[dia]["sesion"] = (
+                    f"{bloque['objetivo']} · Semana {s['n']}"
+                    + (" · Deload" if s["tipo"] == "Deload" else ""))
+                datos[dia]["ejercicios"] = [
+                    self._cic_fila_semana(bloque, s, f) for f in fichas
+                ]
+            self._sem_semanas[si] = datos
+        self._sem_n = 1
+        self._sem_datos = self._sem_semanas[1]
+        self._sem_marcar_boton_semana()
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+
     # ------------------------------------------------------------------
     # Construcción de la sub-pestaña «Semana»
     # ------------------------------------------------------------------
@@ -628,8 +563,12 @@ class RutinasTab:
         marco = ttk.Frame(self.interior_rut, style="Gym.TFrame")
         self.marco_sem = marco
 
-        # estado del editor semanal (se llena al cargar una rutina)
+        # estado del editor semanal (se llena al cargar una rutina);
+        # 4 ranuras de semana para diseñar el mesociclo una a una
+        self._sem_n = 1
+        self._sem_semanas = {}
         self._sem_datos = self._sem_semana_vacia()
+        self._sem_semanas[1] = self._sem_datos
         self._sem_dia = DIAS_SEMANA[0]
         self._sem_origen = "nueva"
         self._sem_guardada_id = None
@@ -759,6 +698,28 @@ class RutinasTab:
         self.menu_sem_imprimir.add_cascade(
             label="💾 Guardar PDF…", menu=menu_guardar_sem
         )
+
+        # ---------- ranuras Semana 1-4 del mesociclo ----------------------
+        # (pedido del autor: diseñar cada una de las 4 semanas y que al
+        # generar en Ciclos se carguen aquí las 4 semanas)
+        fila_semanas = ttk.Frame(derecho, style="Gym.TFrame")
+        fila_semanas.pack(fill="x", pady=(6, 0))
+        tk.Label(
+            fila_semanas, text="Semanas del mesociclo:",
+            font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
+        ).pack(side="left")
+        self.btns_sem_n = {}
+        for n in (1, 2, 3, 4):
+            boton_n = tk.Button(
+                fila_semanas, text=f"Semana {n}",
+                command=lambda nn=n: self._sem_elegir_semana(nn),
+                font=("Segoe UI", 8, "bold"), fg=NEON, bg=GRIS,
+                activebackground=NARANJA, activeforeground=BLANCO,
+                relief="flat", padx=10, pady=2, cursor="hand2",
+            )
+            boton_n.pack(side="left", padx=(6, 0))
+            self.btns_sem_n[n] = boton_n
+        self._sem_marcar_boton_semana()
 
         # ---------- tabla de la semana (7 días, Lunes primero) -----------
         marco_semana = ttk.LabelFrame(
@@ -1047,7 +1008,7 @@ class RutinasTab:
             self._mensaje("Elige una rutina semanal en la tabla de la izquierda.")
             return
         origen, clave = self._sem_selector_map[sel[0]]
-        self._sem_datos = self._sem_semana_vacia()
+        self._sem_definir_datos(self._sem_semana_vacia())
         if origen == "fija":
             plantilla = PLANTILLAS_SEMANA[clave]
             sesiones, faltan = self._fichas_plantilla(plantilla)
@@ -1105,7 +1066,7 @@ class RutinasTab:
 
     def _sem_nueva(self):
         """Vacía el editor para crear una rutina semanal nueva."""
-        self._sem_datos = self._sem_semana_vacia()
+        self._sem_definir_datos(self._sem_semana_vacia())
         self._sem_nombre = "Nueva rutina semanal"
         self._sem_origen = "nueva"
         self._sem_guardada_id = None
@@ -1124,7 +1085,7 @@ class RutinasTab:
             self._mensaje("Selecciona un paciente antes de cargar su semana.")
             return
         self._cargar_rutina()
-        self._sem_datos = self._sem_semana_vacia()
+        self._sem_definir_datos(self._sem_semana_vacia())
         for e in [r for r in getattr(self, "rutina", []) if not r.get("descanso")]:
             dia = e.get("dia") or "Lunes"
             if dia not in self._sem_datos:
@@ -2088,7 +2049,7 @@ class RutinasTab:
         if not entrada:
             self._mensaje("No se pudo leer la rutina guardada del paciente.")
             return
-        self._sem_datos = self._sem_semana_vacia()
+        self._sem_definir_datos(self._sem_semana_vacia())
         for d in entrada.get("dias", []):
             dia = d.get("dia") or "Lunes"
             if dia not in self._sem_datos:
@@ -2336,98 +2297,6 @@ class RutinasTab:
     # ------------------------------------------------------------------
     # Pestaña Progresión (ACSM 2009: principiantes / intermedios / avanzados)
     # ------------------------------------------------------------------
-    def _crear_tab_progresion(self):
-        marco = ttk.Frame(self.notebook_rut, style="Gym.TFrame")
-        self.notebook_rut.add(marco, text="  Progresión  ")
-
-        # ----- ramas de árbol a la izquierda -----
-        marco_nivel = ttk.LabelFrame(
-            marco, text=" Nivel de entrenamiento ", padding=6,
-            style="Gym.TLabelframe",
-        )
-        marco_nivel.pack(side="left", fill="y", padx=(8, 4), pady=8)
-
-        arbol = ttk.Treeview(
-            marco_nivel, show="tree", selectmode="browse", height=6,
-            style="Gym.Treeview",
-        )
-        raiz = arbol.insert("", "end", iid="raiz", open=True,
-                            text="🏋 Modelos de progresión")
-        arbol.insert(raiz, "end", iid="principiantes",
-                     text="🟢 Principiantes")
-        arbol.insert(raiz, "end", iid="intermedios",
-                     text="🟡 Intermedios")
-        arbol.insert(raiz, "end", iid="avanzados", text="🔴 Avanzados")
-        arbol.pack(fill="both", expand=True)
-
-        tk.Label(
-            marco_nivel, text="Basado en el Position Stand del ACSM "
-            "(Med Sci Sports Exerc, 2009).", font=("Segoe UI", 8),
-            fg=GRIS_TEXTO, bg=GRIS_OSCURO, wraplength=200, justify="left",
-        ).pack(anchor="w", pady=(8, 0))
-
-        # ----- panel de contenido a la derecha -----
-        marco_detalle = ttk.LabelFrame(
-            marco, text=" Recomendaciones ", padding=6,
-            style="Gym.TLabelframe",
-        )
-        marco_detalle.pack(side="left", fill="both", expand=True,
-                           padx=(4, 8), pady=8)
-
-        panel = tk.Text(
-            marco_detalle, bg=GRIS_OSCURO, fg=BLANCO, relief="flat",
-            font=("Segoe UI", 10), wrap="word", padx=14, pady=10,
-            height=18,
-        )
-        panel.pack(side="left", fill="both", expand=True)
-        barra_sc = ttk.Scrollbar(marco_detalle, command=panel.yview)
-        barra_sc.pack(side="right", fill="y")
-        panel.configure(yscrollcommand=barra_sc.set)
-        panel.tag_configure("titulo", font=("Impact", 14), foreground=NEON)
-        panel.tag_configure("seccion", font=("Segoe UI", 10, "bold"),
-                            foreground=NARANJA)
-        panel.tag_configure("normal", font=("Segoe UI", 10), foreground=BLANCO,
-                            spacing3=4)
-        panel.tag_configure("nota", font=("Segoe UI", 9),
-                            foreground=GRIS_TEXTO)
-
-        # ----- reglas generales + cita al pie -----
-        pie = tk.Label(
-            marco, text=REGLAS_GENERALES_PROGRESION
-            + "\nAmerican College of Sports Medicine. Progression Models "
-            "in Resistance Training for Healthy Adults. Med Sci Sports "
-            "Exerc. 2009;41(3):687-708.",
-            font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
-            wraplength=760, justify="left",
-        )
-        pie.pack(fill="x", padx=8, pady=(0, 8))
-
-        def mostrar_nivel(_evento=None):
-            sel = arbol.selection()
-            if not sel or sel[0] == "raiz":
-                contenido = CONTENIDO_INTRO_PROGRESION
-            else:
-                contenido = CONTENIDO_PROGRESION.get(sel[0], "")
-            panel.configure(state="normal")
-            panel.delete("1.0", "end")
-            panel.insert("1.0", contenido, "normal")
-            # resalta los renglones que empiezan con ◆ como secciones
-            linea = 1
-            for renglon in contenido.split("\n"):
-                if renglon.startswith("◆ "):
-                    panel.delete(f"{linea}.0", f"{linea}.end")
-                    panel.insert(f"{linea}.0", renglon[2:], "seccion")
-                elif renglon.startswith("TITULO: "):
-                    panel.delete(f"{linea}.0", f"{linea}.end")
-                    panel.insert(f"{linea}.0", renglon[8:], "titulo")
-                linea += 1
-            panel.configure(state="disabled")
-
-        arbol.bind("<<TreeviewSelect>>", mostrar_nivel)
-        arbol.selection_set("principiantes")
-        mostrar_nivel()
-
-
     def _cargar_ejercicios(self, grupo=None):
         """Lee los ejercicios del catálogo: TODOS los grupos si no se
         pide uno concreto (el selector diario ya no filtra por grupo)."""
@@ -2513,7 +2382,6 @@ class RutinasTab:
         self._crear_tab_rutina()
         self._crear_panel_semana()
         self._crear_tab_estiramiento()
-        self._crear_tab_progresion()
         self._crear_tab_ciclos()
         self.notebook_rut.bind("<<NotebookTabChanged>>", self._al_cambiar_subpestana)
         self.cargar(getattr(self.app, "id_paciente_antro", None))
@@ -3297,10 +3165,10 @@ class RutinasTab:
             return 1
 
     def _al_cambiar_subpestana(self, event=None):
-        """En Estiramientos y Progresión el título y el filtro cambian;
-        al entrar a Ciclos se refrescan las semanas base disponibles y al
-        cambiar de sub-pestaña se restablece la barra de estado para que
-        no queden mensajes viejos pegados."""
+        """En Estiramientos el título y el filtro cambian; al entrar a
+        Ciclos se refrescan las semanas base disponibles y al cambiar de
+        sub-pestaña se restablece la barra de estado para que no queden
+        mensajes viejos pegados."""
         sub = self._subpestana_actual()
         self.lbl_estado.configure(
             text=getattr(self, "_estado_base", "") or "Rutinas")
@@ -3308,8 +3176,6 @@ class RutinasTab:
             self.titulo.configure(text="ESTIRAMIENTOS")
             self._cargar_est_paciente()
         elif sub == 3:
-            self.titulo.configure(text="PROGRESIÓN · MODELO ACSM 2009")
-        elif sub == 4:
             self.titulo.configure(text="RUTINAS · CICLOS")
             self._cic_refrescar_bases()
         else:
@@ -4819,11 +4685,23 @@ class RutinasTab:
         ttk.Spinbox(fila_ctrl, from_=1, to=3, width=3,
                     textvariable=self.cic_n_var,
                     style="Gym.TSpinbox").pack(side="left", padx=(4, 10))
+        tk.Label(fila_ctrl, text="Progresión:", font=("Segoe UI", 8),
+                 fg=GRIS_TEXTO, bg=GRIS_OSCURO).pack(side="left")
+        self.cic_modo_var = tk.StringVar(value=CIC_MODOS[0])
+        ttk.Combobox(fila_ctrl, textvariable=self.cic_modo_var,
+                     values=CIC_MODOS, state="readonly",
+                     width=16, style="Gym.TCombobox").pack(
+            side="left", padx=(4, 10))
         tk.Button(fila_ctrl, text="⚙ GENERAR", command=self._cic_generar,
                   font=("Impact", 10), fg=NEGRO, bg=NEON,
                   activebackground=NARANJA, activeforeground=BLANCO,
                   relief="flat", padx=12, pady=3, cursor="hand2").pack(
             side="left", padx=(0, 8))
+        tk.Button(fila_ctrl, text="📄 ACSM 2009", command=self._cic_abrir_acsm,
+                  font=("Segoe UI", 8, "bold"), fg=NEON, bg=GRIS,
+                  activebackground=NARANJA, activeforeground=BLANCO,
+                  relief="flat", padx=8, pady=2, cursor="hand2").pack(
+            side="right")
 
         fila_acciones = ttk.Frame(derecho, style="Gym.TFrame")
         fila_acciones.pack(fill="x", pady=(0, 4))
@@ -4941,6 +4819,52 @@ class RutinasTab:
         escalado = _discos_2_5(kg * mult)
         return f"{escalado:g} kg"
 
+    @staticmethod
+    def _cic_reps_ajustadas(reps, extra):
+        """Rango de repeticiones desplazado +extra ('10-12' -> '11-13');
+        si el texto no es interpretable se queda igual. Base ACSM 2009:
+        1-2 reps sobre el objetivo habilitan subir la carga 2-10 %."""
+        m = re.match(r"^\s*(\d+)\s*-\s*(\d+)\s*$", str(reps or ""))
+        if not m:
+            return str(reps or "")
+        return f"{int(m.group(1)) + extra}-{int(m.group(2)) + extra}"
+
+    def _cic_fila_semana(self, bloque, s, f):
+        """Ficha de un ejercicio para la semana `s` del bloque: series
+        (deloading = mitad), repeticiones de la semana y peso escalado
+        redondeado a discos de 2.5 kg. Común a APLICAR AL PACIENTE y a la
+        carga de las ranuras Semana 1-4."""
+        m = re.search(r"\d+", f["series_base"] or "")
+        series = int(m.group()) if m else 3
+        if s["tipo"] == "Deload":
+            series = max(1, round(series * CIC_DELOAD_SERIES))
+        elif s.get("series_extra"):
+            series += s["series_extra"]
+        return {
+            "nombre": f.get("nombre") or "",
+            "equipo": f.get("equipo") or "",
+            "grupo": f.get("grupo"),
+            "num": f.get("num"),
+            "series": str(series),
+            "repeticiones": s.get("reps_txt") or bloque["reps"],
+            "descanso_rep": f.get("descanso_rep") or "",
+            "descanso_series": f.get("descanso_series") or "",
+            "peso": self._cic_peso_texto(f["peso_base"], s["peso_mult"]),
+            "notas": "",
+        }
+
+    def _cic_abrir_acsm(self):
+        """Abre el Position Stand del ACSM 2009 (PDF) que fundamenta la
+        progresión de los ciclos (por carga, por repeticiones o ambos)."""
+        ruta = os.path.join(base_dir(), "ACSM_2009_progresion.pdf")
+        if os.path.exists(ruta):
+            os.startfile(ruta)
+        else:
+            messagebox.showinfo(
+                "Ciclos", "No se encontró el documento "
+                "ACSM_2009_progresion.pdf junto a la app.",
+                parent=self.marco_cic)
+
     def _cic_generar(self):
         if not self._cic_nombre_base:
             messagebox.showwarning(
@@ -4958,15 +4882,31 @@ class RutinasTab:
                                    "ejercicios.", parent=self.marco_cic)
             return
         secuencia = CIC_SECUENCIAS[objetivo][:n_mesos]
+        modo = (self.cic_modo_var.get() if self.cic_modo_var.get()
+                in CIC_MODOS else CIC_MODOS[0])
         bloques = []
         for spec in secuencia:
             ramp = spec["ramp"]
             semanas = []
             for wi, mult in enumerate(ramp, start=1):
-                semanas.append({"n": wi, "tipo": "Carga", "peso_mult": mult,
-                                "series_extra": 1 if wi == 3 else 0})
+                # Por carga: sube la carga cada semana (ramp del bloque) con
+                # el rango fijo. Por repeticiones: carga fija y el rango
+                # sube 1 rep por semana (ACSM: 1-2 reps sobre el objetivo).
+                # Ambos: sube la carga Y el rango (doble progresión).
+                if modo == "Por repeticiones":
+                    mult_sem = 1.00
+                else:
+                    mult_sem = mult
+                reps_sem = (spec["reps"] if modo == "Por carga"
+                            else self._cic_reps_ajustadas(spec["reps"],
+                                                          wi - 1))
+                semanas.append({"n": wi, "tipo": "Carga",
+                                "peso_mult": mult_sem,
+                                "series_extra": 1 if wi == 3 else 0,
+                                "reps_txt": reps_sem})
             semanas.append({"n": 4, "tipo": "Deload",
-                            "peso_mult": CIC_DELOAD_PESO, "series_extra": 0})
+                            "peso_mult": CIC_DELOAD_PESO, "series_extra": 0,
+                            "reps_txt": spec["reps"]})
             dias = {}
             for dia, fichas in base.items():
                 filas = []
@@ -4993,6 +4933,7 @@ class RutinasTab:
             f"Ciclo {objetivo} · {self._cic_nombre_base}")
         self._cic_datos = {
             "base": self._cic_nombre_base, "objetivo": objetivo,
+            "modo": modo,
             "mesociclos": n_mesos, "notas": list(CIC_NOTAS),
             "bloques": bloques,
         }
@@ -5003,10 +4944,17 @@ class RutinasTab:
         self.cic_ver_var.set(opciones[0])
         self.lbl_cic_info.configure(text=(
             f"Ciclo generado: {n_mesos} mesociclos × 4 semanas "
-            f"({sum(len(b['semanas']) for b in bloques)} semanas totales). "
-            "Semana 4 = deloading (mitad de series, carga -10 %). "
-            "APLICAR AL PACIENTE deja cada semana en el historial de Semana."))
+            f"({sum(len(b['semanas']) for b in bloques)} semanas totales) "
+            f"· progresión {modo.lower()}. Semana 4 = deloading (mitad de "
+            "series, carga -10 %). Las 4 semanas del mesociclo 1 quedaron "
+            "cargadas en Semana 1-4 (pestaña Rutina) y APLICAR AL PACIENTE "
+            "deja cada semana en el historial de Semana."))
         self._cic_pintar()
+        # las 4 semanas del primer mesociclo quedan en las ranuras
+        # Semana 1-4 de la pestaña Rutina para diseñarlas/editarlas
+        self._sem_cargar_mesociclo(bloques[0])
+        self._mensaje(f"Ciclo generado ({modo.lower()}): las 4 semanas del "
+                      "mesociclo 1 están en Semana 1-4 de Rutina.")
 
     def _cic_bloque_actual(self):
         if not self._cic_datos:
@@ -5043,7 +4991,7 @@ class RutinasTab:
                         series_d = series
                     peso = self._cic_peso_texto(f["peso_base"],
                                                 s["peso_mult"])
-                    celdas.append(f"{series_d}×{bloque['reps']} · {peso}")
+                    celdas.append(f"{series_d}×{s.get('reps_txt') or bloque['reps']} · {peso}")
                 self.tree_cic.insert("", tk.END, values=tuple(celdas),
                                      tags=tags)
 
@@ -5173,25 +5121,11 @@ class RutinasTab:
                 for dia, fichas in (bloque["dias"] or {}).items():
                     ejercicios = []
                     for f in fichas:
-                        m = re.search(r"\d+", f["series_base"] or "")
-                        series = int(m.group()) if m else 3
-                        if s["tipo"] == "Deload":
-                            series = max(1, round(series * CIC_DELOAD_SERIES))
-                        elif s.get("series_extra"):
-                            series += s["series_extra"]
-                        ejercicios.append({
-                            "dia": dia, "sesion": (
-                                f"{bloque['objetivo']} · Semana {s['n']}"),
-                            "nombre": f["nombre"], "equipo": f["equipo"],
-                            "grupo": f.get("grupo"), "num": f.get("num"),
-                            "series": str(series),
-                            "repeticiones": bloque["reps"],
-                            "descanso_rep": f.get("descanso_rep") or "",
-                            "descanso_series": f.get("descanso_series") or "",
-                            "peso": self._cic_peso_texto(f["peso_base"],
-                                                         s["peso_mult"]),
-                            "notas": "",
-                        })
+                        fila = self._cic_fila_semana(bloque, s, f)
+                        fila["dia"] = dia
+                        fila["sesion"] = (
+                            f"{bloque['objetivo']} · Semana {s['n']}")
+                        ejercicios.append(fila)
                     dias.append({"dia": dia,
                                  "sesion": (f"{bloque['objetivo']} · "
                                             f"Semana {s['n']}"),
@@ -5236,6 +5170,7 @@ class RutinasTab:
         elementos = [
             Paragraph("CICLO DE ENTRENAMIENTO", h1),
             Paragraph(f"{nombre} · objetivo {self._cic_datos['objetivo']} · "
+                      f"progresión {self._cic_datos.get('modo', 'Por carga').lower()} · "
                       f"{self._cic_datos.get('mesociclos', 1)} mesociclos × "
                       "4 semanas (3 de carga progresiva + deloading en la "
                       "4.ª semana)", normal),
@@ -5347,6 +5282,15 @@ CIC_SECUENCIAS = {
 }
 CIC_DELOAD_SERIES = 0.5     # mitad de series (volumen -50 %)
 CIC_DELOAD_PESO = 0.90      # carga -10 % por prudencia (intensidad similar)
+
+# Modo de progresión del mesociclo (pedido del autor: por repeticiones,
+# por carga o ambos). Base ACSM 2009 (Progression Models in Resistance
+# Training for Healthy Adults, Med Sci Sports Exerc 41(3):687-708):
+# «2-10 % de aumento de carga cuando el individuo puede realizar la
+# carga actual 1-2 repeticiones por encima de la deseada en dos sesiones
+# consecutivas» (categoría de evidencia B; porcentaje menor en ejercicios
+# de musculatura pequeña y mayor en los de musculatura grande).
+CIC_MODOS = ("Por carga", "Por repeticiones", "Ambos")
 CIC_NOTAS = (
     "Mesociclo de 4 semanas: 3 de carga progresiva + 1 de deloading "
     "(Issurin 2010; Lorenz 2015).",
@@ -5356,6 +5300,10 @@ CIC_NOTAS = (
     "(Bosquet et al. 2007, meta-analisis).",
     "Progresion de carga ~2.5-5 % por semana dentro del bloque "
     "(sobrecarga progresiva; redondeo a discos de 2.5 kg).",
+    "ACSM 2009: al completar 1-2 repeticiones sobre el objetivo en dos "
+    "sesiones consecutivas se sube la carga 2-10 % (menos % en musculatura "
+    "pequena, mas % en grande); por eso el ciclo puede progresar por "
+    "carga, por repeticiones o por ambas (doble progresion).",
     "Macrociclo: bloques encadenados Hipertrofia -> Fuerza; el bloque "
     "previo potencia al siguiente (efectos residuales, Issurin 2010).",
     "El deloading cada 4-8 semanas es la practica habitual; Coleman et "

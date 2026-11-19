@@ -42,6 +42,7 @@ ARCHIVOS_DATOS = (
     "SMAE-5.xlsx",
     "mets.csv",
     "icono_app.ico",
+    "ACSM_2009_progresion.pdf",  # Position Stand que fundamenta Ciclos
     "abdominales_ejercicios.json",
     "brazos_ejercicios.json",
     "calentamiento_powerlifting.json",
