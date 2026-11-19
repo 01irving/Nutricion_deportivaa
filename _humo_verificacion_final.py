@@ -686,6 +686,41 @@ try:
 finally:
     rutinas_tab.messagebox.askyesno = _askyesno_original
 
+# 7g) Aplicar los 1RM y el cálculo de las semanas 1-4: botón visible
+# (el 1RM manda sobre el peso manual), armar estable respetando lo
+# escrito y auto-armado cuando las ranuras 2-4 están vacías, con
+# ventana de reporte del cálculo por semana
+chequear("aplicar 1RM: botón ARMAR DESDE 1RM junto a APLICAR MESOCICLO",
+         hasattr(rt, "btn_sem_armar_rm")
+         and str(rt.btn_sem_armar_rm.cget("text")) == "🏋 ARMAR DESDE 1RM")
+rt._sem_nivel_var.set("Principiante")
+_ficha_semana(1, "bench")["peso"] = "99 kg"   # peso manual de prueba
+rt._sem_armar_mesociclo_1rm(False)
+chequear("aplicar 1RM: sin prioridad, el peso manual es la base "
+         "(99 kg redondeado a discos → 100 kg)",
+         _ficha_semana(1, "bench")["peso"] == "100 kg")
+rt._sem_armar_mesociclo_1rm(True)
+raiz.update()
+chequear("aplicar 1RM: con el botón, el 1RM manda (140 kg al 65 % → 90 kg)",
+         _ficha_semana(1, "bench")["peso"] == "90 kg")
+_tops = [w for w in rt.marco.winfo_children()
+         if isinstance(w, tk.Toplevel)
+         and str(w.title()).startswith("Pesos por semana")]
+chequear("aplicar 1RM: ventana de reporte con el cálculo por semana",
+         bool(_tops))
+for _w in _tops:
+    _w.destroy()
+for n in (2, 3, 4):
+    rt._sem_semanas.pop(n, None)
+rt._sem_pesos_desde_1rm(True)
+raiz.update()
+chequear("aplicar 1RM: 'Mesociclo' con ranuras 2-4 vacías las arma desde 1RM",
+         all(rt._sem_semanas.get(n) and any(
+             d.get("ejercicios")
+             for d in rt._sem_semanas[n].values()) for n in (1, 2, 3, 4))
+         and _ficha_semana(1, "bench")["peso"] == "90 kg"
+         and "Mesociclo armado" in rt.lbl_estado.cget("text"))
+
 # 8) PDF del ciclo (sin abrirlo en pantalla: se intercepta os.startfile)
 rutas_pdf = []
 os.startfile_original = os.startfile

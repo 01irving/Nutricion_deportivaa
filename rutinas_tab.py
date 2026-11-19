@@ -999,6 +999,18 @@ class RutinasTab:
             relief="flat", padx=10, pady=2, cursor="hand2",
         )
         self.btn_sem_mesociclo.pack(side="right")
+        # aplica los 1RM guardados del paciente a los ejercicios de la
+        # semana diseñada y arma el cálculo de las semanas 1-4 (con el
+        # nivel elegido y deloading en la 4.ª); el 1RM manda sobre el
+        # peso escrito a mano
+        self.btn_sem_armar_rm = tk.Button(
+            fila_semanas, text="🏋 ARMAR DESDE 1RM",
+            command=lambda: self._sem_armar_mesociclo_1rm(True),
+            font=("Segoe UI", 8, "bold"), fg=NEON, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=10, pady=2, cursor="hand2",
+        )
+        self.btn_sem_armar_rm.pack(side="right", padx=(0, 6))
 
         # ---------- tabla de la semana (7 días, Lunes primero) -----------
         marco_semana = ttk.LabelFrame(
@@ -1993,9 +2005,18 @@ class RutinasTab:
             return
         nivel = self._sem_nivel_var.get()
         pct_base, mults = _sem_rampa_nivel(nivel)
+        # si piden el mesociclo y las ranuras 2-4 están vacías, se arman
+        # desde la semana diseñada con los 1RM del paciente (prioridad 1RM)
+        if todas_las_semanas and not any(
+                (self._sem_semanas.get(n) or {}).get(dia, {}).get(
+                    "ejercicios")
+                for n in (2, 3, 4) for dia in DIAS_SEMANA):
+            self._sem_armar_mesociclo_1rm(prioridad_rm=True)
+            return
         semanas = (1, 2, 3, 4) if todas_las_semanas else (self._sem_n,)
         llenados = 0
         sin_rm = []
+        reporte = {}
         for n in semanas:
             datos = (self._sem_semanas.get(n) or self._sem_semana_vacia()
                      if todas_las_semanas else self._sem_datos)
@@ -2011,6 +2032,14 @@ class RutinasTab:
                             rm * pct / 100.0 * mults[n - 1])
                         ej["peso"] = f"{peso:g} kg"
                         llenados += 1
+                        entrada = reporte.setdefault(nombre, {
+                            "nombre": ej.get("nombre"),
+                            "reps": ej.get("repeticiones"),
+                            "pct": round(pct),
+                            "rm": rm,
+                            "pesos": {},
+                        })
+                        entrada["pesos"][n] = ej["peso"]
                     elif ej.get("nombre") and ej.get("nombre") not in sin_rm:
                         sin_rm.append(ej.get("nombre"))
         self._sem_pintar_ejercicios()
@@ -2028,6 +2057,97 @@ class RutinasTab:
             f"({SEM_NIVELES_ACSM[nivel]['base']}), Semana 4 deloading "
             "-10 % (cuadro 18.8 NSCA)." + detalle
         )
+        if todas_las_semanas and reporte:
+            filas = [
+                dict(v, pesos=[v["pesos"].get(n, "—")
+                               for n in (1, 2, 3, 4)])
+                for v in reporte.values()
+            ]
+            filas.sort(key=lambda r: (-(r["rm"] or 0), r["nombre"] or ""))
+            self._sem_reporte_pesos(filas, nivel)
+
+    def _sem_reporte_pesos(self, filas, nivel):
+        """Ventana con el cálculo por ejercicio tras aplicar los 1RM:
+        1RM, % usado y peso de la Semana 1 a la 4 (deloading en la
+        4.ª)."""
+        import tkinter as tk
+        from tkinter import ttk
+
+        pct_base, _mults = _sem_rampa_nivel(nivel)
+        ventana = tk.Toplevel(self.marco)
+        ventana.title("Pesos por semana desde el 1RM")
+        ventana.configure(bg=NEGRO)
+        ventana.transient(self.marco)
+        try:
+            ventana.iconbitmap("icono_app.ico")
+        except Exception:
+            pass
+        tk.Label(
+            ventana, text=f"📊 PESOS POR SEMANA · NIVEL {nivel.upper()}",
+            font=("Impact", 14), fg=NEON, bg=NEGRO,
+        ).pack(anchor="w", padx=12, pady=(10, 2))
+        tk.Label(
+            ventana, text=(
+                f"Semana 1 = {pct_base:g} % del 1RM "
+                f"({SEM_NIVELES_ACSM[nivel]['base']}) · Semanas 2-3 con "
+                "el paso semanal · Semana 4 deloading -10 % · pesos "
+                "redondeados a discos de 2.5 kg"),
+            font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=NEGRO,
+            wraplength=640, justify="left",
+        ).pack(anchor="w", padx=12, pady=(0, 6))
+        columnas = ("ejercicio", "reps", "pct", "rm", "s1", "s2", "s3",
+                    "s4")
+        marco = tk.Frame(ventana, bg=GRIS_OSCURO)
+        marco.pack(fill="both", expand=True, padx=12)
+        tabla = ttk.Treeview(marco, columns=columnas, show="headings",
+                             height=min(max(len(filas), 4), 18))
+        estilo = ttk.Style(ventana)
+        estilo.configure("R3.Treeview", background=GRIS_OSCURO,
+                         fieldbackground=GRIS_OSCURO, foreground=BLANCO,
+                         rowheight=22, borderwidth=0)
+        estilo.configure("R3.Treeview.Heading", background=GRIS, fg=NEON,
+                         font=("Segoe UI", 9, "bold"))
+        tabla.configure(style="R3.Treeview")
+        for col, texto, ancho, ancla in (
+            ("ejercicio", "Ejercicio", 260, "w"),
+            ("reps", "Reps", 60, "center"),
+            ("pct", "% 1RM", 60, "center"),
+            ("rm", "1RM (kg)", 70, "center"),
+            ("s1", "Semana 1", 80, "center"),
+            ("s2", "Semana 2", 80, "center"),
+            ("s3", "Semana 3", 80, "center"),
+            ("s4", "S4 deloading", 90, "center"),
+        ):
+            tabla.heading(col, text=texto, anchor=ancla)
+            tabla.column(col, width=ancho, anchor=ancla)
+        barra = ttk.Scrollbar(marco, orient="vertical",
+                              command=tabla.yview)
+        tabla.configure(yscrollcommand=barra.set)
+        barra.pack(side="right", fill="y")
+        tabla.pack(side="left", fill="both", expand=True)
+        for f in filas:
+            tabla.insert("", "end", values=(
+                f.get("nombre") or "—",
+                f.get("reps") or "—",
+                f"{f['pct']:g} %" if f.get("pct") else "—",
+                f"{f['rm']:g}" if f.get("rm") else "—",
+                f.get("pesos", ["—"] * 4)[0],
+                f.get("pesos", ["—"] * 4)[1],
+                f.get("pesos", ["—"] * 4)[2],
+                f.get("pesos", ["—"] * 4)[3],
+            ))
+        tk.Button(
+            ventana, text="CERRAR", command=ventana.destroy,
+            font=("Impact", 11), fg=NEGRO, bg=NEON,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=12, pady=4, cursor="hand2",
+        ).pack(pady=(6, 10))
+        ventana.update_idletasks()
+        x = max(0, (ventana.winfo_screenwidth()
+                    - ventana.winfo_width()) // 2)
+        y = max(0, (ventana.winfo_screenheight()
+                    - ventana.winfo_height()) // 2)
+        ventana.geometry(f"+{x}+{y}")
 
     def _sem_aplicar_rm_guardado(self, datos):
         """Al GUARDAR un 1RM en la calculadora (abierta desde la rutina
@@ -2133,14 +2253,17 @@ class RutinasTab:
         self._sem_pintar_ejercicios()
         self._sem_armar_mesociclo_1rm()
 
-    def _sem_armar_mesociclo_1rm(self):
+    def _sem_armar_mesociclo_1rm(self, prioridad_rm=False):
         """Arma el mesociclo (Semana 1-4) desde la semana diseñada en la
         ranura actual: clona la semana en las 4 ranuras con la progresión
         del nivel elegido (ACSM 2009) — Semana 1 = % base del nivel sobre
         el 1RM del paciente para sus repeticiones (cuadro 18.8 NSCA),
         Semanas 2-3 con el paso semanal (+2,5 %/+5 %) y +1 serie en la
-        3.ª, Semana 4 deloading (mitad de series y carga -10 %) — y
-        respeta los pesos ya escritos como base cuando existen."""
+        3.ª, Semana 4 deloading (mitad de series y carga -10 %). Con
+        `prioridad_rm` (botón 🏋 ARMAR DESDE 1RM) el 1RM manda sobre el
+        peso escrito a mano; si no, el peso manual es la base y el 1RM
+        entra solo donde falta. Al terminar abre el reporte del cálculo
+        por semana."""
         import calculadora_1rm
 
         base = {
@@ -2158,6 +2281,7 @@ class RutinasTab:
         pct_base, mults = _sem_rampa_nivel(nivel)
         mapa = self._rm_mapa()
         con_rm, sin_rm = set(), set()
+        reporte = {}
         semanas = {}
         for n in (1, 2, 3, 4):
             deload = n == 4
@@ -2176,18 +2300,38 @@ class RutinasTab:
                         series += 1
                     ficha["series"] = str(series)
                     nombre = _normalizar(ficha.get("nombre"))
-                    peso_base = self._cic_num_peso(ficha.get("peso") or "")
-                    if peso_base is None or peso_base <= 0:
-                        rm = mapa.get(nombre)
-                        pct_cuadro = calculadora_1rm.pct_para_reps(
-                            ficha.get("repeticiones"))
-                        if rm and pct_cuadro:
-                            peso_base = rm * min(
-                                float(pct_base), pct_cuadro) / 100.0
-                            con_rm.add(nombre)
-                    if peso_base:
+                    rm = mapa.get(nombre)
+                    pct_cuadro = calculadora_1rm.pct_para_reps(
+                        ficha.get("repeticiones"))
+                    peso_rm = None
+                    if rm and pct_cuadro:
+                        peso_rm = rm * min(
+                            float(pct_base), pct_cuadro) / 100.0
+                    peso_manual = self._cic_num_peso(ficha.get("peso") or "")
+                    if prioridad_rm:
+                        peso_base = (peso_rm if peso_rm is not None
+                                     else peso_manual)
+                    else:
+                        peso_base = (peso_manual if peso_manual
+                                     else peso_rm)
+                    if peso_base is not None and peso_base <= 0:
+                        peso_base = None
+                    if peso_base is not None:
                         peso = _discos_2_5(peso_base * mults[n - 1])
                         ficha["peso"] = f"{peso:g} kg"
+                        del_1rm = (peso_rm is not None
+                                   and peso_base == peso_rm)
+                        if del_1rm:
+                            con_rm.add(nombre)
+                        entrada = reporte.setdefault(nombre, {
+                            "nombre": ficha.get("nombre"),
+                            "reps": ficha.get("repeticiones"),
+                            "pct": (round(min(float(pct_base), pct_cuadro))
+                                    if del_1rm and pct_cuadro else None),
+                            "rm": (rm if del_1rm else None),
+                            "pesos": {},
+                        })
+                        entrada["pesos"][n] = ficha["peso"]
                     elif nombre:
                         sin_rm.add(ficha.get("nombre"))
                     datos[dia]["ejercicios"].append(ficha)
@@ -2212,6 +2356,15 @@ class RutinasTab:
             "3.ª) y Semana 4 deloading (mitad de series, -10 %)."
             + detalle
         )
+        if reporte:
+            filas = [
+                dict(v, pesos=[v["pesos"].get(n, "—")
+                               for n in (1, 2, 3, 4)])
+                for v in reporte.values()
+            ]
+            filas.sort(key=lambda r: (r["rm"] is None,
+                                      -(r["rm"] or 0), r["nombre"] or ""))
+            self._sem_reporte_pesos(filas, nivel)
 
     def _sem_abrir_1rm_fila(self):
         """Calculadora de 1RM preseleccionada con el ejercicio de la fila
