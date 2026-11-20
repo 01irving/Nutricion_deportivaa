@@ -1031,6 +1031,18 @@ class RutinasTab:
             relief="flat", padx=10, pady=2, cursor="hand2",
         )
         self.btn_sem_mesociclo.pack(side="right")
+        # sustituye los pesos de la semana diseñada por los del 1RM del
+        # paciente SIN añadir nada (mismos ejercicios, series y
+        # sesiones) y genera las otras ranuras Semana 1-4 como esa
+        # misma semana con el peso de su lugar en la rampa del nivel
+        self.btn_sem_armar_rm = tk.Button(
+            fila_semanas, text="🏋 ARMAR DESDE 1RM",
+            command=self._sem_armar_desde_1rm,
+            font=("Segoe UI", 8, "bold"), fg=NEON, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=10, pady=2, cursor="hand2",
+        )
+        self.btn_sem_armar_rm.pack(side="right", padx=(0, 6))
 
         # ---------- tabla de la semana (7 días, Lunes primero) -----------
         marco_semana = ttk.LabelFrame(
@@ -2391,6 +2403,111 @@ class RutinasTab:
             ]
             filas.sort(key=lambda r: (r["rm"] is None,
                                       -(r["rm"] or 0), r["nombre"] or ""))
+            self._sem_reporte_pesos(filas, nivel)
+
+    def _sem_armar_desde_1rm(self):
+        """Botón 🏋 ARMAR DESDE 1RM: SUSTITUYE los pesos de la semana que
+        se está diseñando por los calculados desde los 1RM guardados del
+        paciente (nivel ACSM 2009, limitado por el cuadro 18.8 NSCA) SIN
+        añadir nada — mismos ejercicios, series, repeticiones y sesiones
+        (los ejercicios sin 1RM conservan su peso actual) — y GENERA las
+        otras ranuras Semana 1-4 como esa misma semana con el peso de su
+        lugar en la rampa: Semanas 2-3 con el paso semanal del nivel y
+        Semana 4 deloading (-10 %), redondeado a discos de 2.5 kg (sobre
+        el 1RM, o sobre el peso actual si el ejercicio no tiene 1RM). Al
+        terminar abre el reporte del cálculo por semana."""
+        import calculadora_1rm
+
+        if not any(info["ejercicios"] for info in self._sem_datos.values()):
+            self._mensaje(
+                "La semana está vacía: carga una rutina antes de armar "
+                "desde 1RM."
+            )
+            return
+        nivel = self._sem_nivel_var.get()
+        pct_base, mults = _sem_rampa_nivel(nivel)
+        mapa = self._rm_mapa()
+        con_rm, sin_rm = set(), set()
+        reporte = {}
+
+        def calculo_1rm(ficha):
+            """(pct, rm, [peso S1-S4 redondeado a discos]) desde el 1RM
+            guardado del ejercicio, o None si no tiene 1RM o sus
+            repeticiones no son interpretables (cuadro 18.8 NSCA)."""
+            nombre = _normalizar(ficha.get("nombre"))
+            rm = mapa.get(nombre)
+            pct_cuadro = calculadora_1rm.pct_para_reps(
+                ficha.get("repeticiones"))
+            if not (rm and pct_cuadro):
+                return None
+            pct = min(float(pct_base), pct_cuadro)
+            return (pct, rm,
+                    [_discos_2_5(rm * pct / 100.0 * m) for m in mults])
+
+        # 1) SUSTITUYE los pesos de la semana diseñada en su ranura
+        n_actual = getattr(self, "_sem_n", 1)
+        for dia in DIAS_SEMANA:
+            for ficha in self._sem_datos[dia]["ejercicios"]:
+                calc = calculo_1rm(ficha)
+                nombre = ficha.get("nombre")
+                if calc:
+                    pct, rm, pesos = calc
+                    ficha["peso"] = f"{pesos[n_actual - 1]:g} kg"
+                    con_rm.add(_normalizar(nombre))
+                    reporte.setdefault(_normalizar(nombre), {
+                        "nombre": nombre,
+                        "reps": ficha.get("repeticiones"),
+                        "pct": round(pct),
+                        "rm": rm,
+                        "pesos": [f"{p:g} kg" for p in pesos],
+                    })
+                elif nombre:
+                    sin_rm.add(nombre)
+
+        # 2) GENERA las otras ranuras: la misma semana con el peso de su
+        #    lugar en la rampa (sin añadir ejercicios, series ni etiquetas)
+        semanas = {}
+        for n in (1, 2, 3, 4):
+            if n == n_actual:
+                semanas[n] = self._sem_datos
+                continue
+            datos = self._sem_semana_vacia()
+            for dia in DIAS_SEMANA:
+                info = self._sem_datos[dia]
+                datos[dia]["sesion"] = info["sesion"]
+                for f in info["ejercicios"]:
+                    ficha = dict(f)
+                    calc = calculo_1rm(ficha)
+                    if calc:
+                        ficha["peso"] = f"{calc[2][n - 1]:g} kg"
+                    else:
+                        manual = self._cic_num_peso(ficha.get("peso") or "")
+                        if manual:
+                            ficha["peso"] = (
+                                f"{_discos_2_5(manual * mults[n - 1]):g} kg")
+                    datos[dia]["ejercicios"].append(ficha)
+            semanas[n] = datos
+        self._sem_semanas = semanas
+        self._sem_marcar_boton_semana()
+        self._sem_pintar_semana()
+        self._sem_pintar_ejercicios()
+        detalle = ""
+        if con_rm:
+            detalle = (f" Pesos desde el 1RM en {len(con_rm)} ejercicio(s) "
+                       f"({SEM_NIVELES_ACSM[nivel]['base']}).")
+        if sin_rm:
+            detalle += (" Sin 1RM (se conserva su peso): " + ", ".join(
+                sorted(sin_rm)[:5]) + ("…" if len(sin_rm) > 5 else "")
+                + ". Regístralos con la calculadora 1RM.")
+        self._mensaje(
+            f"Pesos de la Semana {n_actual} sustituidos desde el 1RM "
+            f"(nivel {nivel}: S1 al {pct_base:g} %) y las otras semanas "
+            "generadas con su peso: Semanas 2-3 con el paso semanal y "
+            "Semana 4 deloading (-10 %)." + detalle
+        )
+        if reporte:
+            filas = list(reporte.values())
+            filas.sort(key=lambda r: (-(r["rm"] or 0), r["nombre"] or ""))
             self._sem_reporte_pesos(filas, nivel)
 
     def _sem_abrir_1rm_fila(self):

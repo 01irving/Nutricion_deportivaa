@@ -686,22 +686,42 @@ try:
 finally:
     rutinas_tab.messagebox.askyesno = _askyesno_original
 
-# 7g) Aplicar los 1RM y el cálculo de las semanas 1-4: sin botón
-# (retirado a pedido del autor; queda la vía del menú), armar estable
-# respetando lo escrito y auto-armado cuando las ranuras 2-4 están
-# vacías, con ventana de reporte del cálculo por semana
-chequear("aplicar 1RM: botón ARMAR DESDE 1RM retirado de la fila",
-         not hasattr(rt, "btn_sem_armar_rm"))
+# 7g) Botón 🏋 ARMAR DESDE 1RM (restaurado, nuevo comportamiento):
+# SUSTITUYE los pesos de la semana diseñada desde los 1RM del paciente
+# SIN añadir nada (mismos ejercicios, series y sesiones) y GENERA las
+# otras semanas con su peso (rampa del nivel y deloading en la 4.ª),
+# con ventana de reporte del cálculo por semana
+chequear("aplicar 1RM: botón ARMAR DESDE 1RM junto a APLICAR MESOCICLO",
+         hasattr(rt, "btn_sem_armar_rm")
+         and str(rt.btn_sem_armar_rm.cget("text")) == "🏋 ARMAR DESDE 1RM")
 rt._sem_nivel_var.set("Principiante")
 _ficha_semana(1, "bench")["peso"] = "99 kg"   # peso manual de prueba
-rt._sem_armar_mesociclo_1rm(False)
-chequear("aplicar 1RM: sin prioridad, el peso manual es la base "
-         "(99 kg redondeado a discos → 100 kg)",
-         _ficha_semana(1, "bench")["peso"] == "100 kg")
-rt._sem_armar_mesociclo_1rm(True)
+_series_antes = _ficha_semana(1, "bench")["series"]
+_sesion_antes = next(d["sesion"] for d in rt._sem_semanas[1].values()
+                     if d.get("sesion"))
+rt._sem_armar_desde_1rm()
 raiz.update()
-chequear("aplicar 1RM: con el botón, el 1RM manda (140 kg al 65 % → 90 kg)",
-         _ficha_semana(1, "bench")["peso"] == "90 kg")
+_pct_pr, _mults_pr = rutinas_tab._sem_rampa_nivel("Principiante")
+_pct_banca = rutinas_tab._sem_pct_reps(
+    _ficha_semana(1, "bench")["repeticiones"], "Principiante")
+_exp_banca = [
+    f"{rutinas_tab._discos_2_5(140.0 * _pct_banca / 100.0 * m):g} kg"
+    for m in _mults_pr]
+chequear("aplicar 1RM: sustituye el peso de la semana diseñada "
+         "(el 1RM 140 kg manda sobre el manual 99 kg → 90 kg)",
+         _ficha_semana(1, "bench")["peso"] == "90 kg"
+         and _pct_pr == 65.0)
+chequear("aplicar 1RM: genera las otras semanas con su peso "
+         "(S2-S3 con la rampa del nivel, S4 deloading -10 %)",
+         _ficha_semana(2, "bench")["peso"] == _exp_banca[1]
+         and _ficha_semana(3, "bench")["peso"] == _exp_banca[2]
+         and _ficha_semana(4, "bench")["peso"] == _exp_banca[3])
+chequear("aplicar 1RM: sin añadir nada — mismas series y sesiones en "
+         "las 4 semanas",
+         all(_ficha_semana(n, "bench")["series"] == _series_antes
+             for n in (1, 2, 3, 4))
+         and next(d["sesion"] for d in rt._sem_semanas[4].values()
+                  if d.get("sesion")) == _sesion_antes)
 _tops = [w for w in rt.marco.winfo_children()
          if isinstance(w, tk.Toplevel)
          and str(w.title()).startswith("Pesos por semana")]
