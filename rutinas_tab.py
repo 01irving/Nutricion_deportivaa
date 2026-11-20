@@ -1031,18 +1031,6 @@ class RutinasTab:
             relief="flat", padx=10, pady=2, cursor="hand2",
         )
         self.btn_sem_mesociclo.pack(side="right")
-        # aplica los 1RM guardados del paciente a los ejercicios de la
-        # semana diseñada y arma el cálculo de las semanas 1-4 (con el
-        # nivel elegido y deloading en la 4.ª); el 1RM manda sobre el
-        # peso escrito a mano
-        self.btn_sem_armar_rm = tk.Button(
-            fila_semanas, text="🏋 ARMAR DESDE 1RM",
-            command=lambda: self._sem_armar_mesociclo_1rm(True),
-            font=("Segoe UI", 8, "bold"), fg=NEON, bg=GRIS,
-            activebackground=NARANJA, activeforeground=BLANCO,
-            relief="flat", padx=10, pady=2, cursor="hand2",
-        )
-        self.btn_sem_armar_rm.pack(side="right", padx=(0, 6))
 
         # ---------- tabla de la semana (7 días, Lunes primero) -----------
         marco_semana = ttk.LabelFrame(

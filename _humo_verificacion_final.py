@@ -686,13 +686,12 @@ try:
 finally:
     rutinas_tab.messagebox.askyesno = _askyesno_original
 
-# 7g) Aplicar los 1RM y el cálculo de las semanas 1-4: botón visible
-# (el 1RM manda sobre el peso manual), armar estable respetando lo
-# escrito y auto-armado cuando las ranuras 2-4 están vacías, con
-# ventana de reporte del cálculo por semana
-chequear("aplicar 1RM: botón ARMAR DESDE 1RM junto a APLICAR MESOCICLO",
-         hasattr(rt, "btn_sem_armar_rm")
-         and str(rt.btn_sem_armar_rm.cget("text")) == "🏋 ARMAR DESDE 1RM")
+# 7g) Aplicar los 1RM y el cálculo de las semanas 1-4: sin botón
+# (retirado a pedido del autor; queda la vía del menú), armar estable
+# respetando lo escrito y auto-armado cuando las ranuras 2-4 están
+# vacías, con ventana de reporte del cálculo por semana
+chequear("aplicar 1RM: botón ARMAR DESDE 1RM retirado de la fila",
+         not hasattr(rt, "btn_sem_armar_rm"))
 rt._sem_nivel_var.set("Principiante")
 _ficha_semana(1, "bench")["peso"] = "99 kg"   # peso manual de prueba
 rt._sem_armar_mesociclo_1rm(False)
