@@ -456,7 +456,57 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
     )
     lbl_ejercicio.pack(side="left", padx=(10, 0))
 
-    cuerpo = tk.Frame(dialogo, bg=GRIS_OSCURO)
+    # ------------------------------------ contenido con scroll vertical
+    # el diálogo es más alto que algunas pantallas (tabla de porcentajes
+    # + 1RM guardados + ejercicios de la rutina): todo el contenido viaja
+    # en un lienzo con barra vertical para poder llegar hasta abajo
+    contenedor = tk.Frame(dialogo, bg=NEGRO)
+    contenedor.pack(fill="both", expand=True)
+    lienzo = tk.Canvas(contenedor, bg=NEGRO, highlightthickness=0)
+    barra_lienzo = ttk.Scrollbar(contenedor, orient="vertical",
+                                 command=lienzo.yview)
+    lienzo.configure(yscrollcommand=barra_lienzo.set)
+    barra_lienzo.pack(side="right", fill="y")
+    lienzo.pack(side="left", fill="both", expand=True)
+    interior = tk.Frame(lienzo, bg=NEGRO)
+    ventana_int = lienzo.create_window((0, 0), window=interior, anchor="nw")
+
+    def _al_rueda(evento):
+        # desplaza el diálogo solo cuando el puntero está sobre él y el
+        # widget de debajo no tiene scroll propio (tablas y texto)
+        try:
+            bajo = dialogo.winfo_containing(evento.x_root, evento.y_root)
+        except Exception:
+            return
+        if bajo is None:
+            return
+        dentro = False
+        w = bajo
+        while w is not None:
+            if w is lienzo:
+                dentro = True
+                break
+            w = getattr(w, "master", None)
+        if not dentro:
+            return
+        if isinstance(bajo, (ttk.Treeview, tk.Text)):
+            return   # los widgets con scroll propio mandan
+        paso = -1 * (evento.delta // 120)
+        if paso:
+            lienzo.yview_scroll(paso, "units")
+            return "break"
+
+    interior.bind(
+        "<Configure>",
+        lambda _e: lienzo.configure(scrollregion=lienzo.bbox("all")),
+    )
+    lienzo.bind(
+        "<Configure>",
+        lambda e: lienzo.itemconfigure(ventana_int, width=e.width),
+    )
+    lienzo.bind_all("<MouseWheel>", _al_rueda, add="+")
+
+    cuerpo = tk.Frame(interior, bg=GRIS_OSCURO)
     cuerpo.pack(fill="both", expand=True)
 
     # ------------------------------------------------ ramas de árbol
@@ -741,7 +791,7 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
 
     # cita del artículo
     tk.Label(
-        dialogo, text=CITA, font=("Segoe UI", 7), fg=GRIS_TEXTO, bg=NEGRO,
+        interior, text=CITA, font=("Segoe UI", 7), fg=GRIS_TEXTO, bg=NEGRO,
         wraplength=640, justify="left",
     ).pack(anchor="w", padx=14, pady=(0, 8))
 
@@ -751,7 +801,7 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
     # confirmación; se refresca sola al GUARDAR. Junto a ella, la lista
     # de los ejercicios de la rutina semanal cargada (con su 1RM si ya
     # está registrado) para calcularlos uno a uno
-    marco_tablas = tk.Frame(dialogo, bg=NEGRO)
+    marco_tablas = tk.Frame(interior, bg=NEGRO)
     marco_tablas.pack(fill="x", padx=12, pady=(10, 0))
     marco_guardados = tk.LabelFrame(
         marco_tablas, bg=GRIS_OSCURO, fg=NEON,
@@ -928,7 +978,7 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
 
     # cita del artículo
     tk.Label(
-        dialogo, text=CITA, font=("Segoe UI", 7), fg=GRIS_TEXTO, bg=NEGRO,
+        interior, text=CITA, font=("Segoe UI", 7), fg=GRIS_TEXTO, bg=NEGRO,
         wraplength=640, justify="left",
     ).pack(anchor="w", padx=14, pady=(0, 8))
 
@@ -966,16 +1016,25 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
         )
 
     def _ajustar_alto():
-        """Encoge la tabla si el diálogo completo no cabe en pantalla."""
+        """Encoge la tabla si el diálogo completo no cabe en pantalla;
+        lo que aun así no quepa se ve con la barra vertical del lienzo."""
         disponible = dialogo.winfo_screenheight() - 110
         filas = FILAS_TABLA_MAX
         tabla.configure(height=filas)
+        # lo fijo fuera del contenido (encabezado y cita del pie),
+        # medido con el lienzo en 1 para no arrastrar su alto previo
+        lienzo.configure(height=1)
         dialogo.update_idletasks()
+        fijo = max(0, dialogo.winfo_reqheight() - 1)
+        techo = max(disponible - fijo, 220)
         while (filas > FILAS_TABLA_MIN
-               and dialogo.winfo_reqheight() > disponible):
+               and interior.winfo_reqheight() > techo):
             filas -= 1
             tabla.configure(height=filas)
             dialogo.update_idletasks()
+        # el lienzo mide como máximo lo disponible: el contenido que
+        # sobre se recorre con la barra vertical (y la rueda del mouse)
+        lienzo.configure(height=min(interior.winfo_reqheight(), techo))
 
     def _al_cambiar_ejercicio(_evento=None):
         ejercicio = combo_ejercicio.get().strip()

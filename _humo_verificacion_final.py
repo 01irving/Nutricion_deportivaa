@@ -888,6 +888,35 @@ chequear("calculadora 1RM: campos en fondo negro con letras blancas",
          "bg=NEGRO, fg=BLANCO" in fuente_calc
          and fuente_calc.count('style="R1.TCombobox"') == 3
          and "TCombobox*Listbox.background" in fuente_calc)
+
+
+def _canvases(widget):
+    salida = []
+    for hijo in widget.winfo_children():
+        if isinstance(hijo, tk.Canvas):
+            salida.append(hijo)
+        salida.extend(_canvases(hijo))
+    return salida
+
+
+def _alto_region(lienzo):
+    partes = str(lienzo.cget("scrollregion")).split()
+    return int(partes[3]) if len(partes) == 4 else -1
+
+
+lienzos_dlg = [c for t in tops for c in _canvases(t)]
+chequear("calculadora 1RM: contenido en lienzo con barra vertical",
+         bool(lienzos_dlg))
+chequear("calculadora 1RM: todo el contenido registrado en el scroll "
+         "(se llega hasta abajo)",
+         any(_alto_region(c) >= c.winfo_children()[0].winfo_reqheight() - 2
+             for c in lienzos_dlg if c.winfo_children()))
+chequear("calculadora 1RM: el lienzo no crece más allá de la pantalla",
+         all(int(c.cget("height") or 0) <= c.winfo_screenheight() - 110
+             for c in lienzos_dlg))
+chequear("calculadora 1RM: rueda del mouse desplaza el diálogo",
+         'bind_all("<MouseWheel>", _al_rueda' in fuente_calc
+         and "yview_scroll" in fuente_calc)
 for t in tops:
     t.destroy()
 tk.Toplevel.wait_window = _tk_wait_original
