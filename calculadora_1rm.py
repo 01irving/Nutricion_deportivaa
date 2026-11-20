@@ -475,6 +475,17 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
                      rowheight=26, borderwidth=0, font=("Segoe UI", 10))
     estilo.map("R1.Treeview", background=[("selected", NARANJA)],
                foreground=[("selected", NEGRO)])
+    # comboboxes en negro con letras blancas (también la lista desplegable)
+    estilo.configure("R1.TCombobox", fieldbackground=NEGRO,
+                     background=NEGRO, foreground=BLANCO,
+                     arrowcolor=NEON, borderwidth=0)
+    estilo.map("R1.TCombobox",
+               fieldbackground=[("readonly", NEGRO)],
+               foreground=[("readonly", BLANCO)])
+    dialogo.option_add("*TCombobox*Listbox.background", GRIS_OSCURO)
+    dialogo.option_add("*TCombobox*Listbox.foreground", BLANCO)
+    dialogo.option_add("*TCombobox*Listbox.selectBackground", NARANJA)
+    dialogo.option_add("*TCombobox*Listbox.selectForeground", NEGRO)
     arbol.configure(style="R1.Treeview")
     arbol.column("#0", width=230)
     grupo_formulas = arbol.insert("", "end", iid="formulas", open=True,
@@ -548,6 +559,10 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
                  pady=12)
 
     # ----- selector de ejercicio, común a todos los métodos -----
+    # con rutina cargada, el desplegable muestra SOLO los ejercicios de
+    # esa rutina (en orden de días); siempre se puede escribir otro a mano
+    nombres_selector = ([nombre for nombre, _rm in ejercicios_rutina]
+                        if ejercicios_rutina else nombres_ejercicios)
     selector = tk.Frame(derecha, bg=GRIS_OSCURO)
     selector.pack(fill="x")
     tk.Label(
@@ -555,16 +570,23 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
         font=("Segoe UI", 10, "bold"), fg=BLANCO, bg=GRIS_OSCURO,
     ).pack(side="left")
     combo_ejercicio = ttk.Combobox(
-        selector, values=nombres_ejercicios, state="normal", width=32,
+        selector, values=nombres_selector, state="normal", width=32,
+        style="R1.TCombobox",
     )
     if ejercicio and str(ejercicio).strip():
         combo_ejercicio.set(str(ejercicio).strip())
+    elif ejercicios_rutina:
+        combo_ejercicio.set(nombres_selector[0])
     else:
         combo_ejercicio.set(EJERCICIOS[0])
     combo_ejercicio.pack(side="left", padx=(8, 0), ipady=3)
     tk.Label(
         derecha,
-        text="Aplica a todos los métodos y se guarda con el resultado.",
+        text=("Ejercicios de la rutina cargada" if ejercicios_rutina
+              else "Aplica a todos los métodos y se guarda con el "
+                   "resultado.")
+        + ("; se puede escribir cualquier otro." if ejercicios_rutina
+           else "."),
         font=("Segoe UI", 8), fg=GRIS_TEXTO, bg=GRIS_OSCURO,
         wraplength=380, justify="left",
     ).pack(anchor="w", pady=(2, 6))
@@ -578,8 +600,8 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
         tk.Label(fila, text=etiqueta, width=24, anchor="e",
                  font=("Segoe UI", 10, "bold"), fg=BLANCO,
                  bg=GRIS_OSCURO).pack(side="left")
-        entrada = tk.Entry(fila, width=ancho, bg=GRIS, fg=BLANCO,
-                           insertbackground=NEON, relief="flat",
+        entrada = tk.Entry(fila, width=ancho, bg=NEGRO, fg=BLANCO,
+                           insertbackground=BLANCO, relief="flat",
                            justify="center", font=("Segoe UI", 11))
         entrada.pack(side="left", padx=(8, 0), ipady=3)
         return entrada
@@ -592,7 +614,8 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
              bg=GRIS_OSCURO).pack(side="left")
     combo_rpe = ttk.Combobox(fila_rpe, values=("5", "6", "7", "8", "9",
                                                "10"),
-                             state="readonly", width=8)
+                             state="readonly", width=8,
+                             style="R1.TCombobox")
     combo_rpe.set("8")
     combo_rpe.pack(side="left", padx=(8, 0), ipady=3)
     tk.Label(
@@ -672,7 +695,7 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
              bg=GRIS_OSCURO).pack(side="left")
     combo_obj_reps = ttk.Combobox(
         fila_obj, values=[str(r) for r in PCT_POR_REPS],
-        state="readonly", width=8,
+        state="readonly", width=8, style="R1.TCombobox",
     )
     combo_obj_reps.set("8")
     combo_obj_reps.pack(side="left", padx=(8, 0), ipady=3)

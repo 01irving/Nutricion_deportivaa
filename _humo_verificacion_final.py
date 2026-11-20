@@ -842,6 +842,29 @@ for t in tops:
     etiquetas_dlg.extend(_etiquetas(t))
 chequear("calculadora 1RM: el nivel del paciente se muestra en el diálogo",
          any(txt.startswith("Nivel Principiante") for txt in etiquetas_dlg))
+combos_dlg = []
+
+
+def _combos(widget):
+    for hijo in widget.winfo_children():
+        if isinstance(hijo, ttk.Combobox):
+            combos_dlg.append(hijo)
+        _combos(hijo)
+
+
+for t in tops:
+    _combos(t)
+combo_ej = next((c for c in combos_dlg
+                 if len(c.cget("values") or ()) == 2), None)
+chequear("calculadora 1RM: con rutina cargada el selector trae SOLO sus "
+         "ejercicios (2)",
+         combo_ej is not None
+         and "bench" in rutinas_tab._normalizar(combo_ej.cget("values")[0]))
+fuente_calc = Path(calculadora_1rm.__file__).read_text(encoding="utf-8")
+chequear("calculadora 1RM: campos en fondo negro con letras blancas",
+         "bg=NEGRO, fg=BLANCO" in fuente_calc
+         and fuente_calc.count('style="R1.TCombobox"') == 3
+         and "TCombobox*Listbox.background" in fuente_calc)
 for t in tops:
     t.destroy()
 tk.Toplevel.wait_window = _tk_wait_original
