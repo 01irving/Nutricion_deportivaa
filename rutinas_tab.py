@@ -600,10 +600,22 @@ class RutinasTab:
         self.dia_buttons = {}
 
     def _abrir_1rm(self):
-        """Calculadora de 1RM por ejercicio (ramas de árbol)."""
+        """Calculadora de 1RM por ejercicio (ramas de árbol): con una
+        rutina cargada, el selector trae SOLO los ejercicios de esa
+        rutina; GUARDAR aplica el 1RM a las 4 semanas con el % del
+        nivel."""
         import calculadora_1rm
 
-        resultado = calculadora_1rm.abrir_dialogo_1rm(self.marco, self.app)
+        ejercicios_rutina = self._sem_ejercicios_cargada()
+        nivel = getattr(self, "_sem_nivel_var", None)
+        nivel = nivel.get() if nivel else "Principiante"
+        resultado = calculadora_1rm.abrir_dialogo_1rm(
+            self.marco, self.app,
+            al_guardar=self._sem_aplicar_rm_guardado,
+            ejercicios_rutina=ejercicios_rutina or None,
+            nivel_info=(f"Nivel {nivel}: "
+                        f"{SEM_NIVELES_ACSM[nivel]['base']}"),
+        )
         if resultado:
             self.rm_sesion = resultado
         self._recargar_referencias_1rm()
@@ -611,6 +623,26 @@ class RutinasTab:
             self._mensaje(
                 f"1RM activo: {resultado['ejercicio']} {resultado['resultado']} kg"
             )
+
+    def _sem_ejercicios_cargada(self):
+        """(nombre, 1RM guardado o None) de los ejercicios únicos de la
+        semana cargada, en orden de días; [] si no hay rutina cargada.
+        Es la lista que la calculadora de 1RM muestra y usa para limitar
+        su selector."""
+        if not getattr(self, "_sem_datos", None):
+            return []
+        mapa = self._rm_mapa()
+        vistos = set()
+        salida = []
+        for dia in DIAS_SEMANA:
+            for ejx in self._sem_datos[dia]["ejercicios"]:
+                nombre = ejx.get("nombre")
+                clave = _normalizar(nombre)
+                if not nombre or clave in vistos:
+                    continue
+                vistos.add(clave)
+                salida.append((nombre, mapa.get(clave)))
+        return salida
 
     # ------------------------------------------------------------------
     # Rutinas semanales en TABLAS (sub-pestaña «Semana»): la rutina
@@ -2394,17 +2426,7 @@ class RutinasTab:
                 ejercicio = ejercicios[idx].get("nombre")
         # ejercicios de la rutina cargada (sin repetir, en orden de días)
         # con su 1RM guardado si ya existe, para el panel del diálogo
-        mapa = self._rm_mapa()
-        vistos = set()
-        ejercicios_rutina = []
-        for dia in DIAS_SEMANA:
-            for ejx in self._sem_datos[dia]["ejercicios"]:
-                nombre = ejx.get("nombre")
-                clave = _normalizar(nombre)
-                if not nombre or clave in vistos:
-                    continue
-                vistos.add(clave)
-                ejercicios_rutina.append((nombre, mapa.get(clave)))
+        ejercicios_rutina = self._sem_ejercicios_cargada()
         nivel = self._sem_nivel_var.get()
         nivel_info = f"Nivel {nivel}: {SEM_NIVELES_ACSM[nivel]['base']}"
         resultado = calculadora_1rm.abrir_dialogo_1rm(

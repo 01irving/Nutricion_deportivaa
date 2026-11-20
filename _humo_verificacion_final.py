@@ -870,6 +870,45 @@ for t in tops:
 tk.Toplevel.wait_window = _tk_wait_original
 App.id_paciente_antro = None
 
+# 11b) El botón 🏋 1RM de la vista diaria TAMBIÉN limita el selector a
+# los ejercicios de la rutina cargada (no el catálogo completo)
+tk.Toplevel.wait_window = lambda self, *a, **k: None
+rt._abrir_1rm()
+raiz.update()
+tops_b = [w for w in list(raiz.winfo_children())
+          + list(rt.marco.winfo_children())
+          if isinstance(w, tk.Toplevel)
+          and "Calculadora de fuerza" in str(w.title())]
+combos_b = []
+
+
+def _combos_b(widget):
+    for hijo in widget.winfo_children():
+        if isinstance(hijo, ttk.Combobox):
+            combos_b.append(hijo)
+        _combos_b(hijo)
+
+
+for t in tops_b:
+    _combos_b(t)
+combo_ej_b = next((c for c in combos_b
+                   if c.cget("values") and len(c.cget("values")) < 20
+                   and len(str(c.cget("values")[0])) > 8), None)
+valores_b = list(combo_ej_b.cget("values") or ()) if combo_ej_b else []
+chequear("botón 🏋 1RM (vista diaria): selector SOLO con los ejercicios "
+         "de la rutina cargada (9, no el catálogo)",
+         combo_ej_b is not None and len(valores_b) == 9
+         and all("polea" in rutinas_tab._normalizar(v)
+                 or "bench" in rutinas_tab._normalizar(v)
+                 or "piernas" in rutinas_tab._normalizar(v)
+                 or "rodillas" in rutinas_tab._normalizar(v)
+                 or "pelvis" in rutinas_tab._normalizar(v)
+                 for v in valores_b))
+for t in tops_b:
+    t.destroy()
+tk.Toplevel.wait_window = _tk_wait_original
+App.id_paciente_antro = None
+
 # 12) Eliminar rutinas guardadas simples (★ del combo del día)
 rt._sem_guardar_dia_simple()
 raiz.update()
