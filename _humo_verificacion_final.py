@@ -733,6 +733,102 @@ chequear("aplicar 1RM: ventana de reporte con el cálculo por semana",
          bool(_tops))
 for _w in _tops:
     _w.destroy()
+
+# 7h) Cuestionario de progresión del botón ARMAR DESDE 1RM: peso,
+# series, ambas o doble — con la regla del nivel (65 % y 2-3 RIR el
+# principiante; % mayor y menos RIR el avanzado)
+_tk_wait_preg = tk.Toplevel.wait_window
+
+
+def _wait_preguntas(self, *a, **k):
+    """Responde el cuestionario dentro del test: marca «ambas» y ARMAR."""
+    tops_p = []
+
+    def _tops_de(w):
+        for h in w.winfo_children():
+            if isinstance(h, tk.Toplevel):
+                tops_p.append(h)
+            _tops_de(h)
+
+    _tops_de(raiz)
+    tops_p = [w for w in tops_p
+              if "cómo progresar" in str(w.title())]
+    if not tops_p:
+        return
+    radios = []
+
+    def _rbs(w):
+        for h in w.winfo_children():
+            if isinstance(h, tk.Radiobutton):
+                radios.append(h)
+            _rbs(h)
+
+    _rbs(tops_p[0])
+    _modos["radios"] = len(radios)
+    for r in radios:
+        if str(r.cget("value")) == "ambas":
+            r.invoke()
+            break
+
+    def _armar(w):
+        for h in w.winfo_children():
+            if isinstance(h, tk.Button) and "ARMAR" in str(h.cget("text")):
+                h.invoke()
+                return True
+            if _armar(h):
+                return True
+        return False
+
+    _armar(tops_p[0])
+
+
+_modos = {}
+tk.Toplevel.wait_window = _wait_preguntas
+_modo = rt._sem_preguntas_armar()
+raiz.update()
+tk.Toplevel.wait_window = _tk_wait_preg
+chequear("armar 1RM: cuestionario de progresión (4 opciones) devuelve "
+         "el modo elegido (ambas)",
+         _modo == "ambas" and _modos.get("radios") == 4)
+# modo series: peso constante y +1 serie por semana (S4 deloading)
+rt._sem_armar_desde_1rm("series")
+raiz.update()
+_b1s = _ficha_semana(1, "bench")
+_series_ok = (
+    int(_ficha_semana(2, "bench")["series"]) == int(_b1s["series"]) + 1
+    and int(_ficha_semana(3, "bench")["series"]) == int(_b1s["series"]) + 2
+    and int(_ficha_semana(4, "bench")["series"])
+    == max(1, round(int(_b1s["series"])
+                    * rutinas_tab.CIC_DELOAD_SERIES)))
+chequear("armar 1RM modo series: S2 +1 serie, S3 +2, S4 a la mitad y "
+         "peso constante en el % de la Semana 1",
+         _series_ok
+         and _ficha_semana(2, "bench")["peso"] == _b1s["peso"]
+         and _ficha_semana(4, "bench")["peso"] != _b1s["peso"])
+# modo doble: S1-S2 mismo peso con +2 reps y la 3.ª sube un paso
+rt._sem_armar_desde_1rm("doble")
+raiz.update()
+_b1d = _ficha_semana(1, "bench")
+_b2d = _ficha_semana(2, "bench")
+_b3d = _ficha_semana(3, "bench")
+_paso_d, _mults_d = rutinas_tab._sem_rampa_nivel("Principiante")
+_reps_d2 = (re.fullmatch(r"\d+", str(_b1d["repeticiones"]).strip()) is None
+            or _b2d["repeticiones"] == str(int(_b1d["repeticiones"]) + 2))
+chequear("armar 1RM modo doble: S2 mismo peso con +2 reps y S3 sube un "
+         "paso de peso",
+         _b2d["peso"] == _b1d["peso"]
+         and _reps_d2
+         and _b3d["peso"] == f"{rutinas_tab._discos_2_5(
+             140.0 * _pct_banca / 100.0 * _mults_d[1]):g} kg")
+# el reporte del modo series trae la columna de series por semana
+_tops = [w for w in rt.marco.winfo_children()
+         if isinstance(w, tk.Toplevel)
+         and str(w.title()).startswith("Pesos por semana")]
+chequear("armar 1RM: reporte con la progresión y el RIR del nivel",
+         bool(_tops))
+for _w in _tops:
+    _w.destroy()
+
 for n in (2, 3, 4):
     rt._sem_semanas.pop(n, None)
 rt._sem_pesos_desde_1rm(True)
