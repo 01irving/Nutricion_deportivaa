@@ -444,20 +444,39 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
     dialogo.minsize(720, 520)
 
     def _activar_botones_ventana():
-        """Minimizar y maximizar en la barra de título: `transient` deja
-        la ventana en solo-cerrar en Windows, así que se fuerzan los
-        estilos WS_MINIMIZEBOX y WS_MAXIMIZEBOX con la API de Windows."""
+        """Minimizar y maximizar en la barra de título, junto al botón
+        de cerrar: `transient` deja la ventana en solo-cerrar en
+        Windows, así que se fuerzan los estilos WS_MINIMIZEBOX y
+        WS_MAXIMIZEBOX con la API de Windows y se REFRESCA EL MARCO
+        (SetWindowPos + SWP_FRAMECHANGED) para que los botones se
+        dibujen de verdad — sin ese refresco Windows guarda los estilos
+        pero no pinta los botones."""
         try:
             import ctypes
 
-            hwnd = ctypes.windll.user32.GetParent(dialogo.winfo_id())
-            estilo = ctypes.windll.user32.GetWindowLongW(hwnd, -16)
-            ctypes.windll.user32.SetWindowLongW(
-                hwnd, -16, estilo | 0x00020000 | 0x00010000)
+            user32 = ctypes.windll.user32
+            hwnd = user32.GetParent(dialogo.winfo_id())
+            if not hwnd:
+                return
+            # cuadros de minimizar/maximizar con el menú de sistema
+            estilo = user32.GetWindowLongW(hwnd, -16)      # GWL_STYLE
+            user32.SetWindowLongW(
+                hwnd, -16,
+                estilo | 0x00020000 | 0x00010000 | 0x00080000)
+            # fuera de la ex-style toolwindow (oculta los cuadros)
+            ex = user32.GetWindowLongW(hwnd, -20)          # GWL_EXSTYLE
+            user32.SetWindowLongW(hwnd, -20, ex & ~0x00000080)
+            # redibuja la barra de título con los botones nuevos
+            user32.SetWindowPos(
+                hwnd, 0, 0, 0, 0, 0,
+                0x0001 | 0x0002 | 0x0004 | 0x0020)   # NOSIZE|NOMOVE|
+                                                     # NOZORDER|FRAMECHANGED
         except Exception:
             pass
 
     _activar_botones_ventana()
+    # al volver de minimizar la ventana se vuelve a mapear: re-aplicar
+    dialogo.bind("<Map>", lambda _e: _activar_botones_ventana(), add="+")
     try:
         dialogo.iconbitmap("icono_app.ico")
     except Exception:

@@ -1028,9 +1028,13 @@ chequear("calculadora 1RM: botón ⛶ MAXIMIZAR en el encabezado",
 chequear("calculadora 1RM: ventana con minimizar y maximizar nativos",
          "dialogo.resizable(True, True)" in fuente_calc
          and "dialogo.minsize(720, 520)" in fuente_calc
-         # transient deja solo-cerrar en Windows: estilos forzados
+         # transient deja solo-cerrar en Windows: estilos forzados Y
+         # marco refrescado (sin SWP_FRAMECHANGED no se pintan los
+         # botones aunque los estilos queden guardados)
          and "GetWindowLongW" in fuente_calc
-         and "SetWindowLongW" in fuente_calc)
+         and "SetWindowLongW" in fuente_calc
+         and "SetWindowPos" in fuente_calc
+         and "0x0020" in fuente_calc)
 # el botón — MINIMIZAR del membrete vive en la app completa (el test usa
 # un App ligero): se verifica por fuente, como los campos negros
 fuente_app = (Path(os.path.dirname(os.path.abspath(__file__)))
