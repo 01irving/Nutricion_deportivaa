@@ -2409,13 +2409,16 @@ class RutinasTab:
         """Botón 🏋 ARMAR DESDE 1RM: SUSTITUYE los pesos de la semana que
         se está diseñando por los calculados desde los 1RM guardados del
         paciente (nivel ACSM 2009, limitado por el cuadro 18.8 NSCA) SIN
-        añadir nada — mismos ejercicios, series, repeticiones y sesiones
-        (los ejercicios sin 1RM conservan su peso actual) — y GENERA las
+        añadir nada — mismos ejercicios, series y repeticiones (los
+        ejercicios sin 1RM conservan su peso actual) — y GENERA las
         otras ranuras Semana 1-4 como esa misma semana con el peso de su
         lugar en la rampa: Semanas 2-3 con el paso semanal del nivel y
         Semana 4 deloading (-10 %), redondeado a discos de 2.5 kg (sobre
-        el 1RM, o sobre el peso actual si el ejercicio no tiene 1RM). Al
-        terminar abre el reporte del cálculo por semana."""
+        el 1RM, o sobre el peso actual si el ejercicio no tiene 1RM). El
+        nombre de cada sesión queda con UN solo «· Semana N», el de la
+        semana que corresponde a su ranura (sustituye los acumulados de
+        armados previos en vez de agregar otro). Al terminar abre el
+        reporte del cálculo por semana."""
         import calculadora_1rm
 
         if not any(info["ejercicios"] for info in self._sem_datos.values()):
@@ -2464,8 +2467,17 @@ class RutinasTab:
                 elif nombre:
                     sin_rm.add(nombre)
 
+        # el nombre de cada sesión queda con UN solo marcador, el de la
+        # semana que corresponde (sustituye los «· Semana N» y «·
+        # Deload» acumulados por armados previos en vez de sumar otro)
+        for dia in DIAS_SEMANA:
+            if self._sem_datos[dia]["sesion"]:
+                self._sem_datos[dia]["sesion"] = _sesion_de_semana(
+                    self._sem_datos[dia]["sesion"], n_actual)
+
         # 2) GENERA las otras ranuras: la misma semana con el peso de su
-        #    lugar en la rampa (sin añadir ejercicios, series ni etiquetas)
+        #    lugar en la rampa (sin añadir ejercicios ni series; cada
+        #    semana con su «· Semana N»)
         semanas = {}
         for n in (1, 2, 3, 4):
             if n == n_actual:
@@ -2474,7 +2486,8 @@ class RutinasTab:
             datos = self._sem_semana_vacia()
             for dia in DIAS_SEMANA:
                 info = self._sem_datos[dia]
-                datos[dia]["sesion"] = info["sesion"]
+                datos[dia]["sesion"] = _sesion_de_semana(
+                    info["sesion"], n)
                 for f in info["ejercicios"]:
                     ficha = dict(f)
                     calc = calculo_1rm(ficha)
@@ -6558,3 +6571,28 @@ def _sem_pct_reps(reps, nivel="Principiante"):
     if pct_cuadro is None:
         return None
     return min(float(pct_nivel), pct_cuadro)
+
+
+_SESION_SEMANA_RE = re.compile(
+    r"\s*·\s*(?:deload|semana\s*\d+)\s*$", re.IGNORECASE)
+
+
+def _limpiar_sesion_semana(texto):
+    """Nombre de la sesión sin los «· Semana N» y «· Deload» que los
+    armados previos fueron agregando (por repetidos que vengan:
+    «Pesado · Semana 1 · Semana 2» → «Pesado»)."""
+    texto = (texto or "").strip()
+    while True:
+        limpio = _SESION_SEMANA_RE.sub("", texto).rstrip(" ·")
+        if limpio == texto:
+            return limpio
+        texto = limpio
+
+
+def _sesion_de_semana(texto, n):
+    """El nombre de la sesión con UN solo marcador, el de la semana que
+    corresponde: sustituye el «· Semana N» acumulado en vez de agregar
+    otro (los días sin sesión quedan como están)."""
+    if not (texto or "").strip():
+        return texto
+    return f"{_limpiar_sesion_semana(texto)} · Semana {n}"

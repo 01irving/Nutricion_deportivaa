@@ -716,12 +716,16 @@ chequear("aplicar 1RM: genera las otras semanas con su peso "
          _ficha_semana(2, "bench")["peso"] == _exp_banca[1]
          and _ficha_semana(3, "bench")["peso"] == _exp_banca[2]
          and _ficha_semana(4, "bench")["peso"] == _exp_banca[3])
-chequear("aplicar 1RM: sin añadir nada — mismas series y sesiones en "
-         "las 4 semanas",
+chequear("aplicar 1RM: sin añadir nada — mismas series en las 4 semanas",
          all(_ficha_semana(n, "bench")["series"] == _series_antes
-             for n in (1, 2, 3, 4))
-         and next(d["sesion"] for d in rt._sem_semanas[4].values()
-                  if d.get("sesion")) == _sesion_antes)
+             for n in (1, 2, 3, 4)))
+_base_sesion = re.sub(r"\s*·\s*Semana\s*\d+\s*$", "",
+                      _sesion_antes).rstrip(" ·")
+chequear("aplicar 1RM: cada semana con UN solo nombre, el de su "
+         "semana (sustituye los «· Semana N» acumulados)",
+         all(next(d["sesion"] for d in rt._sem_semanas[n].values()
+                  if d.get("sesion")) == f"{_base_sesion} · Semana {n}"
+             for n in (1, 2, 3, 4)))
 _tops = [w for w in rt.marco.winfo_children()
          if isinstance(w, tk.Toplevel)
          and str(w.title()).startswith("Pesos por semana")]
