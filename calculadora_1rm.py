@@ -437,7 +437,11 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
     dialogo.configure(bg=NEGRO)
     dialogo.transient(parent)
     dialogo.grab_set()
-    dialogo.resizable(False, False)
+    # botones nativos de la ventana ACTIVOS: minimizar y maximizar
+    # (resizable False los apagaba); el contenido acompaña al tamaño
+    # porque el lienzo del scroll sincroniza su ancho con la ventana
+    dialogo.resizable(True, True)
+    dialogo.minsize(720, 520)
     try:
         dialogo.iconbitmap("icono_app.ico")
     except Exception:
