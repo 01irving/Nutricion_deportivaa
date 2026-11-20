@@ -410,7 +410,8 @@ def ejercicios_catalogo():
     return nombres, tren
 
 
-def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None):
+def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
+                      ejercicios_rutina=None, nivel_info=None):
     """Ventana con ramas de árbol: métodos de 1RM para cualquier
     ejercicio (selector con todo el catálogo de rutinas).
 
@@ -420,6 +421,11 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None):
     función que se invoca con los datos guardados (dict con ejercicio y
     resultado = 1RM) cuando el usuario pulsa 💾 GUARDAR: la pestaña
     Rutinas la usa para aplicar el 1RM al ejercicio en la rutina.
+    `ejercicios_rutina` es la lista (nombre, 1RM guardado o None) de los
+    ejercicios de la rutina semanal cargada — se muestran en la tabla
+    «📋 Ejercicios de la rutina cargada» para calcularlos uno a uno — y
+    `nivel_info` es el texto del nivel del paciente (con qué % se
+    aplicarán los porcentajes al GUARDAR).
     """
     import tkinter as tk
     from tkinter import messagebox, ttk
@@ -719,9 +725,13 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None):
     # --------------------------------------- 1RM guardados del paciente
     # tabla con los registros guardados del paciente activo (get_uno_rm):
     # doble clic carga el ejercicio en el selector y hay eliminado con
-    # confirmación; se refresca sola al GUARDAR
+    # confirmación; se refresca sola al GUARDAR. Junto a ella, la lista
+    # de los ejercicios de la rutina semanal cargada (con su 1RM si ya
+    # está registrado) para calcularlos uno a uno
+    marco_tablas = tk.Frame(dialogo, bg=NEGRO)
+    marco_tablas.pack(fill="x", padx=12, pady=(10, 0))
     marco_guardados = tk.LabelFrame(
-        dialogo, bg=GRIS_OSCURO, fg=NEON,
+        marco_tablas, bg=GRIS_OSCURO, fg=NEON,
         text=" 📚 1RM guardados del paciente ",
         font=("Segoe UI", 9, "bold"), padx=8, pady=4,
     )
@@ -837,7 +847,61 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None):
     barra_g.pack(side="right", fill="y")
     guardados_tabla.pack(side="left", fill="both", expand=True)
     guardados_tabla.bind("<Double-1>", _cargar_guardado)
-    marco_guardados.pack(fill="x", padx=12, pady=(10, 0))
+    marco_guardados.pack(side="left", fill="both", expand=True)
+
+    # ------------------------------------- ejercicios de la rutina ----
+    if ejercicios_rutina:
+        def _cargar_de_rutina(_evento=None):
+            """Doble clic en un ejercicio de la rutina: lo pone en el
+            selector para calcular su 1RM."""
+            sel = rutina_tabla.selection()
+            if not sel:
+                return
+            valores = rutina_tabla.item(sel[0], "values")
+            if valores and valores[0]:
+                combo_ejercicio.set(valores[0])
+                _al_cambiar_ejercicio()
+
+        marco_rutina = tk.LabelFrame(
+            marco_tablas, bg=GRIS_OSCURO, fg=NEON,
+            text=" 📋 Ejercicios de la rutina cargada ",
+            font=("Segoe UI", 9, "bold"), padx=8, pady=4,
+        )
+        rutina_tabla = ttk.Treeview(
+            marco_rutina, columns=("ejercicio", "rm"), show="headings",
+            height=5)
+        estilo.configure("R5.Treeview", background=GRIS_OSCURO,
+                         fieldbackground=GRIS_OSCURO, foreground=BLANCO,
+                         rowheight=20, borderwidth=0)
+        estilo.configure("R5.Treeview.Heading", background=GRIS, fg=NEON,
+                         font=("Segoe UI", 8, "bold"))
+        rutina_tabla.configure(style="R5.Treeview")
+        for col, texto, ancho, ancla in (
+            ("ejercicio", "Ejercicio", 175, "w"),
+            ("rm", "1RM guardado", 85, "center"),
+        ):
+            rutina_tabla.heading(col, text=texto, anchor=ancla)
+            rutina_tabla.column(col, width=ancho, anchor=ancla,
+                                minwidth=ancho)
+        for nombre, rm in ejercicios_rutina:
+            rutina_tabla.insert(
+                "", "end",
+                values=(nombre, f"{rm:g} kg" if rm else "—"))
+        tk.Label(
+            marco_rutina,
+            text="Doble clic: lo pasa al selector para calcularlo.",
+            font=("Segoe UI", 7, "italic"), fg=GRIS_TEXTO,
+            bg=GRIS_OSCURO, wraplength=250, justify="left",
+        ).pack(anchor="w", pady=(3, 0))
+        if nivel_info:
+            tk.Label(
+                marco_rutina, text=nivel_info,
+                font=("Segoe UI", 7, "bold"), fg=NEON, bg=GRIS_OSCURO,
+                wraplength=250, justify="left",
+            ).pack(anchor="w", pady=(2, 0))
+        rutina_tabla.pack(side="top", fill="both", expand=True)
+        rutina_tabla.bind("<Double-1>", _cargar_de_rutina)
+        marco_rutina.pack(side="left", fill="y", padx=(8, 0))
 
     # cita del artículo
     tk.Label(

@@ -792,7 +792,14 @@ def _arbolitos(widget):
     return salida
 
 
-calculadora_1rm.abrir_dialogo_1rm(raiz, app_dlg, ejercicio="Sentadilla")
+calculadora_1rm.abrir_dialogo_1rm(raiz, app_dlg, ejercicio="Sentadilla",
+                                  ejercicios_rutina=[
+                                      ("Press de banco plano "
+                                       "(o «bench press»)", 140.0),
+                                      ("Tracción pecho en polea alta", None),
+                                  ],
+                                  nivel_info="Nivel Principiante: "
+                                             "Semana 1 al 65 %")
 raiz.update()
 tops = [w for w in raiz.winfo_children()
         if isinstance(w, tk.Toplevel)
@@ -811,10 +818,58 @@ chequear("calculadora 1RM: la tabla muestra el registro de la BD "
              and f[3] == "140"
              and f[0].count("/") == 2
              for f in filas_g))
+tablas_r = [tv for t in tops for tv in _arbolitos(t)
+            if "ejercicio" in str(tv["columns"])
+            and "rm" in str(tv["columns"])
+            and "fecha" not in str(tv["columns"])]
+chequear("calculadora 1RM: lista de los ejercicios de la rutina cargada",
+         bool(tablas_r) and any(
+             any("bench" in rutinas_tab._normalizar(tv.item(i, "values")[0])
+                 and tv.item(i, "values")[1] == "140 kg"
+                 for i in tv.get_children())
+             for tv in tablas_r))
+def _etiquetas(widget):
+    salida = []
+    for hijo in widget.winfo_children():
+        if isinstance(hijo, tk.Label):
+            salida.append(str(hijo.cget("text")))
+        salida.extend(_etiquetas(hijo))
+    return salida
+
+
+etiquetas_dlg = []
+for t in tops:
+    etiquetas_dlg.extend(_etiquetas(t))
+chequear("calculadora 1RM: el nivel del paciente se muestra en el diálogo",
+         any(txt.startswith("Nivel Principiante") for txt in etiquetas_dlg))
 for t in tops:
     t.destroy()
 tk.Toplevel.wait_window = _tk_wait_original
 App.id_paciente_antro = None
+
+# 12) Eliminar rutinas guardadas simples (★ del combo del día)
+rt._sem_guardar_dia_simple()
+raiz.update()
+simples = database.get_rutinas_guardadas(semanal=0)
+chequear("rutina simple: GUARDAR DÍA crea una rutina simple en la biblioteca",
+         len(simples) >= 1 and len(rt._sem_simples) >= 1)
+rt.combo_sem_simple.set(rt._sem_simples[0]["nombre"])
+_askyesno_original = rutinas_tab.messagebox.askyesno
+try:
+    rutinas_tab.messagebox.askyesno = lambda *a, **k: False
+    rt._sem_eliminar_simple()
+    chequear("rutina simple: cancelar la confirmación conserva la rutina",
+             len(database.get_rutinas_guardadas(semanal=0))
+             == len(simples))
+    rutinas_tab.messagebox.askyesno = lambda *a, **k: True
+    rt._sem_eliminar_simple()
+    raiz.update()
+    chequear("rutina simple: confirmada se elimina de la biblioteca",
+             len(database.get_rutinas_guardadas(semanal=0))
+             == len(simples) - 1
+             and "guardada eliminada" in rt.lbl_estado.cget("text"))
+finally:
+    rutinas_tab.messagebox.askyesno = _askyesno_original
 
 # limpiar BD temporal
 raiz.destroy()

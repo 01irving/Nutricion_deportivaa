@@ -1074,6 +1074,13 @@ class RutinasTab:
             activebackground=NARANJA, activeforeground=BLANCO,
             relief="flat", padx=8, pady=2, cursor="hand2",
         ).pack(side="left", padx=(8, 0))
+        tk.Button(
+            fila_guardada, text="🗑 ELIMINAR",
+            command=self._sem_eliminar_simple,
+            font=("Segoe UI", 8, "bold"), fg=BLANCO, bg=GRIS,
+            activebackground=NARANJA, activeforeground=BLANCO,
+            relief="flat", padx=8, pady=2, cursor="hand2",
+        ).pack(side="left", padx=(6, 0))
 
         fila_ej = ttk.Frame(fila_funciones, style="Gym.TFrame")
         fila_ej.pack(fill="x", pady=(4, 0))
@@ -2368,7 +2375,9 @@ class RutinasTab:
 
     def _sem_abrir_1rm_fila(self):
         """Calculadora de 1RM preseleccionada con el ejercicio de la fila
-        elegida de la tabla del día. Al GUARDAR, `_sem_aplicar_rm_guardado`
+        elegida de la tabla del día y con la lista de los ejercicios de
+        la rutina cargada (con su 1RM si ya está registrado) para
+        calcularlos uno a uno. Al GUARDAR, `_sem_aplicar_rm_guardado`
         deja el ejercicio con su peso en las 4 semanas (Semana 1 = % del
         nivel, rampa semanal y deloading en la 4.ª); si solo calcula sin
         guardar, al cerrar queda el peso recomendado en esa fila con el
@@ -2383,9 +2392,26 @@ class RutinasTab:
             ejercicios = self._sem_datos[self._sem_dia]["ejercicios"]
             if 0 <= idx < len(ejercicios):
                 ejercicio = ejercicios[idx].get("nombre")
+        # ejercicios de la rutina cargada (sin repetir, en orden de días)
+        # con su 1RM guardado si ya existe, para el panel del diálogo
+        mapa = self._rm_mapa()
+        vistos = set()
+        ejercicios_rutina = []
+        for dia in DIAS_SEMANA:
+            for ejx in self._sem_datos[dia]["ejercicios"]:
+                nombre = ejx.get("nombre")
+                clave = _normalizar(nombre)
+                if not nombre or clave in vistos:
+                    continue
+                vistos.add(clave)
+                ejercicios_rutina.append((nombre, mapa.get(clave)))
+        nivel = self._sem_nivel_var.get()
+        nivel_info = f"Nivel {nivel}: {SEM_NIVELES_ACSM[nivel]['base']}"
         resultado = calculadora_1rm.abrir_dialogo_1rm(
             self.marco, self.app, ejercicio=ejercicio,
-            al_guardar=self._sem_aplicar_rm_guardado)
+            al_guardar=self._sem_aplicar_rm_guardado,
+            ejercicios_rutina=ejercicios_rutina,
+            nivel_info=nivel_info)
         if not resultado:
             return
         self.rm_sesion = resultado
@@ -2600,6 +2626,33 @@ class RutinasTab:
             f"Rutina nueva guardada: «{nombre}» "
             f"({len(ejercicios)} ejercicios del {self._sem_dia})."
         )
+
+    def _sem_eliminar_simple(self):
+        """Elimina de la biblioteca la rutina simple (★) elegida en el
+        combo, con confirmación."""
+        etiqueta = self.combo_sem_simple.get()
+        rutina = next((r for r in getattr(self, "_sem_simples", [])
+                       if r["nombre"] == etiqueta), None)
+        if rutina is None:
+            self._mensaje(
+                "Elige en la lista la rutina guardada que quieras eliminar."
+            )
+            return
+        if not messagebox.askyesno(
+                "Eliminar rutina guardada",
+                f"¿Eliminar de la biblioteca la rutina "
+                f"«{rutina['nombre']}»?",
+                parent=self.marco_sem):
+            return
+        try:
+            database.delete_rutina_guardada(rutina["id_rutina_guardada"])
+        except Exception as error:
+            messagebox.showerror(
+                "Rutinas", f"No se pudo eliminar la rutina guardada:\n{error}"
+            )
+            return
+        self._sem_refrescar_selector()
+        self._mensaje(f"Rutina guardada eliminada: «{rutina['nombre']}».")
 
     # ------------------------------------------------------------------
     # Guardar, aplicar y eliminar la rutina semanal
