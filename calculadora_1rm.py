@@ -442,6 +442,22 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
     # porque el lienzo del scroll sincroniza su ancho con la ventana
     dialogo.resizable(True, True)
     dialogo.minsize(720, 520)
+
+    def _activar_botones_ventana():
+        """Minimizar y maximizar en la barra de título: `transient` deja
+        la ventana en solo-cerrar en Windows, así que se fuerzan los
+        estilos WS_MINIMIZEBOX y WS_MAXIMIZEBOX con la API de Windows."""
+        try:
+            import ctypes
+
+            hwnd = ctypes.windll.user32.GetParent(dialogo.winfo_id())
+            estilo = ctypes.windll.user32.GetWindowLongW(hwnd, -16)
+            ctypes.windll.user32.SetWindowLongW(
+                hwnd, -16, estilo | 0x00020000 | 0x00010000)
+        except Exception:
+            pass
+
+    _activar_botones_ventana()
     try:
         dialogo.iconbitmap("icono_app.ico")
     except Exception:
@@ -1282,6 +1298,7 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
 
     # centrado, dejando la ventana por encima de la barra de tareas
     dialogo.update_idletasks()
+    _activar_botones_ventana()
     ancho = dialogo.winfo_reqwidth()
     alto_maximo = dialogo.winfo_screenheight() - 110
     alto_previsto = min(dialogo.winfo_reqheight() + 60, alto_maximo)
