@@ -651,6 +651,23 @@ class App(tk.Tk):
             bg=GRIS_OSCURO,
         ).pack(side="left", padx=10, pady=3)
 
+        # minimizar la pantalla desde la propia interfaz (el autor lo
+        # pide junto a PERSONALIZAR en el membrete)
+        tk.Button(
+            marco,
+            text="— MINIMIZAR",
+            command=self.iconify,
+            font=("Segoe UI", 9, "bold"),
+            fg=NEON,
+            bg=GRIS,
+            activebackground=NARANJA,
+            activeforeground=BLANCO,
+            relief="flat",
+            padx=10,
+            pady=2,
+            cursor="hand2",
+        ).pack(side="right", padx=(0, 6), pady=3)
+
         tk.Button(
             marco,
             text="⚙ PERSONALIZAR",

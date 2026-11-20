@@ -917,6 +917,24 @@ chequear("calculadora 1RM: el lienzo no crece más allá de la pantalla",
 chequear("calculadora 1RM: rueda del mouse desplaza el diálogo",
          'bind_all("<MouseWheel>", _al_rueda' in fuente_calc
          and "yview_scroll" in fuente_calc)
+def _botones_todos(widget):
+    salida = []
+    for hijo in widget.winfo_children():
+        if isinstance(hijo, tk.Button):
+            salida.append(str(hijo.cget("text")))
+        salida.extend(_botones_todos(hijo))
+    return salida
+
+
+chequear("calculadora 1RM: botón ⛶ MAXIMIZAR en el encabezado",
+         any("MAXIMIZAR" in txt for t in tops
+             for txt in _botones_todos(t)))
+# el botón — MINIMIZAR del membrete vive en la app completa (el test usa
+# un App ligero): se verifica por fuente, como los campos negros
+fuente_app = (Path(os.path.dirname(os.path.abspath(__file__)))
+              / "nutricion_deportiva.py").read_text(encoding="utf-8")
+chequear("pantalla: botón — MINIMIZAR en el membrete (iconify)",
+         '"— MINIMIZAR"' in fuente_app and "command=self.iconify" in fuente_app)
 for t in tops:
     t.destroy()
 tk.Toplevel.wait_window = _tk_wait_original

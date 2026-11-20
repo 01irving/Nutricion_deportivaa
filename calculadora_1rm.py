@@ -456,6 +456,28 @@ def abrir_dialogo_1rm(parent, app=None, ejercicio=None, al_guardar=None,
     )
     lbl_ejercicio.pack(side="left", padx=(10, 0))
 
+    # ------------------------------------------------- maximizar/restaurar
+    # ⛶ maximiza la calculadora a toda la pantalla y 🗗 la restaura a su
+    # tamaño normal (pedido del autor para trabajar la tabla cómodo)
+    def _alternar_maximizar():
+        try:
+            if dialogo.state() == "zoomed":
+                dialogo.state("normal")
+                boton_max.configure(text="⛶ MAXIMIZAR")
+            else:
+                dialogo.state("zoomed")
+                boton_max.configure(text="🗗 RESTAURAR")
+        except Exception:
+            pass
+
+    boton_max = tk.Button(
+        encabezado, text="⛶ MAXIMIZAR", command=_alternar_maximizar,
+        font=("Segoe UI", 9, "bold"), fg=NEGRO, bg=NEON,
+        activebackground=NARANJA, activeforeground=BLANCO,
+        relief="flat", padx=10, pady=2, cursor="hand2",
+    )
+    boton_max.pack(side="right")
+
     # ------------------------------------ contenido con scroll vertical
     # el diálogo es más alto que algunas pantallas (tabla de porcentajes
     # + 1RM guardados + ejercicios de la rutina): todo el contenido viaja
